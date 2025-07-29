@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for Sentient AGI Reasoning Server
+  postgresql:
+    build:
+      context: .
+      dockerfile: Containerfile.postgresql
+    container_name: sentient-agi-postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: map_think_do
+      POSTGRES_USER: mtd_user
+      POSTGRES_PASSWORD: p4ssw0rd
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      # TimescaleDB configuration
+      TIMESCALEDB_TELEMETRY: "off"
+    volumes:
+      # Persistent data storage
+      - postgresql_data:/var/lib/postgresql/data
+      # Configuration
+      - ./container-files/postgresql/config/postgresql.conf:/usr/local/share/postgresql/postgresql.conf:ro
+      # Logs volume for monitoring
+      - postgresql_logs:/var/log/postgresql
+    networks:
+      - sentient-agi-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U mtd_user -d map_think_do"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Resource limits for development environment
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4.0'
+        reservations:
+          memory: 4G
+          cpus: '2.0'
+
+  # Optional: pgAdmin for database management (development only)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sentient-agi-pgadmin
+    ports:
+      - "8080:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@sentient-agi.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - sentient-agi-network
+    depends_on:
+      - postgresql
+    restart: unless-stopped
+    profiles:
+      - dev  # Only start with 'podman-compose --profile dev up'
+
+volumes:
+  # PostgreSQL data persistence
+  postgresql_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgresql
+  
+  # PostgreSQL logs
+  postgresql_logs:
+    driver: local
+    driver_opts:
+      type: none  
+      o: bind
+      device: ./logs/postgresql
+
+  # pgAdmin data (development only)
+  pgadmin_data:
+    driver: local
+
+networks:
+  sentient-agi-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Usage Examples:
+# 
+# Start PostgreSQL only:
+#   podman-compose up -d postgresql
+#
+# Start with pgAdmin for development:  
+#   podman-compose --profile dev up -d
+#
+# View logs:
+#   podman-compose logs -f postgresql
+#
+# Stop all services:
+#   podman-compose down
+#
+# Remove all data (careful!):
+#   podman-compose down -v
+#
+# Connect to PostgreSQL:
+#   podman exec -it sentient-agi-postgresql psql -U mtd_user -d map_think_do

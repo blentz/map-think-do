@@ -1,0 +1,99 @@
+# Sentient AGI Reasoning Server PostgreSQL Container
+# PostgreSQL 16 with TimescaleDB for cognitive workload analytics
+FROM postgres:16
+
+# Set environment variables for map-think-do project
+ENV POSTGRES_DB=map_think_do
+ENV POSTGRES_USER=mtd_user
+ENV POSTGRES_PASSWORD=p4ssw0rd
+ENV POSTGRES_INITDB_ARGS="--data-checksums"
+
+# Install build dependencies and tools
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    gnupg \
+    lsb-release \
+    postgresql-server-dev-16 \
+    postgresql-contrib-16 \
+    libssl-dev \
+    libkrb5-dev \
+    libreadline-dev \
+    zlib1g-dev \
+    flex \
+    bison \
+    python3-dev \
+    python3-pip \
+    pkg-config \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install TimescaleDB for time-series cognitive analytics
+RUN echo "deb https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_release -c -s) main" > /etc/apt/sources.list.d/timescaledb.list \
+    && wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | gpg --dearmor -o /usr/share/keyrings/timescaledb-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/timescaledb-keyring.gpg] https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_release -c -s) main" > /etc/apt/sources.list.d/timescaledb.list \
+    && apt-get update \
+    && apt-get install -y timescaledb-2-postgresql-16 timescaledb-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional useful extensions for cognitive workloads
+RUN apt-get update && apt-get install -y \
+    postgresql-16-pg-stat-kcache \
+    postgresql-16-pg-qualstats \
+    postgresql-16-hypopg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directories for configuration and scripts
+RUN mkdir -p /usr/local/share/postgresql \
+    && mkdir -p /docker-entrypoint-initdb.d \
+    && mkdir -p /usr/local/bin
+
+# Copy PostgreSQL configuration
+COPY container-files/postgresql/config/postgresql.conf /usr/local/share/postgresql/postgresql.conf
+
+# Copy initialization scripts
+COPY container-files/postgresql/init-scripts/ /docker-entrypoint-initdb.d/
+
+# Copy utility scripts (if available)
+COPY container-files/postgresql/bin/ /usr/local/bin/ || true
+
+# Health check that verifies database is ready
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD pg_isready -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" && \
+      psql -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;" > /dev/null
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Use standard PostgreSQL startup with TimescaleDB preloaded
+CMD ["postgres", "-c", "shared_preload_libraries=timescaledb,pg_stat_statements"]
+
+# Container metadata
+LABEL org.opencontainers.image.title="Sentient AGI PostgreSQL" \
+      org.opencontainers.image.description="PostgreSQL 16 with TimescaleDB for Sentient AGI Reasoning Server" \
+      org.opencontainers.image.vendor="Sentient AGI Development" \
+      org.opencontainers.image.version="1.0" \
+      org.opencontainers.image.licenses="MIT"
+
+# Clean up build dependencies to reduce image size
+RUN apt-get purge -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    gnupg \
+    postgresql-server-dev-16 \
+    libssl-dev \
+    libkrb5-dev \
+    libreadline-dev \
+    zlib1g-dev \
+    flex \
+    bison \
+    python3-dev \
+    pkg-config \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

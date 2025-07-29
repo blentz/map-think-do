@@ -66,12 +66,21 @@
     "test:all": "node dist/test/code-reasoning.e2e.js all",
     "test:unit": "node dist/test/unit-test-runner.js",
     "eval": "node dist/test/prompt-evaluation/evaluator.js",
-    "eval:view": "node dist/test/prompt-evaluation/evaluator.js"
+    "eval:view": "node dist/test/prompt-evaluation/evaluator.js",
+    "test:memory": "MEMORY_STORE_TYPE=postgresql node dist/test/memory/memory-optimization.test.js",
+    "db:start": "./scripts/db.sh start",
+    "db:stop": "./scripts/db.sh stop",
+    "db:restart": "./scripts/db.sh restart",
+    "db:status": "./scripts/db.sh status",
+    "db:logs": "./scripts/db.sh logs",
+    "db:clean": "./scripts/db.sh clean"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.2",
+    "@types/pg": "^8.15.4",
     "chalk": "^5.3.0",
     "mathjs": "^14.5.3",
+    "pg": "^8.16.3",
     "zod-to-json-schema": "^3.24.5"
   },
   "devDependencies": {

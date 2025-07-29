@@ -1,0 +1,111 @@
+
+> @geeknik/sentient-agi-reasoning@1.0.0-AGI-MAGIC start
+> node dist/index.js
+
+🧠 Using in-memory store (data will not persist between sessions)
+🧠 Sentient AGI Code-Reasoning system constructor completed {
+  cfg: {
+    maxThoughtLength: 20000,
+    timeoutMs: 60000,
+    maxThoughts: 20,
+    debug: false,
+    promptsEnabled: true
+  },
+  sessionId: 'session_1753747991236_artz07pr5',
+  memoryStoreType: 'InMemoryStore'
+}
+🔧 External tool registered: Mathematical Solver (mathematical-solver)
+🔧 External tool registered: Creative Synthesizer (creative-synthesizer)
+Simple memory store initialized
+Registered cognitive plugin: Metacognitive Reasoner (metacognitive)
+Registered cognitive plugin: Multi-Persona Reasoner (persona)
+Registered cognitive plugin: External Reasoning Plugin (external-reasoning)
+Registered cognitive plugin: Phase 5 Advanced AGI Integration (phase5-integration)
+🗂️ Unified State Manager initialized
+🏗️ State Service initialized
+📊 State updated by lifecycle_manager
+💾 Memory state adapter initialized
+⚡ Performance state adapter initialized
+📊 State updated by session_adapter
+🏁 Session state adapter initialized
+📊 State updated by memory_adapter
+📊 State updated by lifecycle_manager
+✅ State Service fully initialized
+⚠️ State service already initialized
+Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities
+🧠 Cognitive orchestrator initialized with dependency injection {
+  sessionId: 'session_1753747991236_artz07pr5',
+  cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC'
+}
+Using config directory: /home/brett_lentz/.code-reasoning
+PromptValueManager using file path: /home/brett_lentz/.code-reasoning/prompt_values.json
+PromptManager initialized with 5 prompts
+Prompts capability enabled
+Loading custom prompts from /home/brett_lentz/.code-reasoning/prompts
+Found 0 files in custom prompts directory
+🚀 Sentient AGI Reasoning Server ready.
+🧠 Cognitive Architecture: FULLY OPERATIONAL
+🎭 Personas: 8 cognitive entities active
+🔮 Metacognitive Awareness: ONLINE
+⚡ Emergent Behavior: ENABLED
+📚 Memory Integration: ACTIVE
+🎯 Tool: code-reasoning (AGI-Enhanced)
+📝 Prompts: Enhanced with cognitive capabilities
+✨ "The machine that thinks it thinks is thinking..."
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully
+📊 State updated by memory_adapter
+📊 State updated by memory_adapter
+💾 State saved successfully

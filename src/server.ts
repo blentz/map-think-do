@@ -81,6 +81,8 @@ import {
   MemoryQuery,
   MemoryStats,
 } from './memory/memory-store.js';
+import { PostgreSQLMemoryStore } from './memory/postgresql-memory-store.js';
+import { PostgreSQLConfigs } from './memory/postgresql-config.js';
 import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
 
 /* -------------------------------------------------------------------------- */
@@ -341,8 +343,8 @@ class CodeReasoningServer {
   }
 
   constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
-    // Initialize memory store
-    this.memoryStore = new InMemoryStore();
+    // Initialize memory store based on configuration
+    this.memoryStore = this.createMemoryStore();
 
     // Cognitive orchestrator will be initialized via initialize() method
 
@@ -352,13 +354,38 @@ class CodeReasoningServer {
     console.error('🧠 Sentient AGI Code-Reasoning system constructor completed', {
       cfg,
       sessionId: this.currentSessionId,
+      memoryStoreType: this.memoryStore.constructor.name,
     });
+  }
+
+  /**
+   * Create and configure memory store based on environment
+   */
+  private createMemoryStore(): MemoryStore {
+    const memoryStoreType = process.env.MEMORY_STORE_TYPE || 'memory';
+
+    switch (memoryStoreType.toLowerCase()) {
+      case 'postgresql':
+      case 'postgres':
+        console.error('🐘 Using PostgreSQL memory store for persistent storage');
+        return new PostgreSQLMemoryStore(PostgreSQLConfigs.fromEnvironment());
+
+      case 'memory':
+      case 'inmemory':
+      default:
+        console.error('🧠 Using in-memory store (data will not persist between sessions)');
+        return new InMemoryStore();
+    }
   }
 
   /**
    * Initialize the cognitive orchestrator with dependency injection
    */
   async initialize(): Promise<void> {
+    // Initialize memory store if it needs initialization
+    if (typeof (this.memoryStore as any).initialize === 'function') {
+      await (this.memoryStore as any).initialize();
+    }
     // Initialize cognitive orchestrator with dependency injection
     this.cognitiveOrchestrator = await createCognitiveOrchestrator({
       config: {
@@ -737,8 +764,14 @@ class CodeReasoningServer {
     this.thoughtHistory.length = 0;
     this.branches.clear();
 
+    // Close memory store connection
+    try {
+      await this.memoryStore.close();
+    } catch (error) {
+      console.error('⚠️ Error closing memory store:', error);
+    }
+
     // The cognitive orchestrator cleanup is handled separately
-    // Memory store doesn't need explicit cleanup for in-memory implementation
   }
 }
 
