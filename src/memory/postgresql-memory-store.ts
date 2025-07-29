@@ -197,13 +197,22 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       }
 
       // Add query timeout to prevent long-running queries that could cause OOM
-      const result = await Promise.race([
-        client.query(text, params),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Query timeout')), this.config.queryTimeout || 30000)
-        ),
-      ]);
-      return result;
+      let timeoutId: NodeJS.Timeout;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Query timeout')), this.config.queryTimeout || 30000);
+      });
+
+      try {
+        const result = await Promise.race([
+          client.query(text, params),
+          timeoutPromise
+        ]);
+        clearTimeout(timeoutId!);
+        return result;
+      } catch (error) {
+        clearTimeout(timeoutId!);
+        throw error;
+      }
     } finally {
       client.release();
     }

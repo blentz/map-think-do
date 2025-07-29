@@ -73,7 +73,16 @@
     "db:restart": "./scripts/db.sh restart",
     "db:status": "./scripts/db.sh status",
     "db:logs": "./scripts/db.sh logs",
-    "db:clean": "./scripts/db.sh clean"
+    "db:clean": "./scripts/db.sh clean",
+    "tune": "./scripts/cognitive-tuning.js show",
+    "tune:show": "./scripts/cognitive-tuning.js show",
+    "tune:reset": "./scripts/cognitive-tuning.js reset",
+    "tune:high": "./scripts/cognitive-tuning.js mode high-performance",
+    "tune:eco": "./scripts/cognitive-tuning.js mode eco",
+    "tune:balanced": "./scripts/cognitive-tuning.js mode balanced",
+    "tune:env": "./scripts/cognitive-tuning.js env",
+    "tune:benchmark": "./scripts/cognitive-tuning.js benchmark",
+    "tune:help": "./scripts/cognitive-tuning.js help"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.2",

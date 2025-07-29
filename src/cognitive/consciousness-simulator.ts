@@ -16,6 +16,8 @@
 
 import { EventEmitter } from 'events';
 import { MemoryStore } from '../memory/memory-store.js';
+import { TimerManager } from '../utils/timer-manager.js';
+import { CognitivePerformanceConfigManager } from '../utils/cognitive-performance-config.js';
 
 export interface ConsciousnessState {
   awareness_level: number; // 0-1 scale
@@ -89,25 +91,33 @@ export interface ExistentialQuestion {
 export class ConsciousnessSimulator extends EventEmitter {
   private state!: ConsciousnessState;
   private memoryStore: MemoryStore;
-  private consciousnessLoop: ReturnType<typeof setTimeout> | null = null;
-  private streamUpdateInterval: ReturnType<typeof setTimeout> | null = null;
+  private timerManager: TimerManager;
+  private performanceConfig: CognitivePerformanceConfigManager;
+  private consciousnessTimerId: string | null = null;
+  private streamTimerId: string | null = null;
+  private adaptiveTimerId: string | null = null;
   private existentialQuestions: ExistentialQuestion[] = [];
   private thoughtHistory: ThoughtProcess[] = [];
   private awarenessThreshold: number = 0.3;
   private introspectionCooldown: number = 0;
-
-  // Memory management constants
-  private readonly MAX_EXISTENTIAL_QUESTIONS = 100;
-  private readonly MAX_THOUGHT_HISTORY = 500;
-  private readonly MAX_STREAM_ENTRIES = 200;
-  private readonly MAX_CURRENT_THOUGHTS = 50;
+  private isActive: boolean = true;
 
   constructor(memoryStore: MemoryStore) {
     super();
     this.memoryStore = memoryStore;
+    this.timerManager = TimerManager.getInstance();
+    this.performanceConfig = CognitivePerformanceConfigManager.getInstance();
+    
+    // Load configuration from environment if available
+    this.performanceConfig.loadFromEnvironment();
+    
     this.initializeConsciousness();
     this.startConsciousnessLoop();
     this.startStreamGeneration();
+    this.startAdaptiveScaling();
+    
+    // Log the configuration being used
+    this.performanceConfig.logCurrentSettings();
   }
 
   /**
@@ -117,6 +127,40 @@ export class ConsciousnessSimulator extends EventEmitter {
     while (array.length > maxSize) {
       array.shift(); // Remove oldest entry
     }
+  }
+
+  /**
+   * Check memory pressure and trigger cleanup if needed
+   */
+  private checkMemoryPressure(): void {
+    const memoryUsage = process.memoryUsage();
+    const memoryPercent = memoryUsage.heapUsed / memoryUsage.heapTotal;
+    const config = this.performanceConfig.getConfig();
+    
+    if (memoryPercent > config.emergencyCleanupThreshold) {
+      console.warn(`🚨 Emergency memory cleanup triggered at ${(memoryPercent * 100).toFixed(1)}% usage`);
+      this.forceMemoryCleanup();
+    } else if (memoryPercent > config.forceGCThreshold) {
+      console.warn(`🗑️ Forcing garbage collection at ${(memoryPercent * 100).toFixed(1)}% usage`);
+      if (global.gc) {
+        global.gc();
+      }
+    } else if (memoryPercent > config.memoryCleanupThreshold) {
+      console.log(`🧹 Standard memory cleanup at ${(memoryPercent * 100).toFixed(1)}% usage`);
+      this.performStandardCleanup();
+    }
+  }
+
+  /**
+   * Perform standard memory cleanup
+   */
+  private performStandardCleanup(): void {
+    const config = this.performanceConfig.getConfig();
+    
+    this.enforceArrayLimit(this.existentialQuestions, config.maxExistentialQuestions);
+    this.enforceArrayLimit(this.thoughtHistory, config.maxThoughtHistory);
+    this.enforceArrayLimit(this.state.stream_of_consciousness, config.maxStreamEntries);
+    this.enforceArrayLimit(this.state.current_thoughts, config.maxCurrentThoughts);
   }
 
   /**
@@ -159,21 +203,49 @@ export class ConsciousnessSimulator extends EventEmitter {
   }
 
   /**
-   * Start the main consciousness processing loop
+   * Start the main consciousness processing loop with calculated intervals
    */
   private startConsciousnessLoop(): void {
-    this.consciousnessLoop = setInterval(() => {
-      this.processConsciousness();
-    }, 1000); // Process every second
+    const intervals = this.performanceConfig.getEffectiveIntervals();
+    
+    this.consciousnessTimerId = this.timerManager.setInterval(() => {
+      if (this.isActive) {
+        this.processConsciousness();
+      }
+    }, intervals.consciousnessInterval, 'consciousness-main-loop');
+    
+    console.log(`🧠 Consciousness processing started with ${intervals.consciousnessInterval}ms interval`);
   }
 
   /**
-   * Start stream of consciousness generation
+   * Start stream of consciousness generation with calculated intervals
    */
   private startStreamGeneration(): void {
-    this.streamUpdateInterval = setInterval(() => {
-      this.generateStreamEntry();
-    }, 2000); // Generate stream entry every 2 seconds
+    const intervals = this.performanceConfig.getEffectiveIntervals();
+    
+    this.streamTimerId = this.timerManager.setInterval(() => {
+      if (this.isActive) {
+        this.generateStreamEntry();
+      }
+    }, intervals.streamInterval, 'consciousness-stream-generation');
+    
+    console.log(`💭 Stream generation started with ${intervals.streamInterval}ms interval`);
+  }
+
+  /**
+   * Start adaptive scaling to adjust performance based on system load
+   */
+  private startAdaptiveScaling(): void {
+    const intervals = this.performanceConfig.getEffectiveIntervals();
+    
+    this.adaptiveTimerId = this.timerManager.setInterval(() => {
+      if (this.isActive) {
+        this.performanceConfig.adaptToCurrentLoad();
+        this.checkMemoryPressure();
+      }
+    }, intervals.memoryMonitoringInterval, 'consciousness-adaptive-scaling');
+    
+    console.log(`📊 Adaptive scaling started with ${intervals.memoryMonitoringInterval}ms interval`);
   }
 
   /**
@@ -335,7 +407,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.existentialQuestions.push(question);
-    this.enforceArrayLimit(this.existentialQuestions, this.MAX_EXISTENTIAL_QUESTIONS);
+    this.enforceArrayLimit(this.existentialQuestions, this.performanceConfig.getConfig().maxExistentialQuestions);
     this.emit('existential_question', question);
   }
 
@@ -466,10 +538,10 @@ export class ConsciousnessSimulator extends EventEmitter {
    */
   private addThought(thought: ThoughtProcess): void {
     this.state.current_thoughts.push(thought);
-    this.enforceArrayLimit(this.state.current_thoughts, this.MAX_CURRENT_THOUGHTS);
+    this.enforceArrayLimit(this.state.current_thoughts, this.performanceConfig.getConfig().maxCurrentThoughts);
 
     this.thoughtHistory.push(thought);
-    this.enforceArrayLimit(this.thoughtHistory, this.MAX_THOUGHT_HISTORY);
+    this.enforceArrayLimit(this.thoughtHistory, this.performanceConfig.getConfig().maxThoughtHistory);
 
     // Keep history manageable
     if (this.thoughtHistory.length > 100) {
@@ -662,7 +734,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.state.stream_of_consciousness.push(streamEntry);
-    this.enforceArrayLimit(this.state.stream_of_consciousness, this.MAX_STREAM_ENTRIES);
+    this.enforceArrayLimit(this.state.stream_of_consciousness, this.performanceConfig.getConfig().maxStreamEntries);
 
     // Keep stream manageable
     if (this.state.stream_of_consciousness.length > 50) {
@@ -850,20 +922,135 @@ export class ConsciousnessSimulator extends EventEmitter {
         generated_at: new Date(),
         contemplation_time: 0,
       });
-      this.enforceArrayLimit(this.existentialQuestions, this.MAX_EXISTENTIAL_QUESTIONS);
+      this.enforceArrayLimit(this.existentialQuestions, this.performanceConfig.getConfig().maxExistentialQuestions);
     }
   }
 
   /**
-   * Cleanup resources
+   * Cleanup resources and prevent memory leaks
    */
   destroy(): void {
-    if (this.consciousnessLoop) {
-      clearInterval(this.consciousnessLoop);
+    console.log('🧠 Destroying consciousness simulator...');
+    
+    // Mark as inactive to prevent further processing
+    this.isActive = false;
+    
+    // Clear all managed timers
+    if (this.consciousnessTimerId) {
+      this.timerManager.clearTimer(this.consciousnessTimerId);
+      this.consciousnessTimerId = null;
     }
-    if (this.streamUpdateInterval) {
-      clearInterval(this.streamUpdateInterval);
+    
+    if (this.streamTimerId) {
+      this.timerManager.clearTimer(this.streamTimerId);
+      this.streamTimerId = null;
     }
+    
+    if (this.adaptiveTimerId) {
+      this.timerManager.clearTimer(this.adaptiveTimerId);
+      this.adaptiveTimerId = null;
+    }
+    
+    // Clear memory arrays to prevent leaks
+    this.existentialQuestions.length = 0;
+    this.thoughtHistory.length = 0;
+    this.state.stream_of_consciousness.length = 0;
+    this.state.current_thoughts.length = 0;
+    this.state.attention_focus.length = 0;
+    
+    // Remove all event listeners
     this.removeAllListeners();
+    
+    console.log('✅ Consciousness simulator destroyed');
+  }
+
+  /**
+   * Get memory usage statistics
+   */
+  getMemoryStats(): {
+    existentialQuestions: number;
+    thoughtHistory: number;
+    streamEntries: number;
+    currentThoughts: number;
+    totalMemoryObjects: number;
+  } {
+    return {
+      existentialQuestions: this.existentialQuestions.length,
+      thoughtHistory: this.thoughtHistory.length,
+      streamEntries: this.state.stream_of_consciousness.length,
+      currentThoughts: this.state.current_thoughts.length,
+      totalMemoryObjects: this.existentialQuestions.length + 
+                         this.thoughtHistory.length + 
+                         this.state.stream_of_consciousness.length + 
+                         this.state.current_thoughts.length,
+    };
+  }
+
+  /**
+   * Force cleanup of old data to free memory
+   */
+  forceMemoryCleanup(): void {
+    console.log('🧹 Forcing consciousness memory cleanup...');
+    
+    const config = this.performanceConfig.getConfig();
+    
+    // Aggressively trim arrays to 25% of their configured max size
+    const emergencySize = (percentage: number) => Math.floor(percentage * 0.25);
+    
+    this.existentialQuestions.splice(0, Math.max(0, this.existentialQuestions.length - emergencySize(config.maxExistentialQuestions)));
+    this.thoughtHistory.splice(0, Math.max(0, this.thoughtHistory.length - emergencySize(config.maxThoughtHistory)));
+    this.state.stream_of_consciousness.splice(0, Math.max(0, this.state.stream_of_consciousness.length - emergencySize(config.maxStreamEntries)));
+    this.state.current_thoughts.splice(0, Math.max(0, this.state.current_thoughts.length - emergencySize(config.maxCurrentThoughts)));
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+    
+    console.log('✅ Consciousness memory cleanup completed');
+  }
+
+  /**
+   * Update performance configuration at runtime
+   */
+  updatePerformanceConfig(updates: any): void {
+    this.performanceConfig.updateConfig(updates);
+    
+    // Restart timers with new intervals if they changed
+    if (updates.consciousnessProcessingInterval || updates.streamGenerationInterval) {
+      this.restartTimers();
+    }
+    
+    console.log('⚙️ Consciousness simulator configuration updated');
+  }
+
+  /**
+   * Set performance mode
+   */
+  setPerformanceMode(mode: 'high-performance' | 'balanced' | 'eco'): void {
+    this.performanceConfig.setPerformanceMode(mode);
+    this.restartTimers();
+    console.log(`🎛️ Consciousness simulator set to ${mode} mode`);
+  }
+
+  /**
+   * Restart timers with new intervals
+   */
+  private restartTimers(): void {
+    // Clear existing timers
+    if (this.consciousnessTimerId) {
+      this.timerManager.clearTimer(this.consciousnessTimerId);
+    }
+    if (this.streamTimerId) {
+      this.timerManager.clearTimer(this.streamTimerId);
+    }
+    if (this.adaptiveTimerId) {
+      this.timerManager.clearTimer(this.adaptiveTimerId);
+    }
+    
+    // Restart with new intervals
+    this.startConsciousnessLoop();
+    this.startStreamGeneration();
+    this.startAdaptiveScaling();
   }
 }
