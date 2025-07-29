@@ -134,6 +134,18 @@ export class SecureLogger {
   }
 
   /**
+   * Add log entry to history with rotation
+   */
+  private addToHistory(logEntry: SecureLogEntry): void {
+    this.logHistory.push(logEntry);
+    
+    // Enforce maximum history size
+    if (this.logHistory.length > this.MAX_LOG_HISTORY) {
+      this.logHistory.splice(0, this.logHistory.length - this.MAX_LOG_HISTORY);
+    }
+  }
+
+  /**
    * Redact sensitive content from text
    */
   private redactSensitiveContent(content: string): { redacted: string; foundPatterns: string[] } {
@@ -169,16 +181,6 @@ export class SecureLogger {
     return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
   }
 
-  /**
-   * Add log entry to history with rotation
-   */
-  private addToHistory(entry: SecureLogEntry): void {
-    this.logHistory.push(entry);
-
-    if (this.logHistory.length > this.MAX_LOG_HISTORY) {
-      this.logHistory = this.logHistory.slice(-this.MAX_LOG_HISTORY);
-    }
-  }
 
   /**
    * Output log entry to console with appropriate formatting

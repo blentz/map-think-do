@@ -39,6 +39,15 @@ RUN echo "deb https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_releas
     && apt-get install -y timescaledb-2-postgresql-16 timescaledb-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# Install pgvector for semantic similarity search
+RUN cd /tmp \
+    && git clone --branch v0.7.0 https://github.com/pgvector/pgvector.git \
+    && cd pgvector \
+    && make \
+    && make install \
+    && cd / \
+    && rm -rf /tmp/pgvector
+
 # Install additional useful extensions for cognitive workloads
 RUN apt-get update && apt-get install -y \
     postgresql-16-pg-stat-kcache \
@@ -68,8 +77,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Expose PostgreSQL port
 EXPOSE 5432
 
-# Use standard PostgreSQL startup with TimescaleDB preloaded
-CMD ["postgres", "-c", "shared_preload_libraries=timescaledb,pg_stat_statements"]
+# Use standard PostgreSQL startup with TimescaleDB and extensions preloaded
+CMD ["postgres", "-c", "shared_preload_libraries=timescaledb,pg_stat_statements", "-c", "log_statement=mod"]
 
 # Container metadata
 LABEL org.opencontainers.image.title="Sentient AGI PostgreSQL" \

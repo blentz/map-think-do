@@ -82,7 +82,12 @@
     "tune:balanced": "./scripts/cognitive-tuning.js mode balanced",
     "tune:env": "./scripts/cognitive-tuning.js env",
     "tune:benchmark": "./scripts/cognitive-tuning.js benchmark",
-    "tune:help": "./scripts/cognitive-tuning.js help"
+    "tune:help": "./scripts/cognitive-tuning.js help",
+    "db:analytics": "./scripts/db-analytics.js analytics",
+    "db:migrate": "./scripts/db-analytics.js migrate", 
+    "db:export": "./scripts/db-analytics.js export",
+    "db:search": "./scripts/db-analytics.js search",
+    "db:health": "./scripts/db-analytics.js health"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.2",

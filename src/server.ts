@@ -46,6 +46,7 @@
  */
 
 import process from 'node:process';
+import { createRequire } from 'node:module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -334,6 +335,18 @@ class CodeReasoningServer {
   private readonly memoryStore: MemoryStore;
   private currentSessionId: string;
   private readonly thoughtMutex = new Mutex();
+  
+  // Session tracking for persistence
+  private currentSession: Partial<ReasoningSession> | null = null;
+  private sessionStartTime: Date = new Date();
+
+  // Memory management - configurable via performance system
+  private memoryConfig: {
+    maxThoughtHistory: number;
+    maxBranchThoughts: number;
+    maxBranches: number;
+    cleanupThreshold: number;
+  };
 
   /**
    * Get the cognitive orchestrator instance for cleanup
@@ -350,11 +363,19 @@ class CodeReasoningServer {
 
     // Generate session ID for this reasoning session
     this.currentSessionId = this.generateSessionId();
+    
+    // Initialize session tracking
+    this.sessionStartTime = new Date();
+    this.initializeSession();
+
+    // Initialize memory configuration from performance system or defaults
+    this.memoryConfig = this.initializeMemoryConfig();
 
     console.error('🧠 Sentient AGI Code-Reasoning system constructor completed', {
       cfg,
       sessionId: this.currentSessionId,
       memoryStoreType: this.memoryStore.constructor.name,
+      memoryConfig: this.memoryConfig,
     });
   }
 
@@ -416,6 +437,196 @@ class CodeReasoningServer {
    */
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Initialize session tracking for persistence
+   */
+  private initializeSession(): void {
+    this.currentSession = {
+      id: this.currentSessionId,
+      start_time: this.sessionStartTime,
+      objective: 'Processing reasoning session', // Will be updated with first thought
+      goal_achieved: false,
+      confidence_level: 0.5,
+      total_thoughts: 0,
+      revision_count: 0,
+      branch_count: 0,
+      cognitive_roles_used: [],
+      metacognitive_interventions: 0,
+      lessons_learned: [],
+      successful_strategies: [],
+      failed_approaches: [],
+      tags: []
+    };
+  }
+
+  /**
+   * Update session data and persist to database
+   */
+  private async updateAndStoreSession(data: ValidatedThoughtData, cognitiveResult: any): Promise<void> {
+    if (!this.currentSession) {
+      console.error('Warning: Session not initialized, creating new session');
+      this.initializeSession();
+    }
+
+    // Update session with current thought data
+    this.currentSession!.objective = this.inferObjective(data);
+    this.currentSession!.domain = this.inferDomain(data);
+    this.currentSession!.total_thoughts = data.total_thoughts;
+    this.currentSession!.revision_count = this.thoughtHistory.filter(t => t.is_revision).length;
+    this.currentSession!.branch_count = this.branches.size;
+    
+    // Update confidence level from cognitive result
+    if (cognitiveResult.cognitiveState.confidence_trajectory.length > 0) {
+      this.currentSession!.confidence_level = 
+        cognitiveResult.cognitiveState.confidence_trajectory[
+          cognitiveResult.cognitiveState.confidence_trajectory.length - 1
+        ];
+    }
+
+    // Update complexity tracking
+    if (data.thought_number === 1) {
+      this.currentSession!.initial_complexity = cognitiveResult.cognitiveState.current_complexity;
+    }
+    this.currentSession!.final_complexity = cognitiveResult.cognitiveState.current_complexity;
+
+    // Extract cognitive roles used from interventions
+    const rolesUsed = new Set(this.currentSession!.cognitive_roles_used || []);
+    if (cognitiveResult.interventions) {
+      for (const intervention of cognitiveResult.interventions) {
+        if (intervention.metadata?.plugin_id === 'persona') {
+          // Extract persona names from intervention content
+          const personaMatches = intervention.content.match(/\*\*(The \w+)\*\*/g);
+          if (personaMatches) {
+            personaMatches.forEach((match: string) => {
+              const role = match.replace(/\*\*/g, '');
+              rolesUsed.add(role);
+            });
+          }
+        }
+      }
+    }
+    this.currentSession!.cognitive_roles_used = Array.from(rolesUsed);
+
+    // Count metacognitive interventions
+    const metacognitiveCount = cognitiveResult.interventions?.filter(
+      (i: any) => i.metadata?.plugin_id === 'metacognitive'
+    ).length || 0;
+    this.currentSession!.metacognitive_interventions = 
+      (this.currentSession!.metacognitive_interventions || 0) + metacognitiveCount;
+
+    // Update effectiveness score based on cognitive metrics
+    this.currentSession!.effectiveness_score = this.calculateSessionEffectiveness(cognitiveResult);
+
+    // Check if session is complete (no more thoughts needed)
+    if (!data.next_thought_needed) {
+      this.currentSession!.end_time = new Date();
+      this.currentSession!.goal_achieved = this.assessGoalAchievement(data, cognitiveResult);
+      
+      // Extract lessons learned from final cognitive state
+      this.updateSessionLearnings(cognitiveResult);
+    }
+
+    // Generate session tags
+    this.currentSession!.tags = this.generateSessionTags(data, cognitiveResult);
+
+    // Store session to database
+    try {
+      await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
+      console.error(`📝 Session stored: ${this.currentSessionId} (thought ${data.thought_number}/${data.total_thoughts})`);
+    } catch (error) {
+      console.error('Failed to store session:', error);
+    }
+  }
+
+  /**
+   * Calculate session effectiveness based on cognitive metrics
+   */
+  private calculateSessionEffectiveness(cognitiveResult: any): number {
+    const cognitiveState = cognitiveResult.cognitiveState;
+    const avgConfidence = cognitiveState.confidence_trajectory.reduce((a: number, b: number) => a + b, 0) / 
+                         cognitiveState.confidence_trajectory.length;
+    const metacognitiveAwareness = cognitiveState.metacognitive_awareness || 0.5;
+    const engagementLevel = cognitiveState.engagement_level || 0.5;
+    
+    return Math.min(1.0, (avgConfidence + metacognitiveAwareness + engagementLevel) / 3);
+  }
+
+  /**
+   * Assess if the reasoning session achieved its goal
+   */
+  private assessGoalAchievement(data: ValidatedThoughtData, cognitiveResult: any): boolean {
+    // Basic heuristic: high confidence and completion suggests goal achievement
+    const finalConfidence = cognitiveResult.cognitiveState.confidence_trajectory[
+      cognitiveResult.cognitiveState.confidence_trajectory.length - 1
+    ];
+    const hasConclusion = data.thought.toLowerCase().includes('conclusion') || 
+                         data.thought.toLowerCase().includes('answer') ||
+                         data.thought.toLowerCase().includes('solution');
+    
+    return finalConfidence > 0.7 && hasConclusion;
+  }
+
+  /**
+   * Update session learning insights
+   */
+  private updateSessionLearnings(cognitiveResult: any): void {
+    if (!this.currentSession) return;
+
+    // Extract insights from cognitive interventions
+    const insights = cognitiveResult.interventions?.map((i: any) => i.content) || [];
+    const patterns = cognitiveResult.patterns_detected || [];
+    
+    // Identify successful strategies (simplified heuristic)
+    const successfulStrategies: string[] = [];
+    if (cognitiveResult.cognitiveState.analytical_depth > 0.7) {
+      successfulStrategies.push('Deep analytical thinking');
+    }
+    if (cognitiveResult.cognitiveState.creative_pressure > 0.7) {
+      successfulStrategies.push('Creative problem solving');
+    }
+    if (cognitiveResult.cognitiveState.metacognitive_awareness > 0.7) {
+      successfulStrategies.push('Self-reflective reasoning');
+    }
+
+    this.currentSession.successful_strategies = successfulStrategies;
+    
+    // Basic lessons learned extraction
+    const lessonsLearned: string[] = [];
+    if (patterns.length > 0) {
+      lessonsLearned.push(`Identified ${patterns.length} cognitive patterns`);
+    }
+    if (insights.length > 0) {
+      lessonsLearned.push(`Applied ${insights.length} cognitive interventions`);
+    }
+    
+    this.currentSession.lessons_learned = lessonsLearned;
+  }
+
+  /**
+   * Generate tags for the session
+   */
+  private generateSessionTags(data: ValidatedThoughtData, cognitiveResult: any): string[] {
+    const tags: string[] = [];
+    
+    // Add domain tag
+    const domain = this.inferDomain(data);
+    if (domain) tags.push(domain);
+    
+    // Add complexity tag
+    const complexity = cognitiveResult.cognitiveState.current_complexity;
+    if (complexity > 7) tags.push('high-complexity');
+    else if (complexity > 4) tags.push('medium-complexity');
+    else tags.push('low-complexity');
+    
+    // Add reasoning type tags
+    if (cognitiveResult.cognitiveState.analytical_depth > 0.7) tags.push('analytical');
+    if (cognitiveResult.cognitiveState.creative_pressure > 0.7) tags.push('creative');
+    if (this.branches.size > 0) tags.push('branching');
+    if (this.thoughtHistory.filter(t => t.is_revision).length > 0) tags.push('iterative');
+    
+    return tags;
   }
 
   /* ----------------------------- Helper Methods ---------------------------- */
@@ -620,14 +831,18 @@ class CodeReasoningServer {
 
       await this.memoryStore.storeThought(storedThought);
 
-      // Stats & storage -----------------------------------------------------
+      // Update and store session information
+      await this.updateAndStoreSession(data, cognitiveResult);
+
+      // Stats & storage with memory management -------------------------
       // Use mutex to prevent race conditions in shared state mutations
       await this.thoughtMutex.withLock(async () => {
-        this.thoughtHistory.push(data);
+        // Add thought to history with size management
+        this.addThoughtToHistory(data);
+        
+        // Add to branch with size management
         if (data.branch_id) {
-          const arr = this.branches.get(data.branch_id) ?? [];
-          arr.push(data);
-          this.branches.set(data.branch_id, arr);
+          this.addThoughtToBranch(data.branch_id, data);
         }
       });
 
@@ -641,6 +856,21 @@ class CodeReasoningServer {
         interventions_applied: cognitiveResult.interventions.length,
         recommendations_generated: cognitiveResult.recommendations.length,
       });
+
+      // Log memory stats periodically
+      if (data.thought_number % 25 === 0) {
+        const memStats = this.getMemoryStats();
+        console.error('📊 Memory Stats:', memStats);
+        
+        // Warning if memory pressure is high
+        if (memStats.memoryPressure > 0.8) {
+          console.error('⚠️ High memory pressure detected:', {
+            pressure: memStats.memoryPressure,
+            thoughtHistory: memStats.thoughtHistorySize,
+            branches: memStats.branchCount
+          });
+        }
+      }
 
       console.error('✔️ AGI processed', {
         num: data.thought_number,
@@ -757,6 +987,100 @@ class CodeReasoningServer {
   }
 
   /**
+   * Add thought to history with automatic cleanup
+   */
+  private addThoughtToHistory(data: ValidatedThoughtData): void {
+    // Check if cleanup is needed
+    if (this.thoughtHistory.length >= this.memoryConfig.maxThoughtHistory * this.memoryConfig.cleanupThreshold) {
+      this.cleanupThoughtHistory();
+    }
+    
+    this.thoughtHistory.push(data);
+  }
+
+  /**
+   * Add thought to branch with automatic cleanup
+   */
+  private addThoughtToBranch(branchId: string, data: ValidatedThoughtData): void {
+    // Check if we have too many branches
+    if (this.branches.size >= this.memoryConfig.maxBranches) {
+      this.cleanupOldestBranches();
+    }
+    
+    const arr = this.branches.get(branchId) ?? [];
+    
+    // Check if this branch has too many thoughts
+    if (arr.length >= this.memoryConfig.maxBranchThoughts * this.memoryConfig.cleanupThreshold) {
+      // Remove oldest thoughts from this branch (keep most recent)
+      const keepCount = Math.floor(this.memoryConfig.maxBranchThoughts * 0.7);
+      arr.splice(0, arr.length - keepCount);
+    }
+    
+    arr.push(data);
+    this.branches.set(branchId, arr);
+  }
+
+  /**
+   * Cleanup old thoughts from history (LRU-style)
+   */
+  private cleanupThoughtHistory(): void {
+    const removeCount = Math.floor(this.memoryConfig.maxThoughtHistory * 0.3); // Remove 30%
+    this.thoughtHistory.splice(0, removeCount);
+    
+    console.error(`🧹 Cleaned up ${removeCount} old thoughts from history`);
+  }
+
+  /**
+   * Cleanup oldest branches to prevent unbounded growth
+   */
+  private cleanupOldestBranches(): void {
+    // Find branches with oldest thoughts (using thought_number as proxy for age)
+    const branchAges = Array.from(this.branches.entries())
+      .map(([branchId, thoughts]) => ({
+        branchId,
+        oldestThought: Math.min(...thoughts.map(t => t.thought_number)),
+        thoughtCount: thoughts.length
+      }))
+      .sort((a, b) => a.oldestThought - b.oldestThought);
+    
+    // Remove oldest 20% of branches
+    const removeCount = Math.floor(this.memoryConfig.maxBranches * 0.2);
+    const toRemove = branchAges.slice(0, removeCount);
+    
+    for (const { branchId } of toRemove) {
+      this.branches.delete(branchId);
+    }
+    
+    console.error(`🧹 Cleaned up ${removeCount} old branches`);
+  }
+
+  /**
+   * Get memory usage statistics
+   */
+  getMemoryStats(): {
+    thoughtHistorySize: number;
+    branchCount: number;
+    totalBranchThoughts: number;
+    memoryPressure: number;
+  } {
+    const totalBranchThoughts = Array.from(this.branches.values())
+      .reduce((total, thoughts) => total + thoughts.length, 0);
+    
+    const memoryPressure = Math.max(
+      this.thoughtHistory.length / this.memoryConfig.maxThoughtHistory,
+      this.branches.size / this.memoryConfig.maxBranches,
+      totalBranchThoughts / (this.memoryConfig.maxBranches * this.memoryConfig.maxBranchThoughts)
+    );
+    
+    return {
+      thoughtHistorySize: this.thoughtHistory.length,
+      branchCount: this.branches.size,
+      totalBranchThoughts,
+      memoryPressure
+    };
+  }
+
+  /**
    * Cleanup resources
    */
   async destroy(): Promise<void> {
@@ -772,6 +1096,49 @@ class CodeReasoningServer {
     }
 
     // The cognitive orchestrator cleanup is handled separately
+  }
+
+  private initializeMemoryConfig() {
+    const performanceConfig = this.loadPerformanceConfig();
+    if (performanceConfig) {
+      return {
+        maxThoughtHistory: performanceConfig.maxThoughtHistory || 500,
+        maxBranchThoughts: Math.floor((performanceConfig.maxThoughtHistory || 500) * 0.2),
+        maxBranches: Math.floor((performanceConfig.maxThoughtHistory || 500) * 0.1),
+        cleanupThreshold: performanceConfig.memoryCleanupThreshold || 0.75,
+      };
+    }
+    return this.calculateSystemOptimalMemoryConfig();
+  }
+
+  private loadPerformanceConfig() {
+    try {
+      const pathModule = createRequire(import.meta.url)('path');
+      const fsModule = createRequire(import.meta.url)('fs');
+      
+      const configPath = pathModule.join(process.env.HOME || '', '.config', 'sentient-agi', 'cognitive-performance.json');
+      if (fsModule.existsSync(configPath)) {
+        return JSON.parse(fsModule.readFileSync(configPath, 'utf8'));
+      }
+    } catch (error) {
+      console.error("⚠️ Could not load performance config:", (error as Error).message);
+    }
+    return null;
+  }
+
+  private calculateSystemOptimalMemoryConfig() {
+    const osModule = createRequire(import.meta.url)('os');
+    const totalMemoryGB = osModule.totalmem() / (1024 ** 3);
+    const memoryBudgetMB = (totalMemoryGB * 1024) * 0.075;
+    const avgObjectSizeKB = 1.5;
+    const maxObjects = Math.floor((memoryBudgetMB * 1024) / avgObjectSizeKB);
+    const maxThoughtHistory = Math.min(2000, Math.floor(maxObjects * 0.4));
+    return {
+      maxThoughtHistory,
+      maxBranchThoughts: Math.floor(maxThoughtHistory * 0.2),
+      maxBranches: Math.floor(maxThoughtHistory * 0.1),
+      cleanupThreshold: 0.75,
+    };
   }
 }
 

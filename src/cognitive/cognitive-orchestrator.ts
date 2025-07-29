@@ -116,6 +116,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   // Memory management limits
   private readonly MAX_SESSION_HISTORY = 100;
+  private readonly SESSION_CLEANUP_THRESHOLD = 0.8; // Cleanup when 80% full
 
   // Synchronization
   private readonly stateMutex = new Mutex();
@@ -347,9 +348,14 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         insight_count: insights.length,
       });
 
-      // Enforce memory limits periodically
+      // Enforce memory limits periodically and check session cleanup
       if (this.cognitiveState.thought_count % 10 === 0) {
         this.enforceMemoryLimits();
+      }
+      
+      // Check session history size more frequently
+      if (this.cognitiveState.thought_count % 5 === 0) {
+        this.checkSessionHistorySize();
       }
 
       // Update memory if available with error boundary
@@ -1384,6 +1390,53 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   }
 
   /**
+   * Check and cleanup session history size proactively
+   */
+  private checkSessionHistorySize(): void {
+    const currentSize = this.sessionHistory.size;
+    const threshold = Math.floor(this.MAX_SESSION_HISTORY * this.SESSION_CLEANUP_THRESHOLD);
+    
+    if (currentSize >= threshold) {
+      this.cleanupSessionHistory();
+    }
+  }
+
+  /**
+   * Cleanup old sessions using LRU strategy
+   */
+  private cleanupSessionHistory(): void {
+    const currentSize = this.sessionHistory.size;
+    if (currentSize <= this.MAX_SESSION_HISTORY * 0.5) {
+      return; // No cleanup needed
+    }
+
+    // Sort sessions by start_time (oldest first)
+    const sortedSessions = Array.from(this.sessionHistory.entries()).sort(
+      (a, b) => a[1].start_time.getTime() - b[1].start_time.getTime()
+    );
+
+    // Remove oldest 30% to create headroom
+    const removeCount = Math.floor(currentSize * 0.3);
+    const toRemove = sortedSessions.slice(0, removeCount);
+    
+    toRemove.forEach(([id]) => this.sessionHistory.delete(id));
+    
+    console.error(`🧹 Session history cleanup: removed ${removeCount} old sessions, ${this.sessionHistory.size} remaining`);
+  }
+
+  /**
+   * Add session to history with automatic size management
+   */
+  private addSessionToHistory(sessionId: string, session: ReasoningSession): void {
+    // Check if cleanup needed before adding
+    if (this.sessionHistory.size >= this.MAX_SESSION_HISTORY) {
+      this.cleanupSessionHistory();
+    }
+    
+    this.sessionHistory.set(sessionId, session);
+  }
+
+  /**
    * Enforce array size limits to prevent memory leaks
    */
   private enforceMemoryLimits(): void {
@@ -1406,15 +1459,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       });
     }
 
-    // Cleanup old sessions
-    if (this.sessionHistory.size > this.MAX_SESSION_HISTORY) {
-      const sortedSessions = Array.from(this.sessionHistory.entries()).sort(
-        (a, b) => a[1].start_time.getTime() - b[1].start_time.getTime()
-      );
-
-      const toRemove = sortedSessions.slice(0, sortedSessions.length - this.MAX_SESSION_HISTORY);
-      toRemove.forEach(([id]) => this.sessionHistory.delete(id));
-    }
+    // Session cleanup is handled by checkSessionHistorySize
   }
 
   // Helper methods for insight detection

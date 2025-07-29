@@ -366,6 +366,10 @@ export class CognitivePluginManager extends EventEmitter {
       return false;
     }
 
+    // Remove event listeners to prevent memory leaks
+    plugin.removeAllListeners('metrics_updated');
+    plugin.removeAllListeners('config_updated');
+
     // Remove from active interventions
     this.activeInterventions.delete(pluginId);
 

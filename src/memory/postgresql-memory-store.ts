@@ -431,10 +431,34 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   }
 
   /**
-   * Find similar thoughts using text similarity
+   * Find similar thoughts using hybrid search (semantic + full-text)
    */
   async findSimilarThoughts(thought: string, limit = 10): Promise<StoredThought[]> {
-    // Use trigram similarity for text matching
+    // Try hybrid search first (combines semantic similarity with full-text search)
+    try {
+      const hybridQuery = `
+        SELECT * FROM hybrid_search_thoughts($1, NULL, 0.5, 0.5, $2)
+      `;
+      const result = await this.query(hybridQuery, [thought, limit]);
+      if (result.rows.length > 0) {
+        return result.rows.map(row => ({
+          id: row.thought_id,
+          session_id: row.session_id,
+          thought: row.thought_text,
+          confidence: row.confidence,
+          domain: row.domain,
+          timestamp: row.timestamp,
+          // Map additional fields as needed
+          thought_number: 0,
+          total_thoughts: 0,
+          next_thought_needed: false,
+        } as StoredThought));
+      }
+    } catch (error) {
+      console.warn('Hybrid search not available, falling back to trigram similarity');
+    }
+
+    // Fallback to trigram similarity for text matching
     const query = `
       SELECT *, similarity(thought, $1) as sim
       FROM stored_thoughts
@@ -447,8 +471,8 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       const result = await this.query(query, [thought, limit]);
       return result.rows.map(this.mapRowToStoredThought);
     } catch (error) {
-      // Fallback to simple text search if trigram not available
-      console.warn('Trigram similarity not available, using fallback search');
+      // Final fallback to simple text search if trigram not available
+      console.warn('Trigram similarity not available, using basic search fallback');
       const fallbackQuery = `
         SELECT * FROM stored_thoughts
         WHERE thought ILIKE $1
@@ -668,6 +692,245 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     await this.query('VACUUM ANALYZE reasoning_sessions');
 
     console.log('PostgreSQL storage optimization completed');
+  }
+
+  /**
+   * Advanced Analytics Methods
+   */
+
+  /**
+   * Get cognitive performance trends using TimescaleDB analytics
+   */
+  async getCognitivePerformanceTrend(daysBack = 30, domain?: string): Promise<any[]> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM get_cognitive_performance_trend($1, $2)',
+        [daysBack, domain || null]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Cognitive performance trend analysis not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Analyze pattern effectiveness using advanced analytics
+   */
+  async analyzePatternEffectiveness(daysBack = 60): Promise<any[]> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM analyze_pattern_effectiveness($1)',
+        [daysBack]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Pattern effectiveness analysis not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get cognitive load alerts for monitoring
+   */
+  async getCognitiveLoadAlerts(hoursBack = 24): Promise<any[]> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM get_cognitive_load_alerts($1)',
+        [hoursBack]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Cognitive load alerts not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get real-time cognitive metrics from continuous aggregates
+   */
+  async getCognitiveMetricsRealtime(hoursBack = 2): Promise<any[]> {
+    try {
+      const result = await this.query(`
+        SELECT * FROM cognitive_load_realtime
+        WHERE time_window >= NOW() - INTERVAL '${hoursBack} hours'
+        ORDER BY time_window DESC
+      `);
+      return result.rows;
+    } catch (error) {
+      console.warn('Real-time cognitive metrics not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Semantic Search Methods (pgvector integration)
+   */
+
+  /**
+   * Store embedding for a thought (integration point for sentence transformers)
+   */
+  async storeThoughtEmbedding(thoughtId: string, embedding: number[], model = 'all-MiniLM-L6-v2'): Promise<void> {
+    try {
+      await this.query(
+        'SELECT upsert_thought_embedding($1, $2, $3)',
+        [thoughtId, `[${embedding.join(',')}]`, model]
+      );
+    } catch (error) {
+      console.warn('Thought embedding storage not available:', error);
+    }
+  }
+
+  /**
+   * Find semantically similar thoughts using vector similarity
+   */
+  async findSimilarThoughtsSemantic(embedding: number[], threshold = 0.7, limit = 10, excludeSessionId?: string): Promise<any[]> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM find_similar_thoughts_semantic($1, $2, $3, $4)',
+        [`[${embedding.join(',')}]`, threshold, limit, excludeSessionId || null]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Semantic thought similarity not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find similar sessions based on objective embeddings
+   */
+  async findSimilarSessionsSemantic(embedding: number[], threshold = 0.6, limit = 5, excludeSessionId?: string): Promise<any[]> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM find_similar_sessions_semantic($1, $2, $3, $4)',
+        [`[${embedding.join(',')}]`, threshold, limit, excludeSessionId || null]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Semantic session similarity not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Cluster thoughts by semantic similarity
+   */
+  async clusterThoughtsSemantic(threshold = 0.8, minClusterSize = 3): Promise<any[]> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM cluster_thoughts_semantic($1, $2)',
+        [threshold, minClusterSize]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Semantic thought clustering not available:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Hybrid search combining full-text and semantic similarity
+   */
+  async hybridSearchThoughts(
+    queryText: string, 
+    embedding?: number[], 
+    semanticWeight = 0.5, 
+    fulltextWeight = 0.5,
+    limit = 10,
+    excludeSessionId?: string
+  ): Promise<any[]> {
+    try {
+      const embeddingParam = embedding ? `[${embedding.join(',')}]` : null;
+      const result = await this.query(
+        'SELECT * FROM hybrid_search_thoughts($1, $2, $3, $4, $5, $6)',
+        [queryText, embeddingParam, semanticWeight, fulltextWeight, limit, excludeSessionId || null]
+      );
+      return result.rows;
+    } catch (error) {
+      console.warn('Hybrid search not available, falling back to basic search');
+      return await this.findSimilarThoughts(queryText, limit);
+    }
+  }
+
+  /**
+   * Update session embeddings (aggregate from thoughts)
+   */
+  async updateSessionEmbeddings(sessionId: string): Promise<void> {
+    try {
+      await this.query('SELECT update_session_embeddings($1)', [sessionId]);
+    } catch (error) {
+      console.warn('Session embedding update not available:', error);
+    }
+  }
+
+  /**
+   * Update pattern embeddings based on frequency
+   */
+  async updatePatternEmbeddings(): Promise<number> {
+    try {
+      const result = await this.query('SELECT update_pattern_embeddings()');
+      return result.rows[0]?.update_pattern_embeddings || 0;
+    } catch (error) {
+      console.warn('Pattern embedding update not available:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Streaming Export/Import Methods for Large Datasets
+   */
+
+  /**
+   * Stream export thoughts in batches to prevent OOM
+   */
+  async *streamExportThoughts(batchSize = 1000): AsyncGenerator<StoredThought[], void, unknown> {
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const result = await this.query(
+        'SELECT * FROM stored_thoughts ORDER BY timestamp LIMIT $1 OFFSET $2',
+        [batchSize, offset]
+      );
+
+      if (result.rows.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      yield result.rows.map(this.mapRowToStoredThought);
+      offset += batchSize;
+
+      // Allow event loop processing
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  }
+
+  /**
+   * Stream export sessions in batches to prevent OOM
+   */
+  async *streamExportSessions(batchSize = 1000): AsyncGenerator<ReasoningSession[], void, unknown> {
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const result = await this.query(
+        'SELECT * FROM reasoning_sessions ORDER BY start_time LIMIT $1 OFFSET $2',
+        [batchSize, offset]
+      );
+
+      if (result.rows.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      yield result.rows.map(this.mapRowToReasoningSession);
+      offset += batchSize;
+
+      // Allow event loop processing
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
 
   /**
