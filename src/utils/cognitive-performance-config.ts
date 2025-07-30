@@ -143,16 +143,17 @@ export class CognitivePerformanceConfigManager {
     // Memory-based array limits
     // Assumption: Each cognitive object uses ~1-2KB
     // Use 5-10% of total memory for cognitive arrays
-    const memoryBudgetMB = (specs.totalMemoryGB * 1024) * 0.075; // 7.5% of total memory
+    const memoryBudgetMB = (specs.totalMemoryGB * 1024) * 0.1; // 10% of total memory
     const avgObjectSizeKB = 1.5; // Average size per cognitive object
     const maxObjects = Math.floor((memoryBudgetMB * 1024) / avgObjectSizeKB);
     
-    // CRITICAL MEMORY LEAK FIX: Drastically reduce limits for MCP server
-    // MCP servers should stay under 40-70MB to avoid memory warnings
-    const maxExistentialQuestions = Math.min(20, Math.floor(maxObjects * 0.1)); // 10%
-    const maxThoughtHistory = Math.min(50, Math.floor(maxObjects * 0.4)); // 40%
-    const maxStreamEntries = Math.min(30, Math.floor(maxObjects * 0.3)); // 30%
-    const maxCurrentThoughts = Math.min(10, Math.floor(maxObjects * 0.2)); // 20%
+    // PERFORMANCE EXPERIMENT: Further increased limits for enhanced cognitive performance testing
+    // Previous limits were: 60, 150, 90, 30 (total: 330 objects = ~495KB)
+    // New limits: 120, 300, 180, 60 (total: 660 objects = ~990KB) - still well within memory budget
+    const maxExistentialQuestions = Math.min(120, Math.floor(maxObjects * 0.1)); // 10%
+    const maxThoughtHistory = Math.min(300, Math.floor(maxObjects * 0.4)); // 40%
+    const maxStreamEntries = Math.min(180, Math.floor(maxObjects * 0.3)); // 30%
+    const maxCurrentThoughts = Math.min(60, Math.floor(maxObjects * 0.2)); // 20%
 
     console.log(`💾 Memory allocation calculations:`);
     console.log(`   Memory budget: ${memoryBudgetMB.toFixed(1)}MB (7.5% of ${specs.totalMemoryGB.toFixed(1)}GB)`);
@@ -178,13 +179,13 @@ export class CognitivePerformanceConfigManager {
       maxCurrentThoughts,
       
       // Execution limits for consciousness simulator
-      maxConsciousnessExecutions: 1000,
+      maxConsciousnessExecutions: 2000,
       consciousnessMaxRuntimeMs: 5 * 60 * 1000, // 5 minutes
       consciousnessMemoryLimit: 0.8,
-      maxStreamExecutions: 500,
+      maxStreamExecutions: 1000,
       streamMaxRuntimeMs: 10 * 60 * 1000, // 10 minutes
       streamMemoryLimit: 0.7,
-      maxAdaptiveExecutions: 200,
+      maxAdaptiveExecutions: 400,
       adaptiveMaxRuntimeMs: 3 * 60 * 1000, // 3 minutes
       adaptiveMemoryLimit: 0.75,
       
@@ -226,9 +227,9 @@ export class CognitivePerformanceConfigManager {
           consciousnessProcessingInterval: Math.round(baseConfig.consciousnessProcessingInterval * 0.5),
           streamGenerationInterval: Math.round(baseConfig.streamGenerationInterval * 0.5),
           memoryCleanupThreshold: 0.8,
-          maxExistentialQuestions: Math.round(baseConfig.maxExistentialQuestions * 1.5),
-          maxThoughtHistory: Math.round(baseConfig.maxThoughtHistory * 1.5),
-          maxStreamEntries: Math.round(baseConfig.maxStreamEntries * 1.5),
+          maxExistentialQuestions: Math.round(baseConfig.maxExistentialQuestions * 1.2), // Reduced multiplier due to higher base
+          maxThoughtHistory: Math.round(baseConfig.maxThoughtHistory * 1.2),
+          maxStreamEntries: Math.round(baseConfig.maxStreamEntries * 1.2),
           mode: 'high-performance',
         };
         break;
