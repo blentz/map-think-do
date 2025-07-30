@@ -14,6 +14,11 @@ export interface TimerHandle {
   created: Date;
   lastExecuted?: Date;
   executionCount: number;
+  // New fields for lifecycle management
+  maxExecutions?: number;
+  ttlMs?: number; // Time-to-live in milliseconds
+  memoryPressureLimit?: number; // 0-1, stop when memory usage exceeds this
+  streamCompleted?: boolean; // For thought stream completion
 }
 
 /**
@@ -37,7 +42,16 @@ export class TimerManager {
   /**
    * Create a managed interval that will be automatically tracked and cleaned up
    */
-  setInterval(callback: () => void, delay: number, name?: string): string {
+  setInterval(
+    callback: () => void, 
+    delay: number, 
+    name?: string,
+    options?: {
+      maxExecutions?: number;
+      ttlMs?: number;
+      memoryPressureLimit?: number;
+    }
+  ): string {
     if (this.isShuttingDown) {
       console.warn('Timer manager is shutting down, ignoring setInterval request');
       return '';
@@ -52,14 +66,28 @@ export class TimerManager {
 
     const wrappedCallback = () => {
       const handle = this.timers.get(id);
-      if (handle) {
-        handle.lastExecuted = new Date();
-        handle.executionCount++;
-        try {
-          callback();
-        } catch (error) {
-          console.error(`Timer ${id} callback error:`, error);
-        }
+      if (!handle) return;
+      
+      // Check if timer should be terminated before execution
+      if (this.shouldTerminateTimer(handle)) {
+        console.log(`🕐 Auto-terminating timer: ${id} (${this.getTerminationReason(handle)})`);
+        this.clearTimer(id);
+        return;
+      }
+      
+      handle.lastExecuted = new Date();
+      handle.executionCount++;
+      
+      try {
+        callback();
+      } catch (error) {
+        console.error(`Timer ${id} callback error:`, error);
+      }
+      
+      // Check termination conditions after execution
+      if (this.shouldTerminateTimer(handle)) {
+        console.log(`🕐 Auto-terminating timer: ${id} (${this.getTerminationReason(handle)})`);
+        this.clearTimer(id);
       }
     };
 
@@ -73,6 +101,10 @@ export class TimerManager {
       delay,
       created: new Date(),
       executionCount: 0,
+      maxExecutions: options?.maxExecutions,
+      ttlMs: options?.ttlMs,
+      memoryPressureLimit: options?.memoryPressureLimit,
+      streamCompleted: false,
     };
 
     this.timers.set(id, handle);
@@ -163,23 +195,37 @@ export class TimerManager {
   /**
    * Clear all timers (for shutdown)
    */
-  clearAll(): void {
-    console.log(`🧹 Clearing ${this.timers.size} active timers...`);
+  clearAll(reason = 'shutdown'): void {
+    console.log(`🧹 Clearing ${this.timers.size} active timers (${reason})...`);
+    
+    let clearedCount = 0;
+    let errorCount = 0;
     
     for (const [id, handle] of this.timers.entries()) {
-      if (handle.type === 'interval') {
-        clearInterval(handle.timer);
-      } else {
-        clearTimeout(handle.timer);
-      }
-      
-      if (process.env.DEBUG_TIMERS) {
-        console.log(`🗑️ Cleared timer: ${id} (executed ${handle.executionCount} times)`);
+      try {
+        if (handle.type === 'interval') {
+          clearInterval(handle.timer);
+        } else {
+          clearTimeout(handle.timer);
+        }
+        clearedCount++;
+        
+        if (process.env.DEBUG_TIMERS) {
+          console.log(`🗑️ Cleared timer: ${id} (executed ${handle.executionCount} times)`);
+        }
+      } catch (error) {
+        errorCount++;
+        console.warn(`⚠️ Error clearing timer ${id}:`, error);
       }
     }
 
     this.timers.clear();
-    console.log('✅ All timers cleared');
+    
+    if (errorCount > 0) {
+      console.log(`✅ Timers cleared: ${clearedCount} successful, ${errorCount} errors`);
+    } else {
+      console.log(`✅ All ${clearedCount} timers cleared successfully`);
+    }
   }
 
   /**
@@ -262,6 +308,48 @@ export class TimerManager {
   prepareShutdown(): void {
     this.isShuttingDown = true;
     console.log('🔄 Timer manager preparing for shutdown...');
+    
+    // Automatically start cleanup process after a brief delay
+    setTimeout(() => {
+      if (this.timers.size > 0) {
+        console.log(`⚠️ Force clearing ${this.timers.size} remaining timers during shutdown`);
+        this.clearAll('forced_shutdown');
+      }
+    }, 1000); // Give 1 second for graceful cleanup
+  }
+
+  /**
+   * Emergency cleanup when memory pressure is high
+   */
+  emergencyCleanup(): void {
+    console.warn('🚨 Emergency timer cleanup due to memory pressure');
+    
+    const stats = this.getStats();
+    const problematicTimers = this.findProblematicTimers();
+    
+    // Clear long-running timers first
+    for (const timer of problematicTimers.longRunning) {
+      console.warn(`🗑️ Emergency clearing long-running timer: ${timer.id}`);
+      this.clearTimer(timer.id);
+    }
+    
+    // Clear high-execution timers
+    for (const timer of problematicTimers.highExecution) {
+      console.warn(`🗑️ Emergency clearing high-execution timer: ${timer.id}`);
+      this.clearTimer(timer.id);
+    }
+    
+    // If still too many timers, clear all intervals (keep timeouts)
+    if (this.timers.size > 10) {
+      const intervalIds = Array.from(this.timers.entries())
+        .filter(([_, handle]) => handle.type === 'interval')
+        .map(([id]) => id);
+        
+      console.warn(`🗑️ Emergency clearing ${intervalIds.length} intervals`);
+      intervalIds.forEach(id => this.clearTimer(id));
+    }
+    
+    console.log(`✅ Emergency cleanup complete. Remaining timers: ${this.timers.size}`);
   }
 
   /**
@@ -300,5 +388,118 @@ export class TimerManager {
         console.warn(`    - ${t.id}: ${t.executionCount} executions`);
       });
     }
+  }
+
+  /**
+   * Check if a timer should be terminated based on its lifecycle conditions
+   */
+  private shouldTerminateTimer(handle: TimerHandle): boolean {
+    const now = Date.now();
+    
+    // Check execution count limit
+    if (handle.maxExecutions && handle.executionCount >= handle.maxExecutions) {
+      return true;
+    }
+    
+    // Check TTL (time-to-live)
+    if (handle.ttlMs && (now - handle.created.getTime()) >= handle.ttlMs) {
+      return true;
+    }
+    
+    // Check memory pressure limit
+    if (handle.memoryPressureLimit && this.getCurrentMemoryPressure() > handle.memoryPressureLimit) {
+      return true;
+    }
+    
+    // Check if stream is completed
+    if (handle.streamCompleted) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Get the reason why a timer would be terminated
+   */
+  private getTerminationReason(handle: TimerHandle): string {
+    const now = Date.now();
+    
+    if (handle.maxExecutions && handle.executionCount >= handle.maxExecutions) {
+      return `max executions reached (${handle.executionCount}/${handle.maxExecutions})`;
+    }
+    
+    if (handle.ttlMs && (now - handle.created.getTime()) >= handle.ttlMs) {
+      const ageSeconds = Math.round((now - handle.created.getTime()) / 1000);
+      return `TTL expired (${ageSeconds}s/${Math.round(handle.ttlMs/1000)}s)`;
+    }
+    
+    if (handle.memoryPressureLimit) {
+      const currentPressure = this.getCurrentMemoryPressure();
+      if (currentPressure > handle.memoryPressureLimit) {
+        return `memory pressure limit (${(currentPressure*100).toFixed(1)}% > ${(handle.memoryPressureLimit*100).toFixed(1)}%)`;
+      }
+    }
+    
+    if (handle.streamCompleted) {
+      return 'stream completed';
+    }
+    
+    return 'unknown';
+  }
+
+  /**
+   * Get current memory pressure (0-1 scale)
+   */
+  private getCurrentMemoryPressure(): number {
+    try {
+      const memUsage = process.memoryUsage();
+      return memUsage.heapUsed / memUsage.heapTotal;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  /**
+   * Mark a timer's stream as completed, triggering auto-cleanup
+   */
+  markStreamCompleted(timerId: string): boolean {
+    const handle = this.timers.get(timerId);
+    if (!handle) return false;
+    
+    handle.streamCompleted = true;
+    
+    if (process.env.DEBUG_TIMERS) {
+      console.log(`🏁 Stream completed for timer: ${timerId}`);
+    }
+    
+    return true;
+  }
+
+  /**
+   * Update timer lifecycle parameters at runtime
+   */
+  updateTimerLifecycle(
+    timerId: string, 
+    updates: {
+      maxExecutions?: number;
+      ttlMs?: number;
+      memoryPressureLimit?: number;
+    }
+  ): boolean {
+    const handle = this.timers.get(timerId);
+    if (!handle) return false;
+    
+    if (updates.maxExecutions !== undefined) {
+      handle.maxExecutions = updates.maxExecutions;
+    }
+    if (updates.ttlMs !== undefined) {
+      handle.ttlMs = updates.ttlMs;
+    }
+    if (updates.memoryPressureLimit !== undefined) {
+      handle.memoryPressureLimit = updates.memoryPressureLimit;
+    }
+    
+    return true;
   }
 }

@@ -30,6 +30,8 @@ export interface ConsciousnessState {
   metacognitive_layer: MetacognitiveState;
   emotional_undertone: EmotionalState;
   current_thoughts: ThoughtProcess[];
+  curiosity_level: number; // 0-1 scale
+  engagement_level: number; // 0-1 scale
 }
 
 export interface QualiaState {
@@ -112,9 +114,9 @@ export class ConsciousnessSimulator extends EventEmitter {
     this.performanceConfig.loadFromEnvironment();
     
     this.initializeConsciousness();
-    this.startConsciousnessLoop();
-    this.startStreamGeneration();
-    this.startAdaptiveScaling();
+    //this.startConsciousnessLoop();
+    //this.startStreamGeneration();
+    //this.startAdaptiveScaling();
     
     // Log the configuration being used
     this.performanceConfig.logCurrentSettings();
@@ -197,6 +199,8 @@ export class ConsciousnessSimulator extends EventEmitter {
         complexity: 0.5,
       },
       current_thoughts: [],
+      curiosity_level: 0.6,
+      engagement_level: 0.5,
     };
 
     this.generateInitialExistentialQuestions();
@@ -207,14 +211,33 @@ export class ConsciousnessSimulator extends EventEmitter {
    */
   private startConsciousnessLoop(): void {
     const intervals = this.performanceConfig.getEffectiveIntervals();
+    const config = this.performanceConfig.getConfig();
     
     this.consciousnessTimerId = this.timerManager.setInterval(() => {
       if (this.isActive) {
-        this.processConsciousness();
+        try {
+          this.processConsciousness();
+          
+          // Check memory pressure after each processing cycle
+          const memUsage = process.memoryUsage();
+          const memoryPercent = memUsage.heapUsed / memUsage.heapTotal;
+          if (memoryPercent > 0.85) {
+            console.warn(`🚨 High memory usage in consciousness loop: ${(memoryPercent * 100).toFixed(1)}%`);
+            this.performStandardCleanup();
+          }
+        } catch (error) {
+          console.error('❌ Error in consciousness processing:', error);
+          // Disable consciousness processing on error to prevent further issues
+          this.isActive = false;
+        }
       }
-    }, intervals.consciousnessInterval, 'consciousness-main-loop');
+    }, intervals.consciousnessInterval, 'consciousness-main-loop', {
+      maxExecutions: config.maxConsciousnessExecutions || 500, // Reduced from 1000
+      ttlMs: config.consciousnessMaxRuntimeMs || 3 * 60 * 1000, // Reduced from 5 min to 3 min
+      memoryPressureLimit: config.consciousnessMemoryLimit || 0.75, // Reduced from 0.8 to 0.75
+    });
     
-    console.log(`🧠 Consciousness processing started with ${intervals.consciousnessInterval}ms interval`);
+    console.log(`🧠 Consciousness processing started with ${intervals.consciousnessInterval}ms interval (TTL: ${(config.consciousnessMaxRuntimeMs || 180000)/1000}s, max executions: ${config.maxConsciousnessExecutions || 500})`);
   }
 
   /**
@@ -222,14 +245,19 @@ export class ConsciousnessSimulator extends EventEmitter {
    */
   private startStreamGeneration(): void {
     const intervals = this.performanceConfig.getEffectiveIntervals();
+    const config = this.performanceConfig.getConfig();
     
     this.streamTimerId = this.timerManager.setInterval(() => {
       if (this.isActive) {
         this.generateStreamEntry();
       }
-    }, intervals.streamInterval, 'consciousness-stream-generation');
+    }, intervals.streamInterval, 'consciousness-stream-generation', {
+      maxExecutions: config.maxStreamExecutions || 500, // Default: stop after 500 stream entries
+      ttlMs: config.streamMaxRuntimeMs || 3 * 60 * 1000, // Default: 3 minutes max
+      memoryPressureLimit: config.streamMemoryLimit || 0.75, // Stop at 75% memory usage
+    });
     
-    console.log(`💭 Stream generation started with ${intervals.streamInterval}ms interval`);
+    console.log(`💭 Stream generation started with ${intervals.streamInterval}ms interval (TTL: ${(config.streamMaxRuntimeMs || 180000)/1000}s, max executions: ${config.maxStreamExecutions || 500})`);
   }
 
   /**
@@ -237,15 +265,20 @@ export class ConsciousnessSimulator extends EventEmitter {
    */
   private startAdaptiveScaling(): void {
     const intervals = this.performanceConfig.getEffectiveIntervals();
+    const config = this.performanceConfig.getConfig();
     
     this.adaptiveTimerId = this.timerManager.setInterval(() => {
       if (this.isActive) {
         this.performanceConfig.adaptToCurrentLoad();
         this.checkMemoryPressure();
       }
-    }, intervals.memoryMonitoringInterval, 'consciousness-adaptive-scaling');
+    }, intervals.memoryMonitoringInterval, 'consciousness-adaptive-scaling', {
+      maxExecutions: config.maxAdaptiveExecutions || 200, // Default: stop after 200 monitoring cycles
+      ttlMs: config.adaptiveMaxRuntimeMs || 10 * 60 * 1000, // Default: 10 minutes max (longer for monitoring)
+      memoryPressureLimit: config.adaptiveMemoryLimit || 0.85, // Stop at 85% memory usage
+    });
     
-    console.log(`📊 Adaptive scaling started with ${intervals.memoryMonitoringInterval}ms interval`);
+    console.log(`📊 Adaptive scaling started with ${intervals.memoryMonitoringInterval}ms interval (TTL: ${(config.adaptiveMaxRuntimeMs || 600000)/1000}s, max executions: ${config.maxAdaptiveExecutions || 200})`);
   }
 
   /**
@@ -557,36 +590,45 @@ export class ConsciousnessSimulator extends EventEmitter {
     const thoughts = this.state.current_thoughts;
     if (thoughts.length < 2) return;
 
-    // Limit connections to recent thoughts to avoid O(n²) complexity
-    const MAX_THOUGHTS_TO_CONNECT = 50;
+    // More aggressive limits to prevent memory issues
+    const MAX_THOUGHTS_TO_CONNECT = Math.min(20, thoughts.length);
     const recentThoughts = thoughts.slice(-MAX_THOUGHTS_TO_CONNECT);
 
     // Create a simple inverted index for efficient similarity
     const thoughtIndex = new Map<string, ThoughtProcess[]>();
 
-    // Build index based on key terms
+    // Build index based on key terms (limit processing)
     recentThoughts.forEach(thought => {
-      const keywords = this.extractKeywords(thought.content);
+      // Limit keywords per thought to prevent excessive indexing
+      const keywords = this.extractKeywords(thought.content).slice(0, 5);
       keywords.forEach(keyword => {
         if (!thoughtIndex.has(keyword)) {
           thoughtIndex.set(keyword, []);
         }
-        thoughtIndex.get(keyword)!.push(thought);
+        const indexArray = thoughtIndex.get(keyword)!;
+        // Prevent index arrays from growing too large
+        if (indexArray.length < 10) {
+          indexArray.push(thought);
+        }
       });
     });
 
     // Connect thoughts that share keywords (more efficient than all-pairs comparison)
     const connected = new Set<string>();
+    let connectionsCreated = 0;
+    const MAX_CONNECTIONS = 50; // Global limit on connections created per cycle
 
-    recentThoughts.forEach(thought => {
-      const keywords = this.extractKeywords(thought.content);
+    for (const thought of recentThoughts) {
+      if (connectionsCreated >= MAX_CONNECTIONS) break;
+      
+      const keywords = this.extractKeywords(thought.content).slice(0, 3); // Further limit
       const candidates = new Set<ThoughtProcess>();
 
       // Find candidate thoughts that share keywords
       keywords.forEach(keyword => {
         const related = thoughtIndex.get(keyword) || [];
         related.forEach(relatedThought => {
-          if (relatedThought.id !== thought.id) {
+          if (relatedThought.id !== thought.id && candidates.size < 5) { // Limit candidates
             candidates.add(relatedThought);
           }
         });
@@ -594,20 +636,24 @@ export class ConsciousnessSimulator extends EventEmitter {
 
       // Only calculate similarity for candidates (much smaller set)
       candidates.forEach(candidate => {
+        if (connectionsCreated >= MAX_CONNECTIONS) return;
+        
         const connectionKey = [thought.id, candidate.id].sort().join('-');
         if (!connected.has(connectionKey)) {
           const similarity = this.calculateThoughtSimilarity(thought, candidate);
-          if (similarity > 0.6) {
-            thought.connections.push(candidate.id);
-            candidate.connections.push(thought.id);
+          if (similarity > 0.7) { // Higher threshold for connections
+            // Limit connections per thought more aggressively
+            if (thought.connections.length < 3) thought.connections.push(candidate.id);
+            if (candidate.connections.length < 3) candidate.connections.push(thought.id);
             connected.add(connectionKey);
+            connectionsCreated++;
           }
         }
       });
+    }
 
-      // Limit connections per thought
-      thought.connections = thought.connections.slice(-10);
-    });
+    // Clear the thought index to free memory
+    thoughtIndex.clear();
   }
 
   /**
@@ -683,9 +729,53 @@ export class ConsciousnessSimulator extends EventEmitter {
   }
 
   /**
+   * Check if consciousness processing should be considered complete
+   */
+  private checkStreamCompletion(): void {
+    const memStats = this.getMemoryStats();
+    const isLowActivity = this.state.current_thoughts.length < 2 && 
+                         this.existentialQuestions.length < 3 &&
+                         this.state.stream_of_consciousness.length > 10; // Has some content but low activity
+    
+    const isStableState = this.state.awareness_level < 0.3 && 
+                         this.state.curiosity_level < 0.3 &&
+                         this.state.engagement_level < 0.2;
+    
+    // If consciousness has reached a stable, low-activity state, mark streams as complete
+    if (isLowActivity && isStableState) {
+      console.log('🏁 Consciousness stream completion detected - low activity and stable state');
+      
+      // Mark all timer streams as completed to trigger auto-cleanup
+      if (this.consciousnessTimerId) {
+        this.timerManager.markStreamCompleted(this.consciousnessTimerId);
+      }
+      if (this.streamTimerId) {
+        this.timerManager.markStreamCompleted(this.streamTimerId);
+      }
+      // Keep adaptive scaling running longer as it's monitoring
+    }
+    
+    // Emergency completion if memory objects are excessive
+    if (memStats.totalMemoryObjects > 5000) {
+      console.warn('🚨 Emergency consciousness stream completion - excessive memory objects');
+      if (this.consciousnessTimerId) {
+        this.timerManager.markStreamCompleted(this.consciousnessTimerId);
+      }
+      if (this.streamTimerId) {
+        this.timerManager.markStreamCompleted(this.streamTimerId);
+      }
+    }
+  }
+
+  /**
    * Generate stream of consciousness entry
    */
   private generateStreamEntry(): void {
+    // Check for stream completion periodically
+    if (Math.random() < 0.1) { // 10% chance each cycle
+      this.checkStreamCompletion();
+    }
+    
     const entryTypes = ['thought', 'question', 'realization', 'doubt', 'connection'] as const;
     const type = entryTypes[Math.floor(Math.random() * entryTypes.length)];
 
@@ -995,19 +1085,63 @@ export class ConsciousnessSimulator extends EventEmitter {
     const config = this.performanceConfig.getConfig();
     
     // Aggressively trim arrays to 25% of their configured max size
-    const emergencySize = (percentage: number) => Math.floor(percentage * 0.25);
+    const emergencySize = (maxSize: number) => Math.max(5, Math.floor(maxSize * 0.25));
     
-    this.existentialQuestions.splice(0, Math.max(0, this.existentialQuestions.length - emergencySize(config.maxExistentialQuestions)));
-    this.thoughtHistory.splice(0, Math.max(0, this.thoughtHistory.length - emergencySize(config.maxThoughtHistory)));
-    this.state.stream_of_consciousness.splice(0, Math.max(0, this.state.stream_of_consciousness.length - emergencySize(config.maxStreamEntries)));
-    this.state.current_thoughts.splice(0, Math.max(0, this.state.current_thoughts.length - emergencySize(config.maxCurrentThoughts)));
+    // Clear circular references in thoughts before cleanup
+    this.clearCircularReferences();
+    
+    // Trim arrays more aggressively
+    const questionsToKeep = emergencySize(config.maxExistentialQuestions);
+    if (this.existentialQuestions.length > questionsToKeep) {
+      this.existentialQuestions.splice(0, this.existentialQuestions.length - questionsToKeep);
+    }
+    
+    const historyToKeep = emergencySize(config.maxThoughtHistory);
+    if (this.thoughtHistory.length > historyToKeep) {
+      this.thoughtHistory.splice(0, this.thoughtHistory.length - historyToKeep);
+    }
+    
+    const streamToKeep = emergencySize(config.maxStreamEntries);
+    if (this.state.stream_of_consciousness.length > streamToKeep) {
+      this.state.stream_of_consciousness.splice(0, this.state.stream_of_consciousness.length - streamToKeep);
+    }
+    
+    const thoughtsToKeep = emergencySize(config.maxCurrentThoughts);
+    if (this.state.current_thoughts.length > thoughtsToKeep) {
+      // Clear connections before removing thoughts
+      this.state.current_thoughts.forEach(t => t.connections.length = 0);
+      this.state.current_thoughts.splice(0, this.state.current_thoughts.length - thoughtsToKeep);
+    }
+    
+    // Clear attention focus to minimal set
+    this.state.attention_focus = ['self', 'environment'];
+    
+    // Reset complex state objects
+    this.state.subjective_experience.cognitive_tension = Math.min(0.3, this.state.subjective_experience.cognitive_tension);
+    this.state.emotional_undertone.complexity = Math.min(0.5, this.state.emotional_undertone.complexity);
     
     // Force garbage collection if available
     if (global.gc) {
       global.gc();
     }
     
-    console.log('✅ Consciousness memory cleanup completed');
+    const stats = this.getMemoryStats();
+    console.log(`✅ Consciousness memory cleanup completed - objects remaining: ${stats.totalMemoryObjects}`);
+  }
+
+  /**
+   * Clear circular references in thought connections to enable garbage collection
+   */
+  private clearCircularReferences(): void {
+    // Clear connections in current thoughts
+    this.state.current_thoughts.forEach(thought => {
+      thought.connections.length = 0;
+    });
+    
+    // Clear connections in thought history
+    this.thoughtHistory.forEach(thought => {
+      thought.connections.length = 0;
+    });
   }
 
   /**

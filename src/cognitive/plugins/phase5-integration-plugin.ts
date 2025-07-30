@@ -84,6 +84,7 @@ export interface EthicalEvaluation {
   alignment_score: number; // 0-1 scale
   reasoning: string;
   potential_conflicts: string[];
+  timestamp: Date; // Add timestamp for proper cleanup
 }
 
 export interface QuantumState {
@@ -207,7 +208,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   private startIntegrationLoop(): void {
     this.integrationInterval = setInterval(() => {
       this.performIntegrationCycle();
-    }, 3000); // Every 3 seconds
+    }, 30000); // Every 30 seconds (reduced from 3 seconds to prevent memory leak)
   }
 
   /**
@@ -326,10 +327,15 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       }
     }
 
-    // Clean up old prompts
+    // Clean up old prompts more aggressively
     this.recursivePrompts = this.recursivePrompts.filter(
-      p => Date.now() - p.timestamp.getTime() < 300000 // Keep for 5 minutes
+      p => Date.now() - p.timestamp.getTime() < 60000 // Keep for 1 minute only
     );
+    
+    // Limit array size to prevent unbounded growth
+    if (this.recursivePrompts.length > 20) {
+      this.recursivePrompts = this.recursivePrompts.slice(-10); // Keep only 10 most recent
+    }
   }
 
   /**
@@ -397,10 +403,15 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     // Update temporal horizon based on consciousness level
     this.state.temporal_horizon = Math.floor(300 + this.state.consciousness_level * 600); // 5-15 minutes
 
-    // Clean up old predictions
+    // Clean up old predictions more aggressively
     this.temporalPredictions = this.temporalPredictions.filter(
-      p => Date.now() - p.timeframe < 900000 // Keep for 15 minutes
+      p => p.timeframe > Date.now() && (Date.now() - p.timeframe < 120000) // Keep for 2 minutes
     );
+    
+    // Limit array size to prevent unbounded growth
+    if (this.temporalPredictions.length > 15) {
+      this.temporalPredictions = this.temporalPredictions.slice(-8); // Keep only 8 most recent
+    }
   }
 
   /**
@@ -447,19 +458,22 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       this.ethicalEvaluations.push(evaluation);
     }
 
-    // Update ethical alignment based on evaluations
-    const recentEvaluations = this.ethicalEvaluations.filter(
-      e => Date.now() - e.scenario.length < 300000 // Rough time filter
+    // Clean up old evaluations first
+    this.ethicalEvaluations = this.ethicalEvaluations.filter(
+      e => Date.now() - e.timestamp.getTime() < 120000 // Keep for 2 minutes
     );
-
-    if (recentEvaluations.length > 0) {
-      const avgAlignment =
-        recentEvaluations.reduce((sum, e) => sum + e.alignment_score, 0) / recentEvaluations.length;
-      this.state.ethical_alignment = this.state.ethical_alignment * 0.9 + avgAlignment * 0.1;
+    
+    // Limit array size to prevent unbounded growth
+    if (this.ethicalEvaluations.length > 12) {
+      this.ethicalEvaluations = this.ethicalEvaluations.slice(-6); // Keep only 6 most recent
     }
 
-    // Clean up old evaluations
-    this.ethicalEvaluations = this.ethicalEvaluations.slice(-10); // Keep last 10
+    // Update ethical alignment based on evaluations
+    if (this.ethicalEvaluations.length > 0) {
+      const avgAlignment =
+        this.ethicalEvaluations.reduce((sum, e) => sum + e.alignment_score, 0) / this.ethicalEvaluations.length;
+      this.state.ethical_alignment = this.state.ethical_alignment * 0.9 + avgAlignment * 0.1;
+    }
   }
 
   /**
@@ -495,6 +509,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
         'Innovation vs. stability',
         'Autonomy vs. safety',
       ],
+      timestamp: new Date(), // Add timestamp for proper cleanup
     };
   }
 
@@ -517,8 +532,13 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       this.state.quantum_coherence = this.state.quantum_coherence * 0.8 + avgCoherence * 0.2;
     }
 
-    // Clean up collapsed states
-    this.quantumStates = this.quantumStates.filter(s => s.collapse_probability < 0.9);
+    // Clean up collapsed states and limit array size
+    this.quantumStates = this.quantumStates.filter(s => s.collapse_probability < 0.8);
+    
+    // Limit array size to prevent unbounded growth
+    if (this.quantumStates.length > 10) {
+      this.quantumStates = this.quantumStates.slice(-5); // Keep only 5 most recent
+    }
   }
 
   /**
@@ -909,6 +929,12 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
 
     // Remove all listeners from this plugin
     this.removeAllListeners();
+
+    // Clear memory arrays to prevent leaks
+    this.recursivePrompts.length = 0;
+    this.temporalPredictions.length = 0;
+    this.ethicalEvaluations.length = 0;
+    this.quantumStates.length = 0;
 
     this.mcpSystem.destroy();
     this.consciousnessSimulator.destroy();

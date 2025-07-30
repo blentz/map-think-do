@@ -58,6 +58,7 @@ export class StateService implements Disposable {
 
   private config: StateServiceConfig;
   private initialized = false;
+  private disposed = false;
 
   constructor(config: Partial<StateServiceConfig> = {}, initialState?: Partial<UnifiedState>) {
     this.config = {
@@ -283,23 +284,48 @@ export class StateService implements Disposable {
    * Dispose of all resources
    */
   async dispose(): Promise<void> {
+    // Prevent multiple disposals
+    if (this.disposed) {
+      console.error('⚠️ State Service already disposed, skipping...');
+      return;
+    }
+    
+    this.disposed = true;
     console.error('🧹 Disposing State Service...');
 
-    // Update lifecycle status
-    this.updateLifecycleStatus('shutting_down');
+    try {
+      // Update lifecycle status
+      this.updateLifecycleStatus('shutting_down');
 
-    // Dispose all adapters
-    Object.values(this.adapters).forEach(adapter => {
-      if (adapter && typeof adapter.dispose === 'function') {
-        adapter.dispose();
+      // Dispose all adapters with error handling
+      const adapterPromises = Object.entries(this.adapters).map(async ([name, adapter]) => {
+        if (adapter && typeof adapter.dispose === 'function') {
+          try {
+            await adapter.dispose();
+            console.error(`💾 ${name.charAt(0).toUpperCase() + name.slice(1)} state adapter disposed`);
+          } catch (error) {
+            console.error(`⚠️ Error disposing ${name} adapter:`, error);
+          }
+        }
+      });
+
+      await Promise.all(adapterPromises);
+
+      // Dispose state manager
+      if (this.stateManager && typeof this.stateManager.dispose === 'function') {
+        this.stateManager.dispose();
+        console.error('🗂️ State Manager disposed');
       }
-    });
 
-    // Dispose state manager
-    this.stateManager.dispose();
-
-    this.initialized = false;
-    console.error('✅ State Service disposed');
+      // Clear references
+      this.adapters = {};
+      this.initialized = false;
+      
+      console.error('✅ State Service disposed');
+    } catch (error) {
+      console.error('❌ Error during State Service disposal:', error);
+      throw error;
+    }
   }
 
   // Private methods

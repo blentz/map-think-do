@@ -74,6 +74,7 @@ import {
 } from './utils/config.js';
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
 import { createCognitiveOrchestrator } from './cognitive/cognitive-orchestrator-factory.js';
+import { globalResourceManager } from './utils/resource-lifecycle.js';
 import { Mutex } from './utils/mutex.js';
 import {
   MemoryStore,
@@ -85,6 +86,7 @@ import {
 import { PostgreSQLMemoryStore } from './memory/postgresql-memory-store.js';
 import { PostgreSQLConfigs } from './memory/postgresql-config.js';
 import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
+import { TimerManager } from './utils/timer-manager.js';
 
 /* -------------------------------------------------------------------------- */
 /*                               CONFIGURATION                                */
@@ -631,6 +633,101 @@ class CodeReasoningServer {
 
   /* ----------------------------- Helper Methods ---------------------------- */
 
+  /**
+   * 🚨 CRITICAL MEMORY LEAK FIX: Force aggressive memory cleanup
+   */
+  private forceMemoryCleanup(data: ValidatedThoughtData, cognitiveResult: any): void {
+    try {
+      // Check memory usage before cleanup
+      const beforeMemory = process.memoryUsage();
+      const beforeMB = Math.round(beforeMemory.heapUsed / 1024 / 1024);
+      
+      // Clear large objects from cognitive result to break references
+      if (cognitiveResult) {
+        // Clear intervention data arrays
+        if (cognitiveResult.interventions) {
+          cognitiveResult.interventions.length = 0;
+        }
+        if (cognitiveResult.insights) {
+          cognitiveResult.insights.length = 0;
+        }
+        
+        // Clear cognitive state history arrays
+        if (cognitiveResult.cognitiveState) {
+          if (cognitiveResult.cognitiveState.confidence_trajectory) {
+            // Keep only last 3 values
+            cognitiveResult.cognitiveState.confidence_trajectory.splice(0, -3);
+          }
+        }
+      }
+      
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc();
+      } else {
+        // Fallback: trigger GC through memory pressure
+        const largeArray = new Array(1000000).fill(null);
+        largeArray.length = 0;
+      }
+      
+      // Check memory after cleanup
+      const afterMemory = process.memoryUsage();
+      const afterMB = Math.round(afterMemory.heapUsed / 1024 / 1024);
+      const freedMB = beforeMB - afterMB;
+      
+      console.error('🧹 Memory cleanup completed', {
+        thought: data.thought_number,
+        beforeMB,
+        afterMB,
+        freedMB,
+        heapTotal: Math.round(afterMemory.heapTotal / 1024 / 1024),
+        heapUsedPercent: Math.round((afterMemory.heapUsed / afterMemory.heapTotal) * 100)
+      });
+      
+      // Emergency cleanup if still over threshold
+      if (afterMB > 2000) { // 2GB threshold
+        console.error('🚨 Emergency memory cleanup triggered at', afterMB, 'MB');
+        this.emergencyMemoryCleanup();
+      }
+      
+    } catch (error) {
+      console.error('⚠️ Memory cleanup error:', error);
+    }
+  }
+
+  /**
+   * Emergency memory cleanup for critical situations
+   */
+  private emergencyMemoryCleanup(): void {
+    try {
+      // Clear thought history beyond last 10 thoughts
+      if (this.thoughtHistory.length > 10) {
+        this.thoughtHistory.splice(0, this.thoughtHistory.length - 10);
+      }
+      
+      // Clear all branches except most recent
+      if (this.branches.size > 1) {
+        const entries = Array.from(this.branches.entries());
+        this.branches.clear();
+        // Keep only the last branch
+        if (entries.length > 0) {
+          const [lastKey, lastValue] = entries[entries.length - 1];
+          this.branches.set(lastKey, lastValue);
+        }
+      }
+      
+      // Force aggressive garbage collection
+      if (global.gc) {
+        global.gc();
+        global.gc(); // Double GC for aggressive cleanup
+      }
+      
+      console.error('🚨 Emergency cleanup completed');
+    } catch (error) {
+      console.error('⚠️ Emergency cleanup error:', error);
+    }
+  }
+
   private async formatThoughtSecure(t: ValidatedThoughtData): Promise<string> {
     const {
       thought_number,
@@ -857,18 +954,30 @@ class CodeReasoningServer {
         recommendations_generated: cognitiveResult.recommendations.length,
       });
 
-      // Log memory stats periodically
+      // Log memory stats periodically and trigger cleanup
       if (data.thought_number % 25 === 0) {
         const memStats = this.getMemoryStats();
         console.error('📊 Memory Stats:', memStats);
         
-        // Warning if memory pressure is high
+        // Trigger cleanup if memory pressure is high
         if (memStats.memoryPressure > 0.8) {
-          console.error('⚠️ High memory pressure detected:', {
+          console.error('⚠️ High memory pressure detected - triggering automatic cleanup:', {
             pressure: memStats.memoryPressure,
             thoughtHistory: memStats.thoughtHistorySize,
             branches: memStats.branchCount
           });
+          
+          // Trigger aggressive memory cleanup
+          this.performEmergencyMemoryCleanup();
+          
+          // Also trigger timer manager emergency cleanup
+          const timerManager = TimerManager.getInstance();
+          timerManager.emergencyCleanup();
+          
+          // Force garbage collection
+          if (global.gc) {
+            global.gc();
+          }
         }
       }
 
@@ -878,6 +987,9 @@ class CodeReasoningServer {
         elapsedMs: +(performance.now() - t0).toFixed(1),
       });
 
+      // 🚨 CRITICAL MEMORY LEAK FIX: Force garbage collection after processing
+      this.forceMemoryCleanup(data, cognitiveResult);
+      
       return this.buildSuccess(data, cognitiveResult);
     } catch (err) {
       const e = err as Error;
@@ -1081,6 +1193,84 @@ class CodeReasoningServer {
   }
 
   /**
+   * Emergency memory cleanup when pressure is high
+   */
+  private performEmergencyMemoryCleanup(): void {
+    console.error('🚨 Performing emergency memory cleanup...');
+    
+    const beforeSize = this.thoughtHistory.length + Array.from(this.branches.values()).reduce((total, thoughts) => total + thoughts.length, 0);
+    
+    // Aggressively trim thought history to 25% of max
+    const maxHistoryEmergency = Math.floor(this.memoryConfig.maxThoughtHistory * 0.25);
+    if (this.thoughtHistory.length > maxHistoryEmergency) {
+      this.thoughtHistory.splice(0, this.thoughtHistory.length - maxHistoryEmergency);
+      console.error(`🗑️ Trimmed thought history to ${this.thoughtHistory.length} entries`);
+    }
+    
+    // Clear older branches, keep only the most recent ones
+    const branchEntries = Array.from(this.branches.entries());
+    if (branchEntries.length > 3) {
+      // Sort by last thought timestamp and keep only 3 most recent branches
+      branchEntries.sort((a, b) => {
+        const aLastThought = a[1][a[1].length - 1];
+        const bLastThought = b[1][b[1].length - 1];
+        return bLastThought.thought_number - aLastThought.thought_number;
+      });
+      
+      // Remove older branches
+      for (let i = 3; i < branchEntries.length; i++) {
+        this.branches.delete(branchEntries[i][0]);
+      }
+      console.error(`🗑️ Trimmed branches from ${branchEntries.length} to 3`);
+    }
+    
+    // Trim remaining branches to smaller sizes
+    for (const [branchId, thoughts] of this.branches.entries()) {
+      if (thoughts.length > 10) {
+        thoughts.splice(0, thoughts.length - 10);
+      }
+    }
+    
+    const afterSize = this.thoughtHistory.length + Array.from(this.branches.values()).reduce((total, thoughts) => total + thoughts.length, 0);
+    console.error(`✅ Emergency cleanup complete: ${beforeSize} → ${afterSize} total objects (${((beforeSize - afterSize) / beforeSize * 100).toFixed(1)}% reduction)`);
+  }
+
+  /**
+   * Force immediate memory cleanup - for memory leak prevention
+   */
+  forceEmergencyMemoryCleanup(): void {
+    const beforeHistory = this.thoughtHistory.length;
+    const beforeBranches = this.branches.size;
+    
+    // Aggressively trim arrays to emergency levels
+    const emergencyHistorySize = Math.min(10, Math.floor(this.memoryConfig.maxThoughtHistory * 0.2));
+    const emergencyBranchSize = Math.min(2, Math.floor(this.memoryConfig.maxBranches * 0.2));
+    
+    // Keep only most recent thoughts
+    if (this.thoughtHistory.length > emergencyHistorySize) {
+      this.thoughtHistory.splice(0, this.thoughtHistory.length - emergencyHistorySize);
+    }
+    
+    // Clear oldest branches if too many
+    if (this.branches.size > emergencyBranchSize) {
+      const sorted = Array.from(this.branches.entries())
+        .sort(([,a], [,b]) => (a[0]?.thought_number || 0) - (b[0]?.thought_number || 0));
+      const toRemove = sorted.slice(0, this.branches.size - emergencyBranchSize);
+      toRemove.forEach(([id]) => this.branches.delete(id));
+    }
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+    
+    const afterHistory = this.thoughtHistory.length;
+    const afterBranches = this.branches.size;
+    
+    console.error(`🧹 EMERGENCY CLEANUP: History ${beforeHistory}→${afterHistory}, Branches ${beforeBranches}→${afterBranches}`);
+  }
+
+  /**
    * Cleanup resources
    */
   async destroy(): Promise<void> {
@@ -1101,11 +1291,13 @@ class CodeReasoningServer {
   private initializeMemoryConfig() {
     const performanceConfig = this.loadPerformanceConfig();
     if (performanceConfig) {
+      // MEMORY LEAK FIX: Use much smaller defaults to prevent MCP server memory issues
+      const maxHistory = Math.min(performanceConfig.maxThoughtHistory || 50, 50);
       return {
-        maxThoughtHistory: performanceConfig.maxThoughtHistory || 500,
-        maxBranchThoughts: Math.floor((performanceConfig.maxThoughtHistory || 500) * 0.2),
-        maxBranches: Math.floor((performanceConfig.maxThoughtHistory || 500) * 0.1),
-        cleanupThreshold: performanceConfig.memoryCleanupThreshold || 0.75,
+        maxThoughtHistory: maxHistory,
+        maxBranchThoughts: Math.floor(maxHistory * 0.2),
+        maxBranches: Math.floor(maxHistory * 0.1),
+        cleanupThreshold: Math.min(performanceConfig.memoryCleanupThreshold || 0.5, 0.5),
       };
     }
     return this.calculateSystemOptimalMemoryConfig();
@@ -1127,17 +1319,14 @@ class CodeReasoningServer {
   }
 
   private calculateSystemOptimalMemoryConfig() {
-    const osModule = createRequire(import.meta.url)('os');
-    const totalMemoryGB = osModule.totalmem() / (1024 ** 3);
-    const memoryBudgetMB = (totalMemoryGB * 1024) * 0.075;
-    const avgObjectSizeKB = 1.5;
-    const maxObjects = Math.floor((memoryBudgetMB * 1024) / avgObjectSizeKB);
-    const maxThoughtHistory = Math.min(2000, Math.floor(maxObjects * 0.4));
+    // CRITICAL FIX: Reduce memory limits to prevent leaks in MCP server
+    // MCP servers should stay under 40-70MB to avoid high memory usage warnings
+    const maxThoughtHistory = 50; // Drastically reduced from 2000
     return {
       maxThoughtHistory,
-      maxBranchThoughts: Math.floor(maxThoughtHistory * 0.2),
-      maxBranches: Math.floor(maxThoughtHistory * 0.1),
-      cleanupThreshold: 0.75,
+      maxBranchThoughts: Math.floor(maxThoughtHistory * 0.2), // 10
+      maxBranches: Math.floor(maxThoughtHistory * 0.1), // 5
+      cleanupThreshold: 0.5, // Cleanup at 50% instead of 75%
     };
   }
 }
@@ -1328,6 +1517,23 @@ export async function runServer(debugFlag = false): Promise<void> {
   const shutdown = async (sig: string) => {
     console.error(`↩︎ shutdown on ${sig}`);
 
+    // Clear health check timer first
+    try {
+      clearInterval(healthCheckInterval);
+      console.error('✅ Health check timer cleared');
+    } catch (err) {
+      console.error('⚠️ Error clearing health check timer:', err);
+    }
+
+    // Emergency timer cleanup
+    try {
+      const timerManager = TimerManager.getInstance();
+      timerManager.prepareShutdown();
+      console.error('✅ Timer manager shutdown initiated');
+    } catch (err) {
+      console.error('⚠️ Error shutting down timer manager:', err);
+    }
+
     // Cleanup cognitive components
     try {
       console.error('🧠 Cleaning up cognitive systems...');
@@ -1336,6 +1542,24 @@ export async function runServer(debugFlag = false): Promise<void> {
       console.error('✅ Cognitive systems cleaned up');
     } catch (err) {
       console.error('⚠️ Error cleaning up cognitive systems:', err);
+    }
+
+    // Cleanup memory store
+    try {
+      if (logic['memoryStore']) {
+        await logic['memoryStore'].close();
+        console.error('✅ Memory store closed');
+      }
+    } catch (err) {
+      console.error('⚠️ Error closing memory store:', err);
+    }
+
+    // Cleanup global resource manager
+    try {
+      await globalResourceManager.dispose();
+      console.error('✅ Global resource manager disposed');
+    } catch (err) {
+      console.error('⚠️ Error disposing global resource manager:', err);
     }
 
     // Cleanup transport (avoid double-close)
@@ -1351,6 +1575,21 @@ export async function runServer(debugFlag = false): Promise<void> {
       console.error('✅ Transport closed');
     } catch (err) {
       console.error('⚠️ Error closing transport:', err);
+    }
+
+    // Final timer cleanup with force
+    try {
+      const timerManager = TimerManager.getInstance();
+      timerManager.clearAll('final_shutdown');
+      console.error('✅ All timers force cleared');
+    } catch (err) {
+      console.error('⚠️ Error in final timer cleanup:', err);
+    }
+
+    // Force garbage collection before exit
+    if (global.gc) {
+      console.error('🗑️ Final garbage collection...');
+      global.gc();
     }
 
     process.exit(0);

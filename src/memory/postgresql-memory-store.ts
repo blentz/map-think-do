@@ -49,8 +49,15 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     }
 
     try {
-      // Create connection pool
-      this.pool = new Pool(this.config);
+      // Create connection pool with limits to prevent memory exhaustion
+      this.pool = new Pool({
+        ...this.config,
+        max: Math.min(this.config.max || 20, 20),
+        min: 2,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+        allowExitOnIdle: true
+      });
 
       // Test connection
       const client = await this.pool.connect();
@@ -152,34 +159,56 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     let consecutiveFailures = 0;
     const MAX_FAILURES = 3;
 
-    this.healthCheckInterval = setInterval(async () => {
-      try {
-        if (!this.pool) return;
-
-        // Skip health check if too many consecutive failures (circuit breaker)
-        if (consecutiveFailures >= MAX_FAILURES) {
-          console.warn(`PostgreSQL health check suspended after ${consecutiveFailures} failures`);
-          return;
-        }
-
-        const client = await this.pool.connect();
+    // Use TimerManager for managed timers with auto-cleanup
+    import('../utils/timer-manager.js').then(({ TimerManager }) => {
+      const timerManager = TimerManager.getInstance();
+      
+      const healthCheckId = timerManager.setInterval(async () => {
         try {
-          await client.query('SELECT 1');
-          consecutiveFailures = 0; // Reset on success
-          if (this.config.debug) {
-            console.log('PostgreSQL health check passed');
+          if (!this.pool) {
+            timerManager.clearTimer(healthCheckId);
+            return;
           }
-        } finally {
-          client.release();
+
+          // Skip health check if too many consecutive failures (circuit breaker)
+          if (consecutiveFailures >= MAX_FAILURES) {
+            console.warn(`PostgreSQL health check suspended after ${consecutiveFailures} failures`);
+            return;
+          }
+
+          const client = await this.pool.connect();
+          try {
+            await client.query('SELECT 1');
+            consecutiveFailures = 0; // Reset on success
+            if (this.config.debug) {
+              console.log('PostgreSQL health check passed');
+            }
+          } finally {
+            client.release();
+          }
+        } catch (error) {
+          consecutiveFailures++;
+          console.error(
+            `PostgreSQL health check failed (${consecutiveFailures}/${MAX_FAILURES}):`,
+            error
+          );
+          
+          // Stop health checks after max failures to prevent further resource consumption
+          if (consecutiveFailures >= MAX_FAILURES) {
+            timerManager.clearTimer(healthCheckId);
+          }
         }
-      } catch (error) {
-        consecutiveFailures++;
-        console.error(
-          `PostgreSQL health check failed (${consecutiveFailures}/${MAX_FAILURES}):`,
-          error
-        );
-      }
-    }, 120000); // Check every 2 minutes (reduced frequency)
+      }, 120000, 'postgresql-health-check', {
+        maxExecutions: 100, // Limit to 100 health checks max
+        ttlMs: 10 * 60 * 1000, // 10 minutes max lifetime
+        memoryPressureLimit: 0.8 // Stop at 80% memory usage
+      });
+      
+      // Store the timer ID for cleanup
+      this.healthCheckInterval = { [Symbol.toPrimitive]: () => healthCheckId } as any;
+    }).catch(error => {
+      console.warn('Failed to start managed health monitoring:', error);
+    });
   }
 
   /**
@@ -887,6 +916,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   async *streamExportThoughts(batchSize = 1000): AsyncGenerator<StoredThought[], void, unknown> {
     let offset = 0;
     let hasMore = true;
+    let batchCount = 0;
 
     while (hasMore) {
       const result = await this.query(
@@ -899,6 +929,15 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         break;
       }
 
+      // Add backpressure control to prevent memory exhaustion
+      if (batchCount % 10 === 0) {
+        const memUsage = process.memoryUsage();
+        if (memUsage.heapUsed > memUsage.heapTotal * 0.8) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      batchCount++;
       yield result.rows.map(this.mapRowToStoredThought);
       offset += batchSize;
 
@@ -937,21 +976,51 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    * Close the memory store and cleanup resources
    */
   async close(): Promise<void> {
+    console.log('🔄 Closing PostgreSQL Memory Store...');
+    
+    // Clear health check timer
     if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
+      try {
+        // If using TimerManager, get the timer ID and clear it
+        const timerManager = await import('../utils/timer-manager.js').then(m => m.TimerManager.getInstance());
+        const timerId = String(this.healthCheckInterval);
+        timerManager.clearTimer(timerId);
+      } catch (error) {
+        // Fallback to standard clearInterval
+        if (typeof this.healthCheckInterval === 'object') {
+          clearInterval(this.healthCheckInterval as any);
+        }
+      }
       this.healthCheckInterval = null;
     }
 
     // Stop memory monitoring
-    this.memoryMonitor.stopMonitoring();
+    if (this.memoryMonitor) {
+      this.memoryMonitor.stopMonitoring();
+    }
 
+    // Close connection pool with proper cleanup
     if (this.pool) {
-      await this.pool.end();
-      this.pool = null;
-      console.log('PostgreSQL Memory Store closed');
+      try {
+        // Wait for active connections to finish (max 5s)
+        const closePromise = this.pool.end();
+        const timeoutPromise = new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('Pool close timeout')), 5000)
+        );
+        
+        await Promise.race([closePromise, timeoutPromise]);
+        console.log('✅ Connection pool closed gracefully');
+      } catch (error) {
+        console.warn('⚠️ Force closing connection pool:', error);
+        // Force close if graceful close fails
+        this.pool.end();
+      } finally {
+        this.pool = null;
+      }
     }
 
     this.isInitialized = false;
+    console.log('✅ PostgreSQL Memory Store closed');
   }
 
   /**

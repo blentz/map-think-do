@@ -15,7 +15,7 @@
 
 import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
-import { Mutex } from '../utils/mutex.js';
+import { Mutex, MutexRegistry } from '../utils/mutex.js';
 import { SecureLogger } from '../utils/secure-logger.js';
 import {
   CircularBuffer,
@@ -41,6 +41,7 @@ import { InsightDetector, CognitiveInsight } from './insight-detector.js';
 import { LearningManager } from './learning-manager.js';
 import { DependencyContainer, ServiceTokens, Disposable } from './dependency-container.js';
 import { StateService } from '../state/state-service.js';
+import { globalResourceManager, ManagedNativeResource } from '../utils/resource-lifecycle.js';
 
 /**
  * Orchestrator configuration
@@ -117,9 +118,15 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   // Memory management limits
   private readonly MAX_SESSION_HISTORY = 100;
   private readonly SESSION_CLEANUP_THRESHOLD = 0.8; // Cleanup when 80% full
+  private readonly NATIVE_MEMORY_LIMIT_MB = 500; // 500MB RSS limit
+  private readonly EMERGENCY_MEMORY_LIMIT_MB = 750; // Emergency cleanup threshold
+  private readonly MEMORY_CHECK_INTERVAL = 30000; // Check every 30 seconds
 
-  // Synchronization
-  private readonly stateMutex = new Mutex();
+  // Synchronization - using registry to prevent contention
+  private readonly mutexRegistry = new MutexRegistry(true);
+  private memoryMonitorInterval?: NodeJS.Timeout;
+  private lastRSSMB: number = 0;
+  private memoryGrowthAlerts: number = 0;
 
   constructor(container: DependencyContainer) {
     super();
@@ -188,8 +195,14 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Set up event listeners
     this.setupEventListeners();
 
+    // Start native memory monitoring
+    this.startMemoryMonitoring();
+
     // Complete state service initialization with orchestrator
     await this.finalizeStateServiceInitialization();
+
+    // Register orchestrator as a managed resource
+    globalResourceManager.register(new CognitiveOrchestratorResource(this));
 
     console.error(
       'Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities'
@@ -396,6 +409,9 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         processing_time: processingTime,
       });
 
+      // 🚨 MEMORY LEAK FIX: Clean up large objects before returning
+      await this.cleanupProcessingMemory(interventions, insights);
+      
       return {
         interventions,
         insights,
@@ -422,6 +438,64 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         cognitiveState: this.cognitiveState,
         recommendations: ['Error in cognitive processing - continuing with basic reasoning'],
       };
+    }
+  }
+
+  /**
+   * 🚨 MEMORY LEAK FIX: Clean up processing memory
+   */
+  private async cleanupProcessingMemory(
+    interventions: PluginIntervention[],
+    insights: CognitiveInsight[]
+  ): Promise<void> {
+    try {
+      // Check native memory pressure first
+      if (this.checkNativeMemoryPressure()) {
+        await this.emergencyMemoryCleanup();
+        return;
+      }
+
+      // Clear large content arrays from interventions
+      interventions.forEach(intervention => {
+        if (intervention.metadata && intervention.metadata.side_effects) {
+          intervention.metadata.side_effects.length = 0;
+        }
+        // Truncate long content to prevent memory buildup
+        if (intervention.content && intervention.content.length > 1000) {
+          intervention.content = intervention.content.substring(0, 1000) + '...';
+        }
+      });
+      
+      // Clean up insight data
+      insights.forEach(insight => {
+        if (insight.implications) {
+          insight.implications.splice(5); // Keep only first 5 implications
+        }
+        if (insight.evidence) {
+          insight.evidence.splice(10); // Keep only first 10 evidence items
+        }
+      });
+      
+      // Trim cognitive state history arrays
+      if (this.cognitiveState.confidence_trajectory.length > 50) {
+        this.cognitiveState.confidence_trajectory = this.cognitiveState.confidence_trajectory.slice(-50); // Keep last 50
+      }
+      
+      // Force garbage collection if available
+      if (global.gc && this.memoryGrowthAlerts > 2) {
+        global.gc();
+        this.memoryGrowthAlerts = 0;
+      }
+      
+      console.error('🧹 Cognitive memory cleanup completed', {
+        interventions: interventions.length,
+        insights: insights.length,
+        thoughtHistory: this.thoughtOutputHistory.size,
+        confidencePoints: this.cognitiveState.confidence_trajectory.length
+      });
+      
+    } catch (error) {
+      console.error('⚠️ Cognitive memory cleanup error:', error);
     }
   }
 
@@ -554,7 +628,15 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     thoughtData: ValidatedThoughtData,
     sessionContext?: Partial<ReasoningSession>
   ): Promise<void> {
-    await this.stateTracker.update(thoughtData, sessionContext);
+    // Use dedicated mutex for state updates to prevent futex contention
+    const stateMutex = this.mutexRegistry.getMutex('cognitive_state');
+    await stateMutex.withLock(
+      async () => {
+        await this.stateTracker.update(thoughtData, sessionContext);
+      },
+      3000, // 3 second timeout to prevent deadlocks
+      `thought_${thoughtData.thought_number}`
+    );
   }
 
   /**
@@ -703,6 +785,23 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   ): Promise<void> {
     if (!this.memoryStore) return;
 
+    // Use dedicated mutex for memory operations to prevent contention
+    const memoryMutex = this.mutexRegistry.getMutex('memory_store');
+    await memoryMutex.withLock(
+      async () => {
+        await this.updateMemoryInternal(thoughtData, context, interventions, insights);
+      },
+      10000, // 10 second timeout for memory operations
+      `memory_${thoughtData.thought_number}`
+    );
+  }
+
+  private async updateMemoryInternal(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    interventions: PluginIntervention[],
+    insights: CognitiveInsight[]
+  ): Promise<void> {
     try {
       // Create stored thought
       const storedThought: StoredThought = {
@@ -739,7 +838,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         outcome_quality: this.assessOutcomeQuality(context, interventions, insights),
       };
 
-      await this.memoryStore.storeThought(storedThought);
+      await this.memoryStore!.storeThought(storedThought);
     } catch (error) {
       handleError('CognitiveOrchestrator', 'updateMemory', error, ErrorSeverity.WARNING, {
         thoughtId: thoughtData.thought,
@@ -1425,15 +1524,22 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   }
 
   /**
-   * Add session to history with automatic size management
+   * Add session to history with automatic size management (thread-safe)
    */
-  private addSessionToHistory(sessionId: string, session: ReasoningSession): void {
-    // Check if cleanup needed before adding
-    if (this.sessionHistory.size >= this.MAX_SESSION_HISTORY) {
-      this.cleanupSessionHistory();
-    }
-    
-    this.sessionHistory.set(sessionId, session);
+  private async addSessionToHistory(sessionId: string, session: ReasoningSession): Promise<void> {
+    const sessionMutex = this.mutexRegistry.getMutex('session_history');
+    await sessionMutex.withLock(
+      async () => {
+        // Check if cleanup needed before adding
+        if (this.sessionHistory.size >= this.MAX_SESSION_HISTORY) {
+          this.cleanupSessionHistory();
+        }
+        
+        this.sessionHistory.set(sessionId, session);
+      },
+      2000, // 2 second timeout for session operations
+      `session_${sessionId}`
+    );
   }
 
   /**
@@ -1460,6 +1566,125 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     }
 
     // Session cleanup is handled by checkSessionHistorySize
+  }
+
+  /**
+   * 🚨 Native memory pressure detection
+   */
+  private checkNativeMemoryPressure(): boolean {
+    const memUsage = process.memoryUsage();
+    const rssInMB = memUsage.rss / 1024 / 1024;
+    const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
+    const externalMB = memUsage.external / 1024 / 1024;
+    
+    // Track memory growth
+    const growthMB = rssInMB - this.lastRSSMB;
+    if (growthMB > 50) { // 50MB rapid growth
+      this.memoryGrowthAlerts++;
+      console.warn(`🔍 Rapid native memory growth: +${growthMB.toFixed(1)}MB (RSS: ${rssInMB.toFixed(1)}MB)`);
+    }
+    this.lastRSSMB = rssInMB;
+    
+    if (rssInMB > this.EMERGENCY_MEMORY_LIMIT_MB) {
+      console.error(`🚨 EMERGENCY: Native memory critical: ${rssInMB.toFixed(1)}MB - forcing cleanup`);
+      return true;
+    }
+    
+    if (rssInMB > this.NATIVE_MEMORY_LIMIT_MB) {
+      console.error(`🚨 Native memory pressure: ${rssInMB.toFixed(1)}MB - initiating cleanup`);
+      return true;
+    }
+    
+    // Check for concerning patterns
+    if (externalMB > 100) { // External native memory over 100MB
+      console.warn(`⚠️ High external memory usage: ${externalMB.toFixed(1)}MB`);
+    }
+    
+    return false;
+  }
+
+  /**
+   * 🚨 Emergency memory cleanup for native allocations
+   */
+  private async emergencyMemoryCleanup(): Promise<void> {
+    console.error('🚨 EMERGENCY MEMORY CLEANUP INITIATED');
+    
+    try {
+      // 1. Clear all circular buffers aggressively
+      this.interventionHistory.clear();
+      this.insightHistory.clear();
+      this.thoughtOutputHistory.clear();
+      
+      // 2. Clear session history completely
+      this.sessionHistory.clear();
+      
+      // 3. Reset cognitive state arrays
+      this.cognitiveState.confidence_trajectory.length = 0;
+      
+      // 4. Force garbage collection multiple times
+      if (global.gc) {
+        for (let i = 0; i < 3; i++) {
+          global.gc();
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      // 5. Reset plugin states to free native resources
+      if (this.pluginManager) {
+        try {
+          if (typeof (this.pluginManager as any).emergencyCleanup === "function") {
+            await (this.pluginManager as any).emergencyCleanup();
+          }
+        } catch (error) {
+          console.warn("⚠️ Plugin emergency cleanup not available, continuing");
+        }
+      }
+      
+      // 6. Reset memory growth tracking
+      this.memoryGrowthAlerts = 0;
+      this.lastRSSMB = process.memoryUsage().rss / 1024 / 1024;
+      
+      console.error('🚨 Emergency cleanup completed - memory should be released');
+      
+    } catch (error) {
+      console.error('💥 Emergency cleanup failed:', error);
+      // Last resort - suggest process restart
+      console.error('🔄 CRITICAL: Emergency cleanup failed - process restart recommended');
+    }
+  }
+
+  /**
+   * Start native memory monitoring
+   */
+  private startMemoryMonitoring(): void {
+    this.lastRSSMB = process.memoryUsage().rss / 1024 / 1024;
+    
+    this.memoryMonitorInterval = setInterval(() => {
+      this.checkNativeMemoryPressure();
+      
+      // Auto-restart prevention
+      if (this.cognitiveState.thought_count % 1000 === 0 && this.cognitiveState.thought_count > 0) {
+        const memUsage = process.memoryUsage();
+        const rssInMB = memUsage.rss / 1024 / 1024;
+        
+        console.log(`🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`);
+        
+        if (rssInMB > 800) {
+          console.log('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
+          process.exit(0); // Let process manager restart
+        }
+      }
+    }, this.MEMORY_CHECK_INTERVAL);
+  }
+
+  /**
+   * Stop memory monitoring
+   */
+  private stopMemoryMonitoring(): void {
+    if (this.memoryMonitorInterval) {
+      clearInterval(this.memoryMonitorInterval);
+      this.memoryMonitorInterval = undefined;
+    }
   }
 
   // Helper methods for insight detection
@@ -1738,6 +1963,12 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    * Implements Disposable interface
    */
   public async dispose(): Promise<void> {
+    // Stop memory monitoring first
+    this.stopMemoryMonitoring();
+    
+    // Clean up mutex registry
+    this.mutexRegistry.clear();
+    
     // Remove all listeners from this orchestrator
     this.removeAllListeners();
 
@@ -1765,8 +1996,17 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       await this.stateService.dispose();
     }
 
+    // Clear all native object references
+    this.sessionHistory.clear();
+    this.interventionHistory.clear();
+    this.insightHistory.clear();
+    this.thoughtOutputHistory.clear();
+
     // Dispose dependency container
     await this.container.dispose();
+    
+    // NOTE: Do not dispose globalResourceManager here as it would create a circular disposal loop.
+    // The globalResourceManager should be disposed externally when the entire application shuts down.
   }
 
   /**
@@ -1774,5 +2014,40 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   public async destroy(): Promise<void> {
     await this.dispose();
+  }
+}
+
+/**
+ * Managed resource wrapper for CognitiveOrchestrator
+ */
+class CognitiveOrchestratorResource extends ManagedNativeResource {
+  private orchestrator: CognitiveOrchestrator;
+
+  constructor(orchestrator: CognitiveOrchestrator) {
+    super("cognitive_orchestrator", `orchestrator_${Date.now()}`);
+    this.orchestrator = orchestrator;
+  }
+
+  async cleanup(): Promise<void> {
+    if (!this.isDisposed()) {
+      await this.orchestrator.dispose();
+      this.markDisposed();
+    }
+  }
+
+  getMemoryUsage(): number {
+    let estimatedUsage = 5 * 1024 * 1024; // 5MB base
+    
+    try {
+      const stats = this.orchestrator.getStateStats?.() || {};
+      const historySize = (stats as any).historySize || 0;
+      estimatedUsage += historySize * 10 * 1024;
+      const pluginPerf = this.orchestrator.getPluginPerformance?.() || {};
+      estimatedUsage += Object.keys(pluginPerf).length * 1024 * 1024;
+    } catch (error) {
+      estimatedUsage += 10 * 1024 * 1024; // 10MB fallback
+    }
+    
+    return estimatedUsage;
   }
 }

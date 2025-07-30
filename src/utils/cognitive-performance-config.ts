@@ -32,6 +32,17 @@ export interface CognitivePerformanceConfig {
   maxStreamEntries: number;
   maxCurrentThoughts: number;
   
+  // Execution limits for consciousness simulator
+  maxConsciousnessExecutions?: number;
+  consciousnessMaxRuntimeMs?: number;
+  consciousnessMemoryLimit?: number;
+  maxStreamExecutions?: number;
+  streamMaxRuntimeMs?: number;
+  streamMemoryLimit?: number;
+  maxAdaptiveExecutions?: number;
+  adaptiveMaxRuntimeMs?: number;
+  adaptiveMemoryLimit?: number;
+  
   // Performance mode
   mode: 'high-performance' | 'balanced' | 'eco' | 'custom';
   
@@ -136,11 +147,12 @@ export class CognitivePerformanceConfigManager {
     const avgObjectSizeKB = 1.5; // Average size per cognitive object
     const maxObjects = Math.floor((memoryBudgetMB * 1024) / avgObjectSizeKB);
     
-    // Distribute among different array types
-    const maxExistentialQuestions = Math.min(500, Math.floor(maxObjects * 0.1)); // 10%
-    const maxThoughtHistory = Math.min(2000, Math.floor(maxObjects * 0.4)); // 40%
-    const maxStreamEntries = Math.min(1000, Math.floor(maxObjects * 0.3)); // 30%
-    const maxCurrentThoughts = Math.min(200, Math.floor(maxObjects * 0.2)); // 20%
+    // CRITICAL MEMORY LEAK FIX: Drastically reduce limits for MCP server
+    // MCP servers should stay under 40-70MB to avoid memory warnings
+    const maxExistentialQuestions = Math.min(20, Math.floor(maxObjects * 0.1)); // 10%
+    const maxThoughtHistory = Math.min(50, Math.floor(maxObjects * 0.4)); // 40%
+    const maxStreamEntries = Math.min(30, Math.floor(maxObjects * 0.3)); // 30%
+    const maxCurrentThoughts = Math.min(10, Math.floor(maxObjects * 0.2)); // 20%
 
     console.log(`💾 Memory allocation calculations:`);
     console.log(`   Memory budget: ${memoryBudgetMB.toFixed(1)}MB (7.5% of ${specs.totalMemoryGB.toFixed(1)}GB)`);
@@ -156,14 +168,25 @@ export class CognitivePerformanceConfigManager {
       memoryMonitoringInterval: 30000, // 30 seconds
       healthCheckInterval: 120000, // 2 minutes
       
-      memoryCleanupThreshold: 0.75, // Cleanup at 75% memory usage
-      forceGCThreshold: 0.85, // Force GC at 85% memory usage
-      emergencyCleanupThreshold: 0.95, // Emergency cleanup at 95% memory usage
+      memoryCleanupThreshold: 0.5, // FIXED: Cleanup at 50% memory usage instead of 75%
+      forceGCThreshold: 0.7, // FIXED: Force GC at 70% memory usage instead of 85%
+      emergencyCleanupThreshold: 0.85, // FIXED: Emergency cleanup at 85% memory usage instead of 95%
       
       maxExistentialQuestions,
       maxThoughtHistory,
       maxStreamEntries,
       maxCurrentThoughts,
+      
+      // Execution limits for consciousness simulator
+      maxConsciousnessExecutions: 1000,
+      consciousnessMaxRuntimeMs: 5 * 60 * 1000, // 5 minutes
+      consciousnessMemoryLimit: 0.8,
+      maxStreamExecutions: 500,
+      streamMaxRuntimeMs: 10 * 60 * 1000, // 10 minutes
+      streamMemoryLimit: 0.7,
+      maxAdaptiveExecutions: 200,
+      adaptiveMaxRuntimeMs: 3 * 60 * 1000, // 3 minutes
+      adaptiveMemoryLimit: 0.75,
       
       mode: 'balanced',
       
