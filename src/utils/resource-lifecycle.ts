@@ -159,7 +159,7 @@ export class ResourceLifecycleManager extends EventEmitter {
     }
 
     if (toCleanup.length > 0) {
-      console.log(`🧹 Cleaning up ${toCleanup.length} idle resources`);
+      console.error(`🧹 Cleaning up ${toCleanup.length} idle resources`);
       
       for (const id of toCleanup) {
         await this.unregister(id);
@@ -201,7 +201,7 @@ export class ResourceLifecycleManager extends EventEmitter {
 
     // Cleanup all remaining resources
     const resourceIds = Array.from(this.resources.keys());
-    console.log(`🗑️ Disposing ${resourceIds.length} remaining resources`);
+    console.error(`🗑️ Disposing ${resourceIds.length} remaining resources`);
     
     for (const id of resourceIds) {
       await this.unregister(id);
@@ -219,7 +219,7 @@ export class ResourceLifecycleManager extends EventEmitter {
         const cleanedUp = await this.performRoutineCleanup();
         if (cleanedUp > 0) {
           const stats = this.getStats();
-          console.log(`🔄 Resource cleanup: ${cleanedUp} cleaned, ${stats.totalResources} remaining`);
+          console.error(`🔄 Resource cleanup: ${cleanedUp} cleaned, ${stats.totalResources} remaining`);
         }
       } catch (error) {
         console.error('❌ Error during routine resource cleanup:', error);

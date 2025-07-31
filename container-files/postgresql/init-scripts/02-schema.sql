@@ -55,13 +55,60 @@ CREATE TABLE IF NOT EXISTS reasoning_sessions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. STORED THOUGHTS TABLE  
+-- 2. STORED PROMPTS TABLE
+\echo 'Creating stored_prompts table...'
+
+CREATE TABLE IF NOT EXISTS stored_prompts (
+    -- Primary identification
+    id VARCHAR(50) PRIMARY KEY,
+    session_id VARCHAR(50) NOT NULL REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
+    
+    -- Core prompt data
+    original_prompt TEXT NOT NULL,
+    prompt_type VARCHAR(50), -- AI-classified: 'debugging', 'architecture', 'feature-request', etc.
+    prompt_source VARCHAR(20) DEFAULT 'mcp-tool', -- 'mcp-tool', 'api', 'direct'
+    
+    -- Temporal data
+    received_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    
+    -- AI-Generated Classification (Algorithmic processing results)
+    domain VARCHAR(100), -- AI-mapped domain from classification
+    complexity_estimate DECIMAL(3,1) CHECK (complexity_estimate >= 1.0 AND complexity_estimate <= 10.0),
+    estimated_cognitive_load DECIMAL(3,2) CHECK (estimated_cognitive_load >= 0.0 AND estimated_cognitive_load <= 1.0),
+    classification_confidence DECIMAL(3,2) CHECK (classification_confidence >= 0.0 AND classification_confidence <= 1.0),
+    
+    -- Structured metadata (JSONB for flexibility)
+    prompt_context JSONB, -- Original tool parameters, user context, etc.
+    extracted_intent JSONB, -- AI-analyzed intent with confidence scores
+    
+    -- Processing tracking
+    processing_started_at TIMESTAMP WITH TIME ZONE,
+    processing_completed_at TIMESTAMP WITH TIME ZONE,
+    processing_success BOOLEAN,
+    processing_error TEXT,
+    
+    -- Learning and analytics (Enhanced with similarity scoring)
+    tags TEXT[],
+    similar_prompts JSONB, -- Array of {prompt_id, similarity_score, similarity_type}
+    
+    -- Performance tracking (For validation criteria measurement)
+    reasoning_improvement DECIMAL(3,2), -- Measured improvement over baseline (-1.0 to 1.0)
+    persona_selected VARCHAR(50), -- Which cognitive persona was chosen
+    cognitive_priming_effectiveness DECIMAL(3,2), -- Measured priming impact (0.0 to 1.0)
+    
+    -- Audit fields
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. STORED THOUGHTS TABLE  
 \echo 'Creating stored_thoughts table...'
 
 CREATE TABLE IF NOT EXISTS stored_thoughts (
     -- Primary identification
     id VARCHAR(50) PRIMARY KEY,
     session_id VARCHAR(50) NOT NULL REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
+    prompt_id VARCHAR(50) REFERENCES stored_prompts(id) ON DELETE SET NULL,
     
     -- Core thought content
     thought TEXT NOT NULL,
@@ -122,9 +169,19 @@ CREATE INDEX IF NOT EXISTS idx_thoughts_domain ON stored_thoughts(domain) WHERE 
 CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON reasoning_sessions(start_time DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_domain ON reasoning_sessions(domain) WHERE domain IS NOT NULL;
 
+-- Prompt indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_prompts_session_time ON stored_prompts(session_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prompts_type_domain ON stored_prompts(prompt_type, domain);
+CREATE INDEX IF NOT EXISTS idx_prompts_similarity ON stored_prompts USING GIN (tags) WHERE tags IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_prompts_context ON stored_prompts USING GIN (prompt_context) WHERE prompt_context IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_prompts_similar ON stored_prompts USING GIN (similar_prompts) WHERE similar_prompts IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_prompts_received_at ON stored_prompts(received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prompts_classification ON stored_prompts(prompt_type, classification_confidence) WHERE prompt_type IS NOT NULL;
+
 -- Array indexes for tags and patterns
 CREATE INDEX IF NOT EXISTS idx_thoughts_tags ON stored_thoughts USING GIN (tags) WHERE tags IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_thoughts_patterns ON stored_thoughts USING GIN (patterns_detected) WHERE patterns_detected IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_thoughts_prompt ON stored_thoughts(prompt_id) WHERE prompt_id IS NOT NULL;
 
 -- JSONB index for context
 CREATE INDEX IF NOT EXISTS idx_thoughts_context ON stored_thoughts USING GIN (context) WHERE context IS NOT NULL;
@@ -150,6 +207,12 @@ BEGIN
         -- Convert reasoning_sessions to hypertable  
         PERFORM create_hypertable('reasoning_sessions', 'start_time',
             chunk_time_interval => INTERVAL '7 days', 
+            if_not_exists => TRUE
+        );
+        
+        -- Convert stored_prompts to hypertable
+        PERFORM create_hypertable('stored_prompts', 'received_at',
+            chunk_time_interval => INTERVAL '1 day',
             if_not_exists => TRUE
         );
         

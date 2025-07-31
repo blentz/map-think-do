@@ -1667,10 +1667,10 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         const memUsage = process.memoryUsage();
         const rssInMB = memUsage.rss / 1024 / 1024;
         
-        console.log(`🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`);
+        console.error(`🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`);
         
         if (rssInMB > 800) {
-          console.log('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
+          console.error('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
           process.exit(0); // Let process manager restart
         }
       }
@@ -1956,6 +1956,264 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     }
 
     return sum / (values.length - 1);
+  }
+
+  /**
+   * Process thought with prompt context priming for AGI-like learning
+   */
+  async processThoughtWithPromptContext(
+    thoughtData: ValidatedThoughtData,
+    sessionContext?: Partial<ReasoningSession>,
+    promptContext?: {
+      promptId?: string;
+      similarPrompts?: Array<{
+        prompt_id: string;
+        similarity_score: number;
+        similarity_type: string;
+      }>;
+      classification?: { type: string; confidence: number };
+      intent?: {
+        objectives: string[];
+        constraints: string[];
+        requirements: string[];
+      };
+      complexity?: { complexity: number; confidence: number };
+    }
+  ): Promise<{
+    interventions: PluginIntervention[];
+    insights: CognitiveInsight[];
+    cognitiveState: CognitiveState;
+    recommendations: string[];
+  }> {
+    // If prompt context is provided, prime the cognitive state
+    if (promptContext && this.memoryStore) {
+      await this.primeFromPromptContext(promptContext);
+    }
+
+    // Process thought with enhanced context
+    return this.processThought(thoughtData, sessionContext);
+  }
+
+  /**
+   * Prime cognitive state from prompt context and historical patterns
+   */
+  private async primeFromPromptContext(promptContext: {
+    promptId?: string;
+    similarPrompts?: Array<{
+      prompt_id: string;
+      similarity_score: number;
+      similarity_type: string;
+    }>;
+    classification?: { type: string; confidence: number };
+    intent?: {
+      objectives: string[];
+      constraints: string[];
+      requirements: string[];
+    };
+    complexity?: { complexity: number; confidence: number };
+  }): Promise<void> {
+    try {
+      console.error('🧠 Priming cognitive state from prompt context...');
+
+      // Adjust cognitive state based on prompt classification
+      if (promptContext.classification) {
+        this.adjustCognitiveStateForPromptType(promptContext.classification);
+      }
+
+      // Prime from similar successful prompts
+      if (promptContext.similarPrompts && promptContext.similarPrompts.length > 0) {
+        await this.primeFromSimilarPrompts(promptContext.similarPrompts);
+      }
+
+      // Adjust cognitive load based on complexity
+      if (promptContext.complexity) {
+        this.adjustCognitiveComplexity(promptContext.complexity);
+      }
+
+      // Set intent-based cognitive focus
+      if (promptContext.intent) {
+        this.setCognitiveFocusFromIntent(promptContext.intent);
+      }
+
+      console.error('✅ Cognitive priming completed');
+    } catch (error) {
+      console.error('⚠️ Error during cognitive priming:', error);
+      // Continue without priming rather than failing
+    }
+  }
+
+  /**
+   * Adjust cognitive state based on prompt type classification
+   */
+  private adjustCognitiveStateForPromptType(classification: { type: string; confidence: number }): void {
+    const adjustmentStrength = Math.min(classification.confidence, 0.8); // Cap at 80%
+
+    switch (classification.type) {
+      case 'debugging':
+        this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.3 * adjustmentStrength), 1.0);
+        this.cognitiveState.engagement_level = Math.min(this.cognitiveState.engagement_level + (0.2 * adjustmentStrength), 1.0);
+        break;
+
+      case 'architecture':
+        this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.4 * adjustmentStrength), 1.0);
+        this.cognitiveState.metacognitive_awareness = Math.min(this.cognitiveState.metacognitive_awareness + (0.3 * adjustmentStrength), 1.0);
+        break;
+
+      case 'feature-request':
+        this.cognitiveState.creative_pressure = Math.min(this.cognitiveState.creative_pressure + (0.3 * adjustmentStrength), 1.0);
+        this.cognitiveState.insight_potential = Math.min(this.cognitiveState.insight_potential + (0.2 * adjustmentStrength), 1.0);
+        break;
+
+      case 'optimization':
+        this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.4 * adjustmentStrength), 1.0);
+        this.cognitiveState.engagement_level = Math.min(this.cognitiveState.engagement_level + (0.2 * adjustmentStrength), 1.0);
+        break;
+
+      case 'analysis':
+        this.cognitiveState.metacognitive_awareness = Math.min(this.cognitiveState.metacognitive_awareness + (0.3 * adjustmentStrength), 1.0);
+        this.cognitiveState.pattern_recognition_active = true; // Enable pattern recognition for analysis tasks
+        break;
+    }
+
+    console.error(`🎯 Cognitive state adjusted for ${classification.type} (confidence: ${classification.confidence})`);
+  }
+
+  /**
+   * Prime cognitive state from patterns in similar successful prompts
+   */
+  private async primeFromSimilarPrompts(similarPrompts: Array<{
+    prompt_id: string;
+    similarity_score: number;
+    similarity_type: string;
+  }>): Promise<void> {
+    if (!this.memoryStore) return;
+
+    try {
+      // Analyze success patterns from similar prompts
+      const promptIds = similarPrompts.map(sp => sp.prompt_id);
+      const successPatterns = await this.memoryStore.analyzeSuccessPatterns(promptIds);
+
+      if (successPatterns.length > 0) {
+        // Apply pattern-based cognitive priming
+        for (const pattern of successPatterns) {
+          if (pattern.success_rate > 0.7) { // Only use patterns with >70% success rate
+            this.applyCognitivePrimingFromPattern(pattern, similarPrompts.length);
+          }
+        }
+
+        console.error(`🔍 Applied priming from ${successPatterns.length} successful patterns`);
+      }
+    } catch (error) {
+      console.error('⚠️ Error analyzing success patterns:', error);
+    }
+  }
+
+  /**
+   * Apply cognitive priming based on successful patterns
+   */
+  private applyCognitivePrimingFromPattern(
+    pattern: {
+      pattern_type: string;
+      success_rate: number;
+      common_attributes: Record<string, any>;
+    },
+    similarCount: number
+  ): void {
+    const primingStrength = Math.min(pattern.success_rate * (similarCount / 10), 0.5); // Cap at 50%
+
+    // Boost confidence based on successful pattern
+    this.cognitiveState.confidence_trajectory.push(
+      Math.min((this.cognitiveState.confidence_trajectory.slice(-1)[0] || 0.5) + (0.1 * primingStrength), 1.0)
+    );
+
+    // Adjust reasoning strategy based on successful attributes
+    if (pattern.common_attributes.avg_complexity > 7) {
+      this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.2 * primingStrength), 1.0);
+    }
+
+    if (pattern.common_attributes.prompt_type === 'debugging') {
+      this.cognitiveState.engagement_level = Math.min(this.cognitiveState.engagement_level + (0.15 * primingStrength), 1.0);
+    }
+
+    console.error(`⚡ Cognitive priming applied from pattern: ${pattern.pattern_type} (success rate: ${pattern.success_rate})`);
+  }
+
+  /**
+   * Adjust cognitive complexity based on prompt complexity estimate
+   */
+  private adjustCognitiveComplexity(complexity: { complexity: number; confidence: number }): void {
+    const adjustmentStrength = complexity.confidence;
+    const complexityRatio = complexity.complexity / 10; // Normalize to 0-1
+
+    // Adjust cognitive load and depth based on complexity
+    this.cognitiveState.current_complexity = complexity.complexity;
+    this.cognitiveState.analytical_depth = Math.min(
+      this.cognitiveState.analytical_depth + (complexityRatio * 0.3 * adjustmentStrength),
+      1.0
+    );
+
+    // Higher complexity requires more metacognitive awareness
+    if (complexity.complexity > 7) {
+      this.cognitiveState.metacognitive_awareness = Math.min(
+        this.cognitiveState.metacognitive_awareness + (0.2 * adjustmentStrength),
+        1.0
+      );
+    }
+
+    console.error(`🎚️ Cognitive complexity adjusted to ${complexity.complexity} (confidence: ${complexity.confidence})`);
+  }
+
+  /**
+   * Set cognitive focus based on extracted intent
+   */
+  private setCognitiveFocusFromIntent(intent: {
+    objectives: string[];
+    constraints: string[];
+    requirements: string[];
+  }): void {
+    // Boost solution orientation if clear objectives exist
+    if (intent.objectives.length > 0) {
+      this.cognitiveState.insight_potential = Math.min(
+        this.cognitiveState.insight_potential + (intent.objectives.length * 0.1),
+        1.0
+      );
+    }
+
+    // Increase analytical focus for complex constraints
+    if (intent.constraints.length > 2) {
+      this.cognitiveState.analytical_depth = Math.min(
+        this.cognitiveState.analytical_depth + (intent.constraints.length * 0.05),
+        1.0
+      );
+    }
+
+    // Boost strategic thinking for multiple requirements
+    if (intent.requirements.length > 1) {
+      this.cognitiveState.analytical_depth = Math.min(
+        this.cognitiveState.analytical_depth + (intent.requirements.length * 0.08),
+        1.0
+      );
+    }
+
+    console.error(`🎯 Cognitive focus set: ${intent.objectives.length} objectives, ${intent.constraints.length} constraints, ${intent.requirements.length} requirements`);
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   */
+  async primeFromPromptHistory(
+    prompt: any,
+    successfulPatterns: any[]
+  ): Promise<void> {
+    const promptContext = {
+      promptId: prompt.id,
+      similarPrompts: prompt.similar_prompts || [],
+      classification: prompt.prompt_type ? { type: prompt.prompt_type, confidence: prompt.classification_confidence || 0.5 } : undefined,
+      intent: prompt.extracted_intent,
+      complexity: prompt.complexity_estimate ? { complexity: prompt.complexity_estimate, confidence: prompt.classification_confidence || 0.5 } : undefined
+    };
+
+    await this.primeFromPromptContext(promptContext);
   }
 
   /**

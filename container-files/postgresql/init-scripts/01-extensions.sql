@@ -44,6 +44,16 @@ CREATE EXTENSION IF NOT EXISTS "timescaledb"
 CREATE EXTENSION IF NOT EXISTS "unaccent" 
     SCHEMA public;
 
+-- Apache AGE for graph database capabilities
+\echo 'Creating Apache AGE extension for graph database capabilities...'
+
+-- Create ag_catalog schema required by AGE
+CREATE SCHEMA IF NOT EXISTS ag_catalog;
+
+-- Create AGE extension in the required ag_catalog schema
+CREATE EXTENSION IF NOT EXISTS "age" 
+    SCHEMA ag_catalog;
+
 -- 5. Verify core extensions are properly installed
 \echo 'Verifying extension installation...'
 
@@ -60,24 +70,41 @@ WHERE extname IN (
     'btree_gist',
     'pg_stat_statements',
     'timescaledb',
-    'unaccent'
+    'unaccent',
+    'age'
 )
 ORDER BY extname;
 
--- 6. Configure TimescaleDB settings
+-- 6. Configure TimescaleDB settings (if available)
 \echo 'Configuring TimescaleDB for cognitive workloads...'
 
--- Set TimescaleDB configuration for cognitive analytics
-SELECT timescaledb_pre_restore();
-
--- Configure background workers for cognitive data processing
-SELECT set_config('timescaledb.max_background_workers', '8', false);
+-- Set TimescaleDB configuration for cognitive analytics (only if TimescaleDB is available)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+        PERFORM timescaledb_pre_restore();
+        RAISE NOTICE 'TimescaleDB configured successfully';
+        RAISE NOTICE 'TimescaleDB background workers configured in postgresql.conf';
+    ELSE
+        RAISE NOTICE 'TimescaleDB not available, skipping configuration';
+    END IF;
+END
+$$;
 
 -- 7. Performance and monitoring setup
 \echo 'Setting up performance monitoring...'
 
--- Configure pg_stat_statements for query analysis
-SELECT pg_stat_statements_reset();
+-- Configure pg_stat_statements for query analysis (only if available)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') THEN
+        PERFORM pg_stat_statements_reset();
+        RAISE NOTICE 'pg_stat_statements configured successfully';
+    ELSE
+        RAISE NOTICE 'pg_stat_statements not available, skipping configuration';
+    END IF;
+END
+$$;
 
 -- 8. Set up extension-specific schemas and permissions
 \echo 'Setting up schemas and permissions...'
@@ -94,17 +121,18 @@ GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO mtd_user;
 SET gin_fuzzy_search_limit = 0;
 SET gin_pending_list_limit = '16MB';
 
--- Optimize for time-series queries (TimescaleDB)
-SET timescaledb.max_background_workers = 8;
-
 -- Memory settings for complex cognitive queries
 SET work_mem = '256MB';
 SET maintenance_work_mem = '1GB';
+
+-- Note: TimescaleDB performance settings are configured in postgresql.conf
+-- timescaledb.max_background_workers = 8 (requires server restart)
 
 \echo 'Core extension initialization completed successfully!'
 \echo 'Available cognitive capabilities:'
 \echo '  - Time-series analytics (TimescaleDB)'
 \echo '  - Full-text and trigram search (pg_trgm)'
+\echo '  - Graph database operations (Apache AGE)'
 \echo '  - UUID generation (uuid-ossp)'
 \echo '  - Performance monitoring (pg_stat_statements)'
 

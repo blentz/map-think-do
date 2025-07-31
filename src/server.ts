@@ -27,9 +27,9 @@
  *
  * ## MCP Protocol Communication
  * - IMPORTANT: Local MCP servers must never log to stdout (standard output)
- * - All logging must be directed to stderr using console.error() instead of console.log()
+ * - All logging must be directed to stderr using console.error() instead of console.error()
  * - The stdout channel is reserved exclusively for JSON-RPC protocol messages
- * - Using console.log() or console.info() will cause client-side parsing errors
+ * - Using console.error() or console.info() will cause client-side parsing errors
  *
  * ## Example Thought Data
  * ```json
@@ -79,12 +79,18 @@ import { Mutex } from './utils/mutex.js';
 import {
   MemoryStore,
   StoredThought,
+  StoredPrompt,
   ReasoningSession,
   MemoryQuery,
+  PromptQuery,
   MemoryStats,
 } from './memory/memory-store.js';
 import { PostgreSQLMemoryStore } from './memory/postgresql-memory-store.js';
 import { PostgreSQLConfigs } from './memory/postgresql-config.js';
+import { PromptClassifier } from './memory/prompt-intelligence/prompt-classifier.js';
+import { IntentExtractor } from './memory/prompt-intelligence/intent-extractor.js';
+import { SimilarityDetector } from './memory/prompt-intelligence/similarity-detector.js';
+import { ComplexityEstimator } from './memory/prompt-intelligence/complexity-estimator.js';
 import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
 import { TimerManager } from './utils/timer-manager.js';
 
@@ -330,13 +336,19 @@ class FilteredStdioServerTransport extends StdioServerTransport {
 /*                              SERVER IMPLEMENTATION                         */
 /* -------------------------------------------------------------------------- */
 
-class CodeReasoningServer {
+export class CodeReasoningServer {
   private readonly thoughtHistory: ValidatedThoughtData[] = [];
   private readonly branches = new Map<string, ValidatedThoughtData[]>();
   private cognitiveOrchestrator!: CognitiveOrchestrator;
   private readonly memoryStore: MemoryStore;
   private currentSessionId: string;
   private readonly thoughtMutex = new Mutex();
+  
+  // Prompt Intelligence Components for AGI-like Learning
+  private readonly promptClassifier: PromptClassifier;
+  private readonly intentExtractor: IntentExtractor;
+  private readonly similarityDetector: SimilarityDetector;
+  private readonly complexityEstimator: ComplexityEstimator;
   
   // Session tracking for persistence
   private currentSession: Partial<ReasoningSession> | null = null;
@@ -360,6 +372,12 @@ class CodeReasoningServer {
   constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
     // Initialize memory store based on configuration
     this.memoryStore = this.createMemoryStore();
+
+    // Initialize prompt intelligence components for AGI-like learning
+    this.promptClassifier = new PromptClassifier();
+    this.intentExtractor = new IntentExtractor();
+    this.similarityDetector = new SimilarityDetector();
+    this.complexityEstimator = new ComplexityEstimator();
 
     // Cognitive orchestrator will be initialized via initialize() method
 
@@ -432,6 +450,14 @@ class CodeReasoningServer {
       sessionId: this.currentSessionId,
       cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC',
     });
+
+    // Store the initial session to database to prevent foreign key constraint violations
+    try {
+      await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
+      console.error(`📝 Initial session stored: ${this.currentSessionId}`);
+    } catch (error) {
+      console.error('Failed to store initial session:', error);
+    }
   }
 
   /**
@@ -861,6 +887,138 @@ class CodeReasoningServer {
     return `Validation errors found:\n\n${guidance}\n\nPlease correct these issues and try again. Each field serves a specific purpose in the reasoning process.`;
   }
 
+  /* ------------------------------ Prompt Intelligence ----------------------------- */
+
+  /**
+   * Capture and analyze the original prompt using AGI-like intelligence
+   */
+  private async captureAndAnalyzePrompt(thoughtData: ValidatedThoughtData): Promise<string | null> {
+    try {
+      // Use the thought content as a proxy for the original prompt
+      // In a more advanced implementation, this would capture the actual user prompt
+      const promptText = thoughtData.thought;
+      
+      console.error('🧠 Analyzing prompt with AGI intelligence components...');
+      
+      // Run all analyses in parallel for efficiency
+      const [classification, intent, complexity] = await Promise.all([
+        this.promptClassifier.classifyPrompt(promptText),
+        this.intentExtractor.extractIntent(promptText),
+        this.complexityEstimator.estimateComplexity(promptText)
+      ]);
+
+      // Find similar prompts for pattern learning
+      const existingPrompts = await this.memoryStore.queryPrompts({ 
+        limit: 50
+      });
+      
+      const similarPrompts = await this.similarityDetector.findSimilarPrompts(
+        promptText, 
+        existingPrompts, 
+        5, 
+        0.4
+      );
+
+      // Create stored prompt with rich analysis
+      const storedPrompt: StoredPrompt = {
+        id: this.generatePromptId(),
+        session_id: this.currentSessionId,
+        original_prompt: promptText,
+        prompt_type: classification.type,
+        classification_confidence: classification.confidence,
+        extracted_intent: {
+          objectives: intent.objectives,
+          constraints: intent.constraints,
+          requirements: intent.requirements,
+          expected_output_type: intent.expected_output_type,
+          extraction_confidence: intent.extraction_confidence,
+        },
+        complexity_estimate: complexity.complexity,
+        estimated_cognitive_load: complexity.cognitive_load_estimate,
+        similar_prompts: similarPrompts,
+        processing_success: false, // Will be updated after processing
+        received_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
+        domain: this.inferDomain(thoughtData),
+        tags: this.generatePromptTags(classification, intent, complexity),
+        reasoning_improvement: undefined
+      };
+
+      // Store the prompt with analysis
+      await this.memoryStore.storePrompt(storedPrompt);
+      
+      console.error('✅ Prompt analyzed and stored', {
+        promptId: storedPrompt.id,
+        type: classification.type,
+        confidence: classification.confidence,
+        complexity: complexity.complexity,
+        objectives: intent.objectives.length,
+        constraints: intent.constraints.length,
+        requirements: intent.requirements.length,
+        similarPrompts: similarPrompts.length
+      });
+
+      return storedPrompt.id;
+    } catch (error) {
+      console.error('⚠️ Error analyzing prompt:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate unique prompt ID
+   */
+  private generatePromptId(): string {
+    return `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Generate tags for prompt based on analysis
+   */
+  private generatePromptTags(
+    classification: any, 
+    intent: any, 
+    complexity: any
+  ): string[] {
+    const tags: string[] = [];
+    
+    // Add classification-based tags
+    tags.push(classification.type);
+    if (classification.confidence > 0.8) tags.push('high-confidence');
+    
+    // Add complexity-based tags
+    if (complexity.complexity > 7) tags.push('complex');
+    else if (complexity.complexity > 4) tags.push('moderate');
+    else tags.push('simple');
+    
+    // Add intent-based tags
+    if (intent.objectives.length > 0) tags.push('has-objectives');
+    if (intent.constraints.length > 0) tags.push('has-constraints');
+    if (intent.requirements.length > 0) tags.push('has-requirements');
+    if (intent.expected_output_type) tags.push(`output-${intent.expected_output_type}`);
+    
+    return tags;
+  }
+
+  /**
+   * Update prompt processing status after thought completion
+   */
+  private async updatePromptProcessingStatus(
+    promptId: string, 
+    success: boolean, 
+    outcomeQuality: 'excellent' | 'good' | 'fair' | 'poor'
+  ): Promise<void> {
+    try {
+      await this.memoryStore.updatePrompt(promptId, {
+        processing_success: success,
+        reasoning_improvement: success ? 0.1 : -0.1 // Simple heuristic
+      });
+    } catch (error) {
+      console.error('⚠️ Error updating prompt processing status:', error);
+    }
+  }
+
   /* ------------------------------ Main Handler ----------------------------- */
 
   public async processThought(input: unknown): Promise<ServerResult> {
@@ -881,22 +1039,78 @@ class CodeReasoningServer {
         );
       }
 
-      // 🧠 AGI MAGIC: Cognitive orchestration and sentient processing
-      console.error('🧠 Engaging cognitive orchestrator for AGI-level processing...');
+      // 🧠 AGI MAGIC: Prompt intelligence and cognitive orchestration 
+      console.error('🧠 Capturing and analyzing prompt with AGI intelligence...');
+      
+      // Capture and analyze the prompt before cognitive processing
+      const promptId = await this.captureAndAnalyzePrompt(data);
+      
+      console.error('🧠 Engaging cognitive orchestrator for AGI-level processing with prompt context...');
 
-      const cognitiveResult = await this.cognitiveOrchestrator.processThought(data, {
-        id: this.currentSessionId,
-        objective: this.inferObjective(data),
-        domain: this.inferDomain(data),
-        start_time: new Date(),
-        goal_achieved: false,
-        confidence_level: 0.5,
-        total_thoughts: data.total_thoughts,
-        revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
-        branch_count: this.branches.size,
-      });
+      // Build prompt context for enhanced cognitive processing
+      let promptContext: any = undefined;
+      if (promptId) {
+        try {
+          // Retrieve the stored prompt with all analysis data
+          const storedPrompt = await this.memoryStore.getPrompt(promptId);
+          if (storedPrompt) {
+            // Build context from stored prompt analysis
+            promptContext = {
+              promptId: storedPrompt.id,
+              classification: {
+                type: storedPrompt.prompt_type,
+                confidence: storedPrompt.classification_confidence || 0.5
+              },
+              intent: storedPrompt.extracted_intent,
+              complexity: {
+                complexity: storedPrompt.complexity_estimate || 5.0,
+                confidence: 0.8 // Default confidence for complexity
+              },
+              similarPrompts: storedPrompt.similar_prompts || []
+            };
+            
+            console.error('🧠 Prompt context built for cognitive priming:', {
+              type: promptContext.classification.type,
+              objectives: promptContext.intent?.objectives?.length || 0,
+              constraints: promptContext.intent?.constraints?.length || 0,
+              requirements: promptContext.intent?.requirements?.length || 0,
+              complexity: promptContext.complexity.complexity,
+              similarPrompts: promptContext.similarPrompts.length
+            });
+          } else {
+            console.error('⚠️ Stored prompt not found for ID:', promptId);
+          }
+        } catch (error) {
+          console.error('⚠️ Error retrieving prompt context:', error);
+        }
+      }
 
-      // Store thought in memory with cognitive enrichment
+      // Use enhanced cognitive processing with prompt context priming
+      const cognitiveResult = promptContext 
+        ? await this.cognitiveOrchestrator.processThoughtWithPromptContext(data, {
+            id: this.currentSessionId,
+            objective: this.inferObjective(data),
+            domain: this.inferDomain(data),
+            start_time: new Date(),
+            goal_achieved: false,
+            confidence_level: 0.5,
+            total_thoughts: data.total_thoughts,
+            revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
+            branch_count: this.branches.size,
+          }, promptContext)
+        : await this.cognitiveOrchestrator.processThought(data, {
+            id: this.currentSessionId,
+            objective: this.inferObjective(data),
+            domain: this.inferDomain(data),
+            start_time: new Date(),
+            goal_achieved: false,
+            confidence_level: 0.5,
+            total_thoughts: data.total_thoughts,
+            revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
+            branch_count: this.branches.size,
+          });
+
+      // Store thought in memory with cognitive enrichment and prompt linkage
       const storedThought: StoredThought = {
         id: this.generateThoughtId(),
         thought: data.thought,
@@ -910,6 +1124,7 @@ class CodeReasoningServer {
         needs_more_thoughts: data.needs_more_thoughts,
         timestamp: new Date(),
         session_id: this.currentSessionId,
+        prompt_id: promptId || undefined, // Link to the analyzed prompt
         confidence:
           cognitiveResult.cognitiveState.confidence_trajectory[
             cognitiveResult.cognitiveState.confidence_trajectory.length - 1
@@ -926,10 +1141,11 @@ class CodeReasoningServer {
         outcome_quality: this.assessOutcomeQuality(cognitiveResult),
       };
 
-      await this.memoryStore.storeThought(storedThought);
-
-      // Update and store session information
+      // Update and store session information FIRST (to satisfy foreign key constraints)
       await this.updateAndStoreSession(data, cognitiveResult);
+
+      // Then store the thought (which references the session)
+      await this.memoryStore.storeThought(storedThought);
 
       // Stats & storage with memory management -------------------------
       // Use mutex to prevent race conditions in shared state mutations
@@ -981,9 +1197,15 @@ class CodeReasoningServer {
         }
       }
 
+      // Update prompt processing success status
+      if (promptId) {
+        await this.updatePromptProcessingStatus(promptId, true, this.assessOutcomeQuality(cognitiveResult));
+      }
+
       console.error('✔️ AGI processed', {
         num: data.thought_number,
         cognitive_efficiency: cognitiveResult.cognitiveState.cognitive_efficiency,
+        promptId: promptId,
         elapsedMs: +(performance.now() - t0).toFixed(1),
       });
 
@@ -1776,6 +1998,55 @@ class InMemoryStore extends MemoryStore {
 
   async optimize(): Promise<void> {
     // Simple implementation
+  }
+
+  async storePrompt(prompt: StoredPrompt): Promise<void> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async getPrompt(id: string): Promise<StoredPrompt | null> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async findSimilarPrompts(prompt: string, limit?: number): Promise<StoredPrompt[]> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async updatePrompt(id: string, updates: Partial<StoredPrompt>): Promise<void> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
+    pattern_type: string;
+    success_rate: number;
+    common_attributes: Record<string, any>;
+  }>> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async calculatePerformanceMetrics(): Promise<{
+    classification_accuracy: number;
+    intent_extraction_precision: number;
+    similarity_detection_recall: number;
+    reasoning_improvement_average: number;
+  }> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
+  }
+
+  async updatePromptPerformance(
+    promptId: string, 
+    performance: {
+      processing_success: boolean;
+      reasoning_improvement?: number;
+      persona_selected?: string;
+      cognitive_priming_effectiveness?: number;
+    }
+  ): Promise<void> {
+    throw new Error('InMemoryStore prompt methods not implemented yet');
   }
 
   async close(): Promise<void> {

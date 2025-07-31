@@ -30,34 +30,81 @@ END $$;
 
 \echo 'Creating vector storage tables...';
 
--- Table to store thought embeddings
-CREATE TABLE IF NOT EXISTS thought_embeddings (
-    thought_id VARCHAR(50) PRIMARY KEY REFERENCES stored_thoughts(id) ON DELETE CASCADE,
-    embedding vector(384),  -- Default dimension for sentence-transformers/all-MiniLM-L6-v2
-    embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+-- Create vector tables only if pgvector extension is available
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        -- Table to store thought embeddings
+        CREATE TABLE IF NOT EXISTS thought_embeddings (
+            thought_id VARCHAR(50) PRIMARY KEY REFERENCES stored_thoughts(id) ON DELETE CASCADE,
+            embedding vector(384),  -- Default dimension for sentence-transformers/all-MiniLM-L6-v2
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
 
--- Table to store session embeddings (aggregated thought embeddings)
-CREATE TABLE IF NOT EXISTS session_embeddings (
-    session_id VARCHAR(50) PRIMARY KEY REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
-    objective_embedding vector(384),
-    aggregated_embedding vector(384),  -- Average of all thought embeddings in session
-    embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+        -- Table to store session embeddings (aggregated thought embeddings)
+        CREATE TABLE IF NOT EXISTS session_embeddings (
+            session_id VARCHAR(50) PRIMARY KEY REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
+            objective_embedding vector(384),
+            aggregated_embedding vector(384),  -- Average of all thought embeddings in session
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        RAISE NOTICE 'Vector tables created successfully with pgvector support';
+    ELSE
+        -- Fallback tables without vector type
+        CREATE TABLE IF NOT EXISTS thought_embeddings (
+            thought_id VARCHAR(50) PRIMARY KEY REFERENCES stored_thoughts(id) ON DELETE CASCADE,
+            embedding_json JSONB,  -- Store embedding as JSON array fallback
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
 
--- Table to store pattern embeddings for pattern-based similarity
-CREATE TABLE IF NOT EXISTS pattern_embeddings (
-    pattern_name VARCHAR(200) PRIMARY KEY,
-    embedding vector(384),
-    pattern_frequency INTEGER DEFAULT 0,
-    embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+        CREATE TABLE IF NOT EXISTS session_embeddings (
+            session_id VARCHAR(50) PRIMARY KEY REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
+            objective_embedding_json JSONB,
+            aggregated_embedding_json JSONB,  -- Average of all thought embeddings in session
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        RAISE NOTICE 'Vector tables created with JSONB fallback (pgvector not available)';
+    END IF;
+END
+$$;
+
+-- Create pattern embeddings table (needs to be inside pgvector check)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        -- Table to store pattern embeddings for pattern-based similarity (with vector support)
+        CREATE TABLE IF NOT EXISTS pattern_embeddings (
+            pattern_name VARCHAR(200) PRIMARY KEY,
+            embedding vector(384),
+            pattern_frequency INTEGER DEFAULT 0,
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        RAISE NOTICE 'Pattern embeddings table created with pgvector support';
+    ELSE
+        -- Fallback table without vector type
+        CREATE TABLE IF NOT EXISTS pattern_embeddings (
+            pattern_name VARCHAR(200) PRIMARY KEY,
+            embedding_json JSONB,  -- Store embedding as JSON array fallback
+            pattern_frequency INTEGER DEFAULT 0,
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        RAISE NOTICE 'Pattern embeddings table created with JSONB fallback (pgvector not available)';
+    END IF;
+END $$;
 
 -- =============================================================================
 -- VECTOR INDEXES FOR PERFORMANCE
@@ -119,7 +166,7 @@ RETURNS TABLE (
     confidence NUMERIC,
     domain VARCHAR(100),
     session_id VARCHAR(50),
-    timestamp TIMESTAMP WITH TIME ZONE
+    thought_timestamp TIMESTAMP WITH TIME ZONE
 ) AS $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
@@ -131,7 +178,7 @@ BEGIN
             st.confidence,
             st.domain,
             st.session_id,
-            st.timestamp
+            st.timestamp as thought_timestamp
         FROM thought_embeddings te
         JOIN stored_thoughts st ON te.thought_id = st.id
         WHERE (1 - (te.embedding <=> query_embedding)) > similarity_threshold
@@ -203,16 +250,23 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
-        RETURN QUERY
-        SELECT 
-            pe.pattern_name,
-            (1 - (pe.embedding <=> query_embedding)) as similarity_score,
-            pe.pattern_frequency,
-            pe.created_at
-        FROM pattern_embeddings pe
-        WHERE (1 - (pe.embedding <=> query_embedding)) > similarity_threshold
-        ORDER BY pe.embedding <=> query_embedding
-        LIMIT max_results;
+        -- Check if the table has vector column
+        IF EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'pattern_embeddings' AND column_name = 'embedding') THEN
+            RETURN QUERY
+            SELECT 
+                pe.pattern_name,
+                (1 - (pe.embedding <=> query_embedding)) as similarity_score,
+                pe.pattern_frequency,
+                pe.created_at
+            FROM pattern_embeddings pe
+            WHERE (1 - (pe.embedding <=> query_embedding)) > similarity_threshold
+            ORDER BY pe.embedding <=> query_embedding
+            LIMIT max_results;
+        ELSE
+            RAISE NOTICE 'Pattern embeddings table exists but without vector support';
+            RETURN;
+        END IF;
     ELSE
         RAISE NOTICE 'pgvector not available, cannot perform semantic pattern matching';
         RETURN;
@@ -236,12 +290,7 @@ RETURNS TABLE (
 ) AS $$
 DECLARE
     cluster_counter INTEGER := 0;
-    current_embedding vector(384);
-    current_thought_id VARCHAR(50);
-    embedding_cursor CURSOR FOR 
-        SELECT te.thought_id, te.embedding 
-        FROM thought_embeddings te
-        ORDER BY te.created_at;
+    embedding_record RECORD;
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
         -- Create temporary table for clustering results
@@ -254,11 +303,15 @@ BEGIN
         TRUNCATE temp_clusters;
         
         -- Simple clustering algorithm - can be enhanced with more sophisticated methods
-        FOR current_thought_id, current_embedding IN embedding_cursor LOOP
+        FOR embedding_record IN 
+            SELECT te.thought_id, te.embedding 
+            FROM thought_embeddings te
+            ORDER BY te.created_at
+        LOOP
             -- Check if thought belongs to existing cluster
             IF NOT EXISTS (
                 SELECT 1 FROM temp_clusters tc
-                WHERE (1 - (tc.embedding <=> current_embedding)) > cluster_threshold
+                WHERE (1 - (tc.embedding <=> embedding_record.embedding)) > cluster_threshold
                 LIMIT 1
             ) THEN
                 -- Create new cluster
@@ -271,13 +324,13 @@ BEGIN
                 COALESCE(
                     (SELECT tc.cluster_id 
                      FROM temp_clusters tc 
-                     WHERE (1 - (tc.embedding <=> current_embedding)) > cluster_threshold
-                     ORDER BY tc.embedding <=> current_embedding 
+                     WHERE (1 - (tc.embedding <=> embedding_record.embedding)) > cluster_threshold
+                     ORDER BY tc.embedding <=> embedding_record.embedding 
                      LIMIT 1),
                     cluster_counter
                 ),
-                current_thought_id,
-                current_embedding
+                embedding_record.thought_id,
+                embedding_record.embedding
             );
         END LOOP;
         
@@ -376,6 +429,7 @@ BEGIN
         GROUP BY unnest(patterns_detected)
         HAVING COUNT(*) >= 5  -- Only patterns that appear at least 5 times
     LOOP
+        -- Insert only pattern name and frequency, not embedding (to be set by application)
         INSERT INTO pattern_embeddings (pattern_name, pattern_frequency)
         VALUES (pattern_record.pattern_name, pattern_record.frequency)
         ON CONFLICT (pattern_name)
@@ -387,6 +441,43 @@ BEGIN
     END LOOP;
     
     RETURN pattern_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to upsert pattern embedding (with vector or JSONB support)
+CREATE OR REPLACE FUNCTION upsert_pattern_embedding(
+    p_pattern_name VARCHAR(200),
+    p_embedding vector(384) DEFAULT NULL,
+    p_embedding_json JSONB DEFAULT NULL,
+    p_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2'
+)
+RETURNS VOID AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') AND 
+       EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'pattern_embeddings' AND column_name = 'embedding') THEN
+        -- Use vector version
+        IF p_embedding IS NOT NULL THEN
+            INSERT INTO pattern_embeddings (pattern_name, embedding, embedding_model)
+            VALUES (p_pattern_name, p_embedding, p_model)
+            ON CONFLICT (pattern_name) 
+            DO UPDATE SET 
+                embedding = EXCLUDED.embedding,
+                embedding_model = EXCLUDED.embedding_model,
+                updated_at = CURRENT_TIMESTAMP;
+        END IF;
+    ELSE
+        -- Use JSONB fallback version
+        IF p_embedding_json IS NOT NULL THEN
+            INSERT INTO pattern_embeddings (pattern_name, embedding_json, embedding_model)
+            VALUES (p_pattern_name, p_embedding_json, p_model)
+            ON CONFLICT (pattern_name) 
+            DO UPDATE SET 
+                embedding_json = EXCLUDED.embedding_json,
+                embedding_model = EXCLUDED.embedding_model,
+                updated_at = CURRENT_TIMESTAMP;
+        END IF;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -497,7 +588,7 @@ RETURNS TABLE (
     confidence NUMERIC,
     domain VARCHAR(100),
     session_id VARCHAR(50),
-    timestamp TIMESTAMP WITH TIME ZONE
+    thought_timestamp TIMESTAMP WITH TIME ZONE
 ) AS $$
 BEGIN
     IF query_embedding IS NOT NULL AND EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
@@ -513,7 +604,7 @@ BEGIN
             st.confidence,
             st.domain,
             st.session_id,
-            st.timestamp
+            st.timestamp as thought_timestamp
         FROM stored_thoughts st
         LEFT JOIN thought_embeddings te ON st.id = te.thought_id
         WHERE (st.search_vector @@ plainto_tsquery('english', query_text) OR 
@@ -533,7 +624,7 @@ BEGIN
             st.confidence,
             st.domain,
             st.session_id,
-            st.timestamp
+            st.timestamp as thought_timestamp
         FROM stored_thoughts st
         WHERE st.search_vector @@ plainto_tsquery('english', query_text)
           AND (exclude_session_id IS NULL OR st.session_id != exclude_session_id)

@@ -4,8 +4,10 @@ import crypto from 'crypto';
 import {
   MemoryStore,
   StoredThought,
+  StoredPrompt,
   ReasoningSession,
   MemoryQuery,
+  PromptQuery,
   MemoryStats,
   MemoryConfig,
 } from './memory-store.js';
@@ -240,6 +242,55 @@ export class FileSystemStore extends MemoryStore {
 
   async optimize(): Promise<void> {
     // No-op for simple file-based store
+  }
+
+  async storePrompt(prompt: StoredPrompt): Promise<void> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async getPrompt(id: string): Promise<StoredPrompt | null> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async findSimilarPrompts(prompt: string, limit?: number): Promise<StoredPrompt[]> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async updatePrompt(id: string, updates: Partial<StoredPrompt>): Promise<void> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
+    pattern_type: string;
+    success_rate: number;
+    common_attributes: Record<string, any>;
+  }>> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async calculatePerformanceMetrics(): Promise<{
+    classification_accuracy: number;
+    intent_extraction_precision: number;
+    similarity_detection_recall: number;
+    reasoning_improvement_average: number;
+  }> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  async updatePromptPerformance(
+    promptId: string, 
+    performance: {
+      processing_success: boolean;
+      reasoning_improvement?: number;
+      persona_selected?: string;
+      cognitive_priming_effectiveness?: number;
+    }
+  ): Promise<void> {
+    throw new Error('FileSystemStore prompt methods not implemented yet');
   }
 
   async close(): Promise<void> {

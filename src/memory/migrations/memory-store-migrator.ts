@@ -95,29 +95,29 @@ export class MemoryStoreMigrator {
       errors: [],
     };
 
-    console.log('🚀 Starting memory store migration...');
-    console.log(`Source: ${this.sourceStore.constructor.name}`);
-    console.log(`Target: ${this.targetStore.constructor.name}`);
+    console.error('🚀 Starting memory store migration...');
+    console.error(`Source: ${this.sourceStore.constructor.name}`);
+    console.error(`Target: ${this.targetStore.constructor.name}`);
 
     try {
       // Migrate sessions first (thoughts reference sessions)
-      console.log('📚 Migrating sessions...');
+      console.error('📚 Migrating sessions...');
       await this.migrateSessions(stats);
 
       // Then migrate thoughts
-      console.log('💭 Migrating thoughts...');
+      console.error('💭 Migrating thoughts...');
       await this.migrateThoughts(stats);
 
       // Validation
       if (this.options.validateAfterMigration) {
-        console.log('✅ Validating migration...');
+        console.error('✅ Validating migration...');
         await this.validateMigration(stats);
       }
 
       stats.endTime = new Date();
       stats.duration = stats.endTime.getTime() - stats.startTime.getTime();
 
-      console.log('🎉 Migration completed successfully!');
+      console.error('🎉 Migration completed successfully!');
       this.printMigrationSummary(stats);
 
       return stats;
@@ -142,7 +142,7 @@ export class MemoryStoreMigrator {
       const sessions = await this.sourceStore.getSessions();
       stats.sessions.total = sessions.length;
 
-      console.log(`Found ${sessions.length} sessions to migrate`);
+      console.error(`Found ${sessions.length} sessions to migrate`);
 
       // Process in batches
       for (let i = 0; i < sessions.length; i += this.options.batchSize) {
@@ -352,7 +352,7 @@ export class MemoryStoreMigrator {
         }
       }
 
-      console.log('✅ Migration validation completed');
+      console.error('✅ Migration validation completed');
     } catch (error) {
       const errorMsg = `Validation failed: ${error instanceof Error ? error.message : String(error)}`;
       stats.errors.push(errorMsg);
@@ -414,23 +414,23 @@ export class MemoryStoreMigrator {
    * Print migration summary
    */
   private printMigrationSummary(stats: MigrationStats): void {
-    console.log('\n📊 Migration Summary');
-    console.log('='.repeat(50));
-    console.log(`Duration: ${stats.duration}ms`);
-    console.log(
+    console.error('\n📊 Migration Summary');
+    console.error('='.repeat(50));
+    console.error(`Duration: ${stats.duration}ms`);
+    console.error(
       `Sessions: ${stats.sessions.migrated}/${stats.sessions.total} migrated (${stats.sessions.failed} failed, ${stats.sessions.skipped} skipped)`
     );
-    console.log(
+    console.error(
       `Thoughts: ${stats.thoughts.migrated}/${stats.thoughts.total} migrated (${stats.thoughts.failed} failed, ${stats.thoughts.skipped} skipped)`
     );
 
     if (stats.errors.length > 0) {
-      console.log(`Errors: ${stats.errors.length}`);
+      console.error(`Errors: ${stats.errors.length}`);
       stats.errors.forEach((error, i) => {
-        console.log(`  ${i + 1}. ${error}`);
+        console.error(`  ${i + 1}. ${error}`);
       });
     }
-    console.log('='.repeat(50));
+    console.error('='.repeat(50));
   }
 
   /**
@@ -485,7 +485,7 @@ export class MigrationUtils {
             ).toFixed(1)
           : '0';
 
-      console.log(`Progress: Sessions ${sessionsPercent}%, Thoughts ${thoughtsPercent}%`);
+      console.error(`Progress: Sessions ${sessionsPercent}%, Thoughts ${thoughtsPercent}%`);
       lastLog = now;
     };
   }

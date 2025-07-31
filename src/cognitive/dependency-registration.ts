@@ -17,6 +17,7 @@ import { MetacognitivePlugin } from './plugins/metacognitive-plugin.js';
 import { PersonaPlugin } from './plugins/persona-plugin.js';
 import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js';
 import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
+import { PromptIntelligencePlugin } from './plugins/prompt-intelligence-plugin.js';
 import { ErrorBoundaryFactory } from '../utils/error-boundary.js';
 import { BufferFactory } from '../utils/circular-buffer.js';
 import { secureLogger } from '../utils/secure-logger.js';
@@ -123,6 +124,17 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
     },
     [ServiceTokens.MEMORY_STORE]
   );
+
+  container.registerSingleton(
+    ServiceTokens.PROMPT_INTELLIGENCE_PLUGIN,
+    async container => {
+      const memoryStore = await container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
+      const plugin = new PromptIntelligencePlugin();
+      plugin.setMemoryStore(memoryStore);
+      return plugin;
+    },
+    [ServiceTokens.MEMORY_STORE]
+  );
 }
 
 /**
@@ -133,13 +145,13 @@ export async function wirePluginDependencies(container: DependencyContainer): Pr
     ServiceTokens.PLUGIN_MANAGER
   );
 
-  // Register all plugins with the manager
-  const plugins = await Promise.all([
-    container.resolve(ServiceTokens.METACOGNITIVE_PLUGIN),
-    container.resolve(ServiceTokens.PERSONA_PLUGIN),
-    container.resolve(ServiceTokens.EXTERNAL_REASONING_PLUGIN),
-    container.resolve(ServiceTokens.PHASE5_INTEGRATION_PLUGIN),
-  ]);
+  // Register all plugins with the manager - resolve sequentially to avoid circular dependencies
+  const plugins = [];
+  plugins.push(await container.resolve(ServiceTokens.METACOGNITIVE_PLUGIN));
+  plugins.push(await container.resolve(ServiceTokens.PERSONA_PLUGIN));
+  plugins.push(await container.resolve(ServiceTokens.EXTERNAL_REASONING_PLUGIN));
+  plugins.push(await container.resolve(ServiceTokens.PHASE5_INTEGRATION_PLUGIN));
+  plugins.push(await container.resolve(ServiceTokens.PROMPT_INTELLIGENCE_PLUGIN));
 
   for (const plugin of plugins) {
     pluginManager.registerPlugin(plugin as any);

@@ -19,86 +19,98 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
         RAISE NOTICE 'Creating TimescaleDB continuous aggregates...';
         
-        -- 1. Hourly cognitive performance metrics
-        DROP MATERIALIZED VIEW IF EXISTS cognitive_metrics_hourly CASCADE;
-        CREATE MATERIALIZED VIEW cognitive_metrics_hourly
-        WITH (timescaledb.continuous) AS
-        SELECT 
-            time_bucket('1 hour', timestamp) AS hour,
-            domain,
-            COUNT(*) as thought_count,
-            AVG(confidence) as avg_confidence,
-            AVG(effectiveness_score) as avg_effectiveness,
-            AVG(complexity) as avg_complexity,
-            COUNT(CASE WHEN success = true THEN 1 END) as successful_thoughts,
-            COUNT(CASE WHEN success = false THEN 1 END) as failed_thoughts,
-            COUNT(CASE WHEN is_revision = true THEN 1 END) as revision_count,
-            COUNT(CASE WHEN branch_from_thought IS NOT NULL THEN 1 END) as branch_count,
-            array_agg(DISTINCT tags) FILTER (WHERE tags IS NOT NULL) as common_tags,
-            array_agg(DISTINCT patterns_detected) FILTER (WHERE patterns_detected IS NOT NULL) as common_patterns
-        FROM stored_thoughts
-        WHERE timestamp >= NOW() - INTERVAL '30 days'
-        GROUP BY hour, domain;
+        -- Check if stored_thoughts is a hypertable before creating continuous aggregates
+        IF EXISTS (SELECT 1 FROM _timescaledb_catalog.hypertable 
+                   WHERE table_name = 'stored_thoughts') THEN
+            
+            -- 1. Hourly cognitive performance metrics
+            DROP MATERIALIZED VIEW IF EXISTS cognitive_metrics_hourly CASCADE;
+            CREATE MATERIALIZED VIEW cognitive_metrics_hourly
+            WITH (timescaledb.continuous) AS
+            SELECT 
+                time_bucket('1 hour', timestamp) AS hour,
+                domain,
+                COUNT(*) as thought_count,
+                AVG(confidence) as avg_confidence,
+                AVG(effectiveness_score) as avg_effectiveness,
+                AVG(complexity) as avg_complexity,
+                COUNT(CASE WHEN success = true THEN 1 END) as successful_thoughts,
+                COUNT(CASE WHEN success = false THEN 1 END) as failed_thoughts,
+                COUNT(CASE WHEN is_revision = true THEN 1 END) as revision_count,
+                COUNT(CASE WHEN branch_from_thought IS NOT NULL THEN 1 END) as branch_count,
+                array_agg(DISTINCT tags) FILTER (WHERE tags IS NOT NULL) as common_tags,
+                array_agg(DISTINCT patterns_detected) FILTER (WHERE patterns_detected IS NOT NULL) as common_patterns
+            FROM stored_thoughts
+            WHERE timestamp >= NOW() - INTERVAL '30 days'
+            GROUP BY hour, domain;
 
-        -- 2. Daily session analytics
-        DROP MATERIALIZED VIEW IF EXISTS session_metrics_daily CASCADE;
-        CREATE MATERIALIZED VIEW session_metrics_daily
-        WITH (timescaledb.continuous) AS
-        SELECT 
-            time_bucket('1 day', start_time) AS day,
-            domain,
-            COUNT(*) as session_count,
-            AVG(confidence_level) as avg_session_confidence,
-            AVG(effectiveness_score) as avg_session_effectiveness,
-            AVG(total_thoughts) as avg_thoughts_per_session,
-            AVG(revision_count) as avg_revisions_per_session,
-            AVG(branch_count) as avg_branches_per_session,
-            COUNT(CASE WHEN goal_achieved = true THEN 1 END) as successful_sessions,
-            COUNT(CASE WHEN goal_achieved = false THEN 1 END) as failed_sessions,
-            AVG(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as avg_session_duration_hours,
-            array_agg(DISTINCT cognitive_roles_used) FILTER (WHERE cognitive_roles_used IS NOT NULL) as roles_used,
-            array_agg(DISTINCT lessons_learned) FILTER (WHERE lessons_learned IS NOT NULL) as lessons_learned,
-            array_agg(DISTINCT successful_strategies) FILTER (WHERE successful_strategies IS NOT NULL) as successful_strategies
-        FROM reasoning_sessions
-        WHERE start_time >= NOW() - INTERVAL '90 days'
-        GROUP BY day, domain;
+            -- 2. Daily session analytics (check if reasoning_sessions is hypertable)
+            IF EXISTS (SELECT 1 FROM _timescaledb_catalog.hypertable 
+                       WHERE table_name = 'reasoning_sessions') THEN
+                DROP MATERIALIZED VIEW IF EXISTS session_metrics_daily CASCADE;
+                CREATE MATERIALIZED VIEW session_metrics_daily
+                WITH (timescaledb.continuous) AS
+                SELECT 
+                    time_bucket('1 day', start_time) AS day,
+                    domain,
+                    COUNT(*) as session_count,
+                    AVG(confidence_level) as avg_session_confidence,
+                    AVG(effectiveness_score) as avg_session_effectiveness,
+                    AVG(total_thoughts) as avg_thoughts_per_session,
+                    AVG(revision_count) as avg_revisions_per_session,
+                    AVG(branch_count) as avg_branches_per_session,
+                    COUNT(CASE WHEN goal_achieved = true THEN 1 END) as successful_sessions,
+                    COUNT(CASE WHEN goal_achieved = false THEN 1 END) as failed_sessions,
+                    AVG(EXTRACT(EPOCH FROM (end_time - start_time))/3600) as avg_session_duration_hours,
+                    array_agg(DISTINCT cognitive_roles_used) FILTER (WHERE cognitive_roles_used IS NOT NULL) as roles_used,
+                    array_agg(DISTINCT lessons_learned) FILTER (WHERE lessons_learned IS NOT NULL) as lessons_learned,
+                    array_agg(DISTINCT successful_strategies) FILTER (WHERE successful_strategies IS NOT NULL) as successful_strategies
+                FROM reasoning_sessions
+                WHERE start_time >= NOW() - INTERVAL '90 days'
+                GROUP BY day, domain;
+            ELSE
+                RAISE NOTICE 'reasoning_sessions is not a hypertable, skipping session_metrics_daily';
+            END IF;
 
-        -- 3. Real-time cognitive load monitoring (5-minute windows)
-        DROP MATERIALIZED VIEW IF EXISTS cognitive_load_realtime CASCADE;
-        CREATE MATERIALIZED VIEW cognitive_load_realtime  
-        WITH (timescaledb.continuous) AS
-        SELECT 
-            time_bucket('5 minutes', timestamp) AS time_window,
-            COUNT(*) as thoughts_per_window,
-            AVG(confidence) as avg_confidence,
-            AVG(complexity) as avg_complexity,
-            COUNT(CASE WHEN confidence < 0.5 THEN 1 END) as low_confidence_count,
-            COUNT(CASE WHEN complexity > 8.0 THEN 1 END) as high_complexity_count,
-            MAX(complexity) as peak_complexity,
-            MIN(confidence) as min_confidence,
-            array_agg(domain) FILTER (WHERE domain IS NOT NULL) as active_domains
-        FROM stored_thoughts
-        WHERE timestamp >= NOW() - INTERVAL '7 days'
-        GROUP BY time_window;
+            -- 3. Real-time cognitive load monitoring (5-minute windows)
+            DROP MATERIALIZED VIEW IF EXISTS cognitive_load_realtime CASCADE;
+            CREATE MATERIALIZED VIEW cognitive_load_realtime  
+            WITH (timescaledb.continuous) AS
+            SELECT 
+                time_bucket('5 minutes', timestamp) AS time_window,
+                COUNT(*) as thoughts_per_window,
+                AVG(confidence) as avg_confidence,
+                AVG(complexity) as avg_complexity,
+                COUNT(CASE WHEN confidence < 0.5 THEN 1 END) as low_confidence_count,
+                COUNT(CASE WHEN complexity > 8.0 THEN 1 END) as high_complexity_count,
+                MAX(complexity) as peak_complexity,
+                MIN(confidence) as min_confidence,
+                array_agg(domain) FILTER (WHERE domain IS NOT NULL) as active_domains
+            FROM stored_thoughts
+            WHERE timestamp >= NOW() - INTERVAL '7 days'
+            GROUP BY time_window;
 
-        -- 4. Pattern evolution tracking (weekly)
-        DROP MATERIALIZED VIEW IF EXISTS pattern_evolution_weekly CASCADE;
-        CREATE MATERIALIZED VIEW pattern_evolution_weekly
-        WITH (timescaledb.continuous) AS
-        SELECT 
-            time_bucket('1 week', timestamp) AS week,
-            unnest(patterns_detected) as pattern,
-            COUNT(*) as pattern_frequency,
-            AVG(confidence) as avg_confidence_with_pattern,
-            AVG(effectiveness_score) as avg_effectiveness_with_pattern,
-            COUNT(CASE WHEN success = true THEN 1 END) as successful_with_pattern,
-            array_agg(DISTINCT domain) FILTER (WHERE domain IS NOT NULL) as domains_using_pattern
-        FROM stored_thoughts
-        WHERE timestamp >= NOW() - INTERVAL '180 days'
-          AND patterns_detected IS NOT NULL
-        GROUP BY week, pattern;
+            -- 4. Pattern evolution tracking (weekly)
+            DROP MATERIALIZED VIEW IF EXISTS pattern_evolution_weekly CASCADE;
+            CREATE MATERIALIZED VIEW pattern_evolution_weekly
+            WITH (timescaledb.continuous) AS
+            SELECT 
+                time_bucket('1 week', timestamp) AS week,
+                unnest(patterns_detected) as pattern,
+                COUNT(*) as pattern_frequency,
+                AVG(confidence) as avg_confidence_with_pattern,
+                AVG(effectiveness_score) as avg_effectiveness_with_pattern,
+                COUNT(CASE WHEN success = true THEN 1 END) as successful_with_pattern,
+                array_agg(DISTINCT domain) FILTER (WHERE domain IS NOT NULL) as domains_using_pattern
+            FROM stored_thoughts
+            WHERE timestamp >= NOW() - INTERVAL '180 days'
+              AND patterns_detected IS NOT NULL
+            GROUP BY week, pattern;
 
-        RAISE NOTICE 'Continuous aggregates created successfully';
+            RAISE NOTICE 'Continuous aggregates created successfully for hypertable stored_thoughts';
+        ELSE
+            RAISE NOTICE 'stored_thoughts is not a hypertable, skipping continuous aggregates';
+        END IF;
     ELSE
         RAISE NOTICE 'TimescaleDB not available, skipping continuous aggregates';
     END IF;
@@ -119,40 +131,48 @@ BEGIN
         RAISE NOTICE 'Setting up TimescaleDB compression and retention policies...';
         
         -- Compression policy for stored_thoughts (compress data older than 7 days)
-        BEGIN
-            SELECT add_compression_policy('stored_thoughts', INTERVAL '7 days');
-            RAISE NOTICE 'Compression policy added for stored_thoughts';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Compression policy for stored_thoughts already exists or failed: %', SQLERRM;
-        END;
+        IF EXISTS (SELECT 1 FROM _timescaledb_catalog.hypertable WHERE table_name = 'stored_thoughts') THEN
+            BEGIN
+                SELECT add_compression_policy('stored_thoughts', INTERVAL '7 days');
+                RAISE NOTICE 'Compression policy added for stored_thoughts';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Compression policy for stored_thoughts already exists or failed: %', SQLERRM;
+            END;
+
+            -- Retention policy for stored_thoughts (keep data for 2 years)
+            BEGIN
+                SELECT add_retention_policy('stored_thoughts', INTERVAL '2 years');
+                RAISE NOTICE 'Retention policy added for stored_thoughts (2 years)';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Retention policy for stored_thoughts already exists or failed: %', SQLERRM;
+            END;
+        ELSE
+            RAISE NOTICE 'stored_thoughts is not a hypertable, skipping compression/retention policies';
+        END IF;
 
         -- Compression policy for reasoning_sessions (compress data older than 30 days)
-        BEGIN
-            SELECT add_compression_policy('reasoning_sessions', INTERVAL '30 days');
-            RAISE NOTICE 'Compression policy added for reasoning_sessions';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Compression policy for reasoning_sessions already exists or failed: %', SQLERRM;
-        END;
+        IF EXISTS (SELECT 1 FROM _timescaledb_catalog.hypertable WHERE table_name = 'reasoning_sessions') THEN
+            BEGIN
+                SELECT add_compression_policy('reasoning_sessions', INTERVAL '30 days');
+                RAISE NOTICE 'Compression policy added for reasoning_sessions';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Compression policy for reasoning_sessions already exists or failed: %', SQLERRM;
+            END;
 
-        -- Retention policy for stored_thoughts (keep data for 2 years)
-        BEGIN
-            SELECT add_retention_policy('stored_thoughts', INTERVAL '2 years');
-            RAISE NOTICE 'Retention policy added for stored_thoughts (2 years)';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Retention policy for stored_thoughts already exists or failed: %', SQLERRM;
-        END;
-
-        -- Retention policy for reasoning_sessions (keep data for 5 years)
-        BEGIN
-            SELECT add_retention_policy('reasoning_sessions', INTERVAL '5 years');
-            RAISE NOTICE 'Retention policy added for reasoning_sessions (5 years)';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Retention policy for reasoning_sessions already exists or failed: %', SQLERRM;
-        END;
+            -- Retention policy for reasoning_sessions (keep data for 5 years)
+            BEGIN
+                SELECT add_retention_policy('reasoning_sessions', INTERVAL '5 years');
+                RAISE NOTICE 'Retention policy added for reasoning_sessions (5 years)';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Retention policy for reasoning_sessions already exists or failed: %', SQLERRM;
+            END;
+        ELSE
+            RAISE NOTICE 'reasoning_sessions is not a hypertable, skipping compression/retention policies';
+        END IF;
 
         RAISE NOTICE 'Compression and retention policies configured successfully';
     ELSE
@@ -314,53 +334,62 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
         RAISE NOTICE 'Setting up refresh policies for continuous aggregates...';
         
+        -- Only add refresh policies if the continuous aggregates exist
         -- Refresh cognitive_metrics_hourly every 15 minutes
-        BEGIN
-            SELECT add_continuous_aggregate_policy('cognitive_metrics_hourly',
-                start_offset => INTERVAL '2 hours',
-                end_offset => INTERVAL '15 minutes',
-                schedule_interval => INTERVAL '15 minutes');
-            RAISE NOTICE 'Refresh policy added for cognitive_metrics_hourly';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Refresh policy for cognitive_metrics_hourly already exists or failed: %', SQLERRM;
-        END;
+        IF EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'cognitive_metrics_hourly') THEN
+            BEGIN
+                SELECT add_continuous_aggregate_policy('cognitive_metrics_hourly',
+                    start_offset => INTERVAL '2 hours',
+                    end_offset => INTERVAL '15 minutes',
+                    schedule_interval => INTERVAL '15 minutes');
+                RAISE NOTICE 'Refresh policy added for cognitive_metrics_hourly';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Refresh policy for cognitive_metrics_hourly already exists or failed: %', SQLERRM;
+            END;
+        END IF;
 
         -- Refresh session_metrics_daily every hour
-        BEGIN
-            SELECT add_continuous_aggregate_policy('session_metrics_daily',
-                start_offset => INTERVAL '2 days',
-                end_offset => INTERVAL '1 hour',
-                schedule_interval => INTERVAL '1 hour');
-            RAISE NOTICE 'Refresh policy added for session_metrics_daily';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Refresh policy for session_metrics_daily already exists or failed: %', SQLERRM;
-        END;
+        IF EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'session_metrics_daily') THEN
+            BEGIN
+                SELECT add_continuous_aggregate_policy('session_metrics_daily',
+                    start_offset => INTERVAL '2 days',
+                    end_offset => INTERVAL '1 hour',
+                    schedule_interval => INTERVAL '1 hour');
+                RAISE NOTICE 'Refresh policy added for session_metrics_daily';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Refresh policy for session_metrics_daily already exists or failed: %', SQLERRM;
+            END;
+        END IF;
 
         -- Refresh cognitive_load_realtime every 5 minutes
-        BEGIN
-            SELECT add_continuous_aggregate_policy('cognitive_load_realtime',
-                start_offset => INTERVAL '30 minutes',
-                end_offset => INTERVAL '5 minutes',
-                schedule_interval => INTERVAL '5 minutes');
-            RAISE NOTICE 'Refresh policy added for cognitive_load_realtime';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Refresh policy for cognitive_load_realtime already exists or failed: %', SQLERRM;
-        END;
+        IF EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'cognitive_load_realtime') THEN
+            BEGIN
+                SELECT add_continuous_aggregate_policy('cognitive_load_realtime',
+                    start_offset => INTERVAL '30 minutes',
+                    end_offset => INTERVAL '5 minutes',
+                    schedule_interval => INTERVAL '5 minutes');
+                RAISE NOTICE 'Refresh policy added for cognitive_load_realtime';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Refresh policy for cognitive_load_realtime already exists or failed: %', SQLERRM;
+            END;
+        END IF;
 
         -- Refresh pattern_evolution_weekly every 6 hours
-        BEGIN
-            SELECT add_continuous_aggregate_policy('pattern_evolution_weekly',
-                start_offset => INTERVAL '1 week',
-                end_offset => INTERVAL '6 hours',
-                schedule_interval => INTERVAL '6 hours');
-            RAISE NOTICE 'Refresh policy added for pattern_evolution_weekly';
-        EXCEPTION
-            WHEN OTHERS THEN
-                RAISE NOTICE 'Refresh policy for pattern_evolution_weekly already exists or failed: %', SQLERRM;
-        END;
+        IF EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'pattern_evolution_weekly') THEN
+            BEGIN
+                SELECT add_continuous_aggregate_policy('pattern_evolution_weekly',
+                    start_offset => INTERVAL '1 week',
+                    end_offset => INTERVAL '6 hours',
+                    schedule_interval => INTERVAL '6 hours');
+                RAISE NOTICE 'Refresh policy added for pattern_evolution_weekly';
+            EXCEPTION
+                WHEN OTHERS THEN
+                    RAISE NOTICE 'Refresh policy for pattern_evolution_weekly already exists or failed: %', SQLERRM;
+            END;
+        END IF;
 
         RAISE NOTICE 'Refresh policies configured successfully';
     ELSE

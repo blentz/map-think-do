@@ -9,8 +9,10 @@
 import {
   MemoryStore,
   StoredThought,
+  StoredPrompt,
   ReasoningSession,
   MemoryQuery,
+  PromptQuery,
   MemoryStats,
 } from './memory-store.js';
 
@@ -20,6 +22,7 @@ import {
 export class SimpleMemoryStore extends MemoryStore {
   private thoughts: Map<string, StoredThought> = new Map();
   private sessions: Map<string, ReasoningSession> = new Map();
+  private prompts: Map<string, StoredPrompt> = new Map();
 
   async initialize(): Promise<void> {
     // No initialization needed for in-memory store
@@ -302,15 +305,205 @@ export class SimpleMemoryStore extends MemoryStore {
     console.error('Memory store optimization completed (no-op for in-memory store)');
   }
 
+  async storePrompt(prompt: StoredPrompt): Promise<void> {
+    this.prompts.set(prompt.id, { ...prompt });
+  }
+
+  async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
+    let results = Array.from(this.prompts.values());
+
+    // Apply prompt type filter
+    if (query.prompt_type) {
+      results = results.filter(p => p.prompt_type === query.prompt_type);
+    }
+
+    // Apply domain filter
+    if (query.domain) {
+      results = results.filter(p => p.domain === query.domain);
+    }
+
+    // Apply complexity filter
+    if (query.complexity_range) {
+      results = results.filter(p => {
+        const complexity = p.complexity_estimate || 0;
+        return complexity >= query.complexity_range![0] && complexity <= query.complexity_range![1];
+      });
+    }
+
+    // Apply date filter
+    if (query.date_range) {
+      results = results.filter(p => {
+        const timestamp = p.received_at.getTime();
+        const start = query.date_range![0].getTime();
+        const end = query.date_range![1].getTime();
+        return timestamp >= start && timestamp <= end;
+      });
+    }
+
+    // Apply processing success filter
+    if (query.processing_success !== undefined) {
+      results = results.filter(p => p.processing_success === query.processing_success);
+    }
+
+    // Apply tags filter
+    if (query.tags && query.tags.length > 0) {
+      results = results.filter(p => p.tags && query.tags!.some(tag => p.tags!.includes(tag)));
+    }
+
+    // Sort results
+    if (query.sort_by) {
+      results.sort((a, b) => {
+        let aVal: any, bVal: any;
+
+        switch (query.sort_by) {
+          case 'received_at':
+            aVal = a.received_at.getTime();
+            bVal = b.received_at.getTime();
+            break;
+          case 'complexity_estimate':
+            aVal = a.complexity_estimate || 0;
+            bVal = b.complexity_estimate || 0;
+            break;
+          case 'processing_success':
+            aVal = a.processing_success ? 1 : 0;
+            bVal = b.processing_success ? 1 : 0;
+            break;
+          default:
+            return 0;
+        }
+
+        const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        return query.sort_order === 'desc' ? -comparison : comparison;
+      });
+    }
+
+    // Apply limit
+    if (query.limit && query.limit > 0) {
+      results = results.slice(0, query.limit);
+    }
+
+    return results;
+  }
+
+  async getPrompt(id: string): Promise<StoredPrompt | null> {
+    return this.prompts.get(id) || null;
+  }
+
+  async findSimilarPrompts(prompt: string, limit?: number): Promise<StoredPrompt[]> {
+    // Simple similarity based on word overlap
+    const inputWords = prompt.toLowerCase().split(/\s+/);
+    const prompts = Array.from(this.prompts.values());
+
+    const similarities = prompts.map(p => {
+      const promptWords = p.original_prompt.toLowerCase().split(/\s+/);
+      const overlap = inputWords.filter(word => promptWords.includes(word)).length;
+      const similarity = overlap / Math.max(inputWords.length, promptWords.length);
+      return { prompt: p, similarity };
+    });
+
+    similarities.sort((a, b) => b.similarity - a.similarity);
+    const results = similarities.map(s => s.prompt);
+
+    return limit ? results.slice(0, limit) : results;
+  }
+
+  async updatePrompt(id: string, updates: Partial<StoredPrompt>): Promise<void> {
+    const prompt = this.prompts.get(id);
+    if (prompt) {
+      this.prompts.set(id, { ...prompt, ...updates });
+    }
+  }
+
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
+    pattern_type: string;
+    success_rate: number;
+    common_attributes: Record<string, any>;
+  }>> {
+    const prompts = promptIds.map(id => this.prompts.get(id)).filter(p => p !== undefined) as StoredPrompt[];
+    
+    if (prompts.length === 0) {
+      return [];
+    }
+
+    const successfulPrompts = prompts.filter(p => p.processing_success === true);
+    const successRate = successfulPrompts.length / prompts.length;
+
+    return [{
+      pattern_type: 'general',
+      success_rate: successRate,
+      common_attributes: {
+        average_complexity: prompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / prompts.length,
+        most_common_domain: this.getMostCommonDomain(prompts),
+        total_analyzed: prompts.length
+      }
+    }];
+  }
+
+  async calculatePerformanceMetrics(): Promise<{
+    classification_accuracy: number;
+    intent_extraction_precision: number;
+    similarity_detection_recall: number;
+    reasoning_improvement_average: number;
+  }> {
+    const prompts = Array.from(this.prompts.values());
+    
+    // Simple mock metrics for in-memory store
+    return {
+      classification_accuracy: 0.85,
+      intent_extraction_precision: 0.80,
+      similarity_detection_recall: 0.90,
+      reasoning_improvement_average: 0.15
+    };
+  }
+
+  async updatePromptPerformance(
+    promptId: string, 
+    performance: {
+      processing_success: boolean;
+      reasoning_improvement?: number;
+      persona_selected?: string;
+      cognitive_priming_effectiveness?: number;
+    }
+  ): Promise<void> {
+    const prompt = this.prompts.get(promptId);
+    if (prompt) {
+      this.prompts.set(promptId, {
+        ...prompt,
+        processing_success: performance.processing_success,
+        reasoning_improvement: performance.reasoning_improvement,
+        persona_selected: performance.persona_selected,
+        cognitive_priming_effectiveness: performance.cognitive_priming_effectiveness,
+        updated_at: new Date()
+      });
+    }
+  }
+
   async close(): Promise<void> {
     this.thoughts.clear();
     this.sessions.clear();
+    this.prompts.clear();
     console.error('Simple memory store closed');
   }
 
   async clearAllData(): Promise<void> {
     this.thoughts.clear();
     this.sessions.clear();
+    this.prompts.clear();
+  }
+
+  private getMostCommonDomain(prompts: StoredPrompt[]): string {
+    const domainCounts = new Map<string, number>();
+
+    prompts.forEach(p => {
+      if (p.domain) {
+        domainCounts.set(p.domain, (domainCounts.get(p.domain) || 0) + 1);
+      }
+    });
+
+    if (domainCounts.size === 0) return 'unknown';
+
+    return Array.from(domainCounts.entries())
+      .sort((a, b) => b[1] - a[1])[0][0];
   }
 
   private getMostCommonDomains(thoughts: StoredThought[]): string[] {

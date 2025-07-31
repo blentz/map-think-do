@@ -148,7 +148,7 @@ export class ConsciousnessSimulator extends EventEmitter {
         global.gc();
       }
     } else if (memoryPercent > config.memoryCleanupThreshold) {
-      console.log(`🧹 Standard memory cleanup at ${(memoryPercent * 100).toFixed(1)}% usage`);
+      console.error(`🧹 Standard memory cleanup at ${(memoryPercent * 100).toFixed(1)}% usage`);
       this.performStandardCleanup();
     }
   }
@@ -237,7 +237,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       memoryPressureLimit: config.consciousnessMemoryLimit || 0.75, // Reduced from 0.8 to 0.75
     });
     
-    console.log(`🧠 Consciousness processing started with ${intervals.consciousnessInterval}ms interval (TTL: ${(config.consciousnessMaxRuntimeMs || 180000)/1000}s, max executions: ${config.maxConsciousnessExecutions || 500})`);
+    console.error(`🧠 Consciousness processing started with ${intervals.consciousnessInterval}ms interval (TTL: ${(config.consciousnessMaxRuntimeMs || 180000)/1000}s, max executions: ${config.maxConsciousnessExecutions || 500})`);
   }
 
   /**
@@ -257,7 +257,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       memoryPressureLimit: config.streamMemoryLimit || 0.75, // Stop at 75% memory usage
     });
     
-    console.log(`💭 Stream generation started with ${intervals.streamInterval}ms interval (TTL: ${(config.streamMaxRuntimeMs || 180000)/1000}s, max executions: ${config.maxStreamExecutions || 500})`);
+    console.error(`💭 Stream generation started with ${intervals.streamInterval}ms interval (TTL: ${(config.streamMaxRuntimeMs || 180000)/1000}s, max executions: ${config.maxStreamExecutions || 500})`);
   }
 
   /**
@@ -278,7 +278,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       memoryPressureLimit: config.adaptiveMemoryLimit || 0.85, // Stop at 85% memory usage
     });
     
-    console.log(`📊 Adaptive scaling started with ${intervals.memoryMonitoringInterval}ms interval (TTL: ${(config.adaptiveMaxRuntimeMs || 600000)/1000}s, max executions: ${config.maxAdaptiveExecutions || 200})`);
+    console.error(`📊 Adaptive scaling started with ${intervals.memoryMonitoringInterval}ms interval (TTL: ${(config.adaptiveMaxRuntimeMs || 600000)/1000}s, max executions: ${config.maxAdaptiveExecutions || 200})`);
   }
 
   /**
@@ -743,7 +743,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     
     // If consciousness has reached a stable, low-activity state, mark streams as complete
     if (isLowActivity && isStableState) {
-      console.log('🏁 Consciousness stream completion detected - low activity and stable state');
+      console.error('🏁 Consciousness stream completion detected - low activity and stable state');
       
       // Mark all timer streams as completed to trigger auto-cleanup
       if (this.consciousnessTimerId) {
@@ -1020,7 +1020,7 @@ export class ConsciousnessSimulator extends EventEmitter {
    * Cleanup resources and prevent memory leaks
    */
   destroy(): void {
-    console.log('🧠 Destroying consciousness simulator...');
+    console.error('🧠 Destroying consciousness simulator...');
     
     // Mark as inactive to prevent further processing
     this.isActive = false;
@@ -1051,7 +1051,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     // Remove all event listeners
     this.removeAllListeners();
     
-    console.log('✅ Consciousness simulator destroyed');
+    console.error('✅ Consciousness simulator destroyed');
   }
 
   /**
@@ -1080,7 +1080,7 @@ export class ConsciousnessSimulator extends EventEmitter {
    * Force cleanup of old data to free memory
    */
   forceMemoryCleanup(): void {
-    console.log('🧹 Forcing consciousness memory cleanup...');
+    console.error('🧹 Forcing consciousness memory cleanup...');
     
     const config = this.performanceConfig.getConfig();
     
@@ -1126,7 +1126,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     }
     
     const stats = this.getMemoryStats();
-    console.log(`✅ Consciousness memory cleanup completed - objects remaining: ${stats.totalMemoryObjects}`);
+    console.error(`✅ Consciousness memory cleanup completed - objects remaining: ${stats.totalMemoryObjects}`);
   }
 
   /**
@@ -1155,7 +1155,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       this.restartTimers();
     }
     
-    console.log('⚙️ Consciousness simulator configuration updated');
+    console.error('⚙️ Consciousness simulator configuration updated');
   }
 
   /**
@@ -1164,7 +1164,7 @@ export class ConsciousnessSimulator extends EventEmitter {
   setPerformanceMode(mode: 'high-performance' | 'balanced' | 'eco'): void {
     this.performanceConfig.setPerformanceMode(mode);
     this.restartTimers();
-    console.log(`🎛️ Consciousness simulator set to ${mode} mode`);
+    console.error(`🎛️ Consciousness simulator set to ${mode} mode`);
   }
 
   /**

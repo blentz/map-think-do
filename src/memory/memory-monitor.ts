@@ -27,7 +27,7 @@ export class MemoryMonitor {
       return;
     }
 
-    console.log('Starting memory monitoring...');
+    console.error('Starting memory monitoring...');
     this.monitoringInterval = setInterval(() => {
       this.checkMemoryUsage();
     }, intervalMs);
@@ -40,7 +40,7 @@ export class MemoryMonitor {
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
-      console.log('Memory monitoring stopped');
+      console.error('Memory monitoring stopped');
     }
   }
 
@@ -68,7 +68,7 @@ export class MemoryMonitor {
 
       // Force garbage collection if available
       if (global.gc) {
-        console.log('Forcing garbage collection...');
+        console.error('Forcing garbage collection...');
         global.gc();
       }
     }

@@ -27,6 +27,7 @@ export interface StoredThought {
   // Memory-specific metadata
   timestamp: Date;
   session_id: string;
+  prompt_id?: string; // Link to originating prompt
   confidence?: number;
   domain?: string;
   objective?: string;
@@ -57,6 +58,87 @@ export interface StoredThought {
   // Output for reflection
   output?: string;
   context_trace?: string[];
+}
+
+/**
+ * Stored prompt record with comprehensive metadata for AGI learning
+ */
+export interface StoredPrompt {
+  // Primary identification
+  id: string;
+  session_id: string;
+  
+  // Core prompt data
+  original_prompt: string;
+  prompt_type?: string;
+  prompt_source?: 'mcp-tool' | 'api' | 'direct';
+  
+  // Temporal data
+  received_at: Date;
+  
+  // AI-Generated Classification (Algorithmic processing results)
+  domain?: string;
+  complexity_estimate?: number;
+  estimated_cognitive_load?: number;
+  classification_confidence?: number; // Confidence in AI classification
+  
+  // Structured metadata
+  prompt_context?: {
+    tool_parameters?: Record<string, any>;
+    user_context?: Record<string, any>;
+    mcp_request_id?: string;
+  };
+  extracted_intent?: {
+    objectives?: string[];
+    constraints?: string[];
+    requirements?: string[];
+    expected_output_type?: string;
+    extraction_confidence?: number; // Confidence in intent extraction
+  };
+  
+  // Processing metadata
+  processing_started_at?: Date;
+  processing_completed_at?: Date;
+  processing_success?: boolean;
+  processing_error?: string;
+  
+  // Learning analytics (Enhanced with similarity scores)
+  tags?: string[];
+  similar_prompts?: Array<{
+    prompt_id: string;
+    similarity_score: number;
+    similarity_type: 'semantic' | 'structural' | 'domain' | 'intent';
+  }>;
+  
+  // Performance tracking (For validation criteria)
+  reasoning_improvement?: number; // Measured improvement over baseline
+  persona_selected?: string; // Which persona was chosen based on this prompt
+  cognitive_priming_effectiveness?: number; // Measured priming impact
+  
+  // Audit
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Query parameters for retrieving stored prompts
+ */
+export interface PromptQuery {
+  session_id?: string;
+  prompt_type?: string;
+  domain?: string;
+  complexity_range?: [number, number];
+  date_range?: [Date, Date];
+  processing_success?: boolean;
+  tags?: string[];
+  similar_to?: string; // Text similarity search
+  exclude_id?: string; // Exclude specific prompt ID from results
+  limit?: number;
+  offset?: number;
+  sort_by?: 'received_at' | 'complexity_estimate' | 'processing_success';
+  sort_order?: 'asc' | 'desc';
+  orderBy?: string;
+  ascending?: boolean;
 }
 
 /**
@@ -171,9 +253,19 @@ export abstract class MemoryStore {
   abstract storeSession(session: ReasoningSession): Promise<void>;
 
   /**
+   * Store a prompt in memory
+   */
+  abstract storePrompt(prompt: StoredPrompt): Promise<void>;
+
+  /**
    * Query thoughts based on criteria
    */
   abstract queryThoughts(query: MemoryQuery): Promise<StoredThought[]>;
+
+  /**
+   * Query prompts based on criteria
+   */
+  abstract queryPrompts(query: PromptQuery): Promise<StoredPrompt[]>;
 
   /**
    * Get a specific thought by ID
@@ -186,9 +278,19 @@ export abstract class MemoryStore {
   abstract getSession(id: string): Promise<ReasoningSession | null>;
 
   /**
+   * Get a specific prompt by ID
+   */
+  abstract getPrompt(id: string): Promise<StoredPrompt | null>;
+
+  /**
    * Get all sessions
    */
   abstract getSessions(limit?: number, offset?: number): Promise<ReasoningSession[]>;
+
+  /**
+   * Find similar prompts using content similarity
+   */
+  abstract findSimilarPrompts(prompt: string, limit?: number): Promise<StoredPrompt[]>;
 
   /**
    * Find similar thoughts using content similarity
@@ -204,6 +306,43 @@ export abstract class MemoryStore {
    * Update session metadata
    */
   abstract updateSession(id: string, updates: Partial<ReasoningSession>): Promise<void>;
+
+  /**
+   * Update prompt metadata
+   */
+  abstract updatePrompt(id: string, updates: Partial<StoredPrompt>): Promise<void>;
+
+  /**
+   * Analyze success patterns from prompt history
+   */
+  abstract analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
+    pattern_type: string;
+    success_rate: number;
+    common_attributes: Record<string, any>;
+  }>>;
+
+  /**
+   * Calculate performance metrics for validation
+   */
+  abstract calculatePerformanceMetrics(): Promise<{
+    classification_accuracy: number;
+    intent_extraction_precision: number;
+    similarity_detection_recall: number;
+    reasoning_improvement_average: number;
+  }>;
+
+  /**
+   * Update prompt with performance tracking data
+   */
+  abstract updatePromptPerformance(
+    promptId: string, 
+    performance: {
+      processing_success: boolean;
+      reasoning_improvement?: number;
+      persona_selected?: string;
+      cognitive_priming_effectiveness?: number;
+    }
+  ): Promise<void>;
 
   /**
    * Delete old thoughts based on retention policy

@@ -70,7 +70,7 @@ export class TimerManager {
       
       // Check if timer should be terminated before execution
       if (this.shouldTerminateTimer(handle)) {
-        console.log(`🕐 Auto-terminating timer: ${id} (${this.getTerminationReason(handle)})`);
+        console.error(`🕐 Auto-terminating timer: ${id} (${this.getTerminationReason(handle)})`);
         this.clearTimer(id);
         return;
       }
@@ -86,7 +86,7 @@ export class TimerManager {
       
       // Check termination conditions after execution
       if (this.shouldTerminateTimer(handle)) {
-        console.log(`🕐 Auto-terminating timer: ${id} (${this.getTerminationReason(handle)})`);
+        console.error(`🕐 Auto-terminating timer: ${id} (${this.getTerminationReason(handle)})`);
         this.clearTimer(id);
       }
     };
@@ -110,7 +110,7 @@ export class TimerManager {
     this.timers.set(id, handle);
     
     if (process.env.DEBUG_TIMERS) {
-      console.log(`🕐 Timer created: ${id} (${delay}ms interval)`);
+      console.error(`🕐 Timer created: ${id} (${delay}ms interval)`);
     }
 
     return id;
@@ -162,7 +162,7 @@ export class TimerManager {
     this.timers.set(id, handle);
     
     if (process.env.DEBUG_TIMERS) {
-      console.log(`⏰ Timeout created: ${id} (${delay}ms)`);
+      console.error(`⏰ Timeout created: ${id} (${delay}ms)`);
     }
 
     return id;
@@ -186,7 +186,7 @@ export class TimerManager {
     this.timers.delete(id);
     
     if (process.env.DEBUG_TIMERS) {
-      console.log(`🗑️ Timer cleared: ${id}`);
+      console.error(`🗑️ Timer cleared: ${id}`);
     }
 
     return true;
@@ -196,7 +196,7 @@ export class TimerManager {
    * Clear all timers (for shutdown)
    */
   clearAll(reason = 'shutdown'): void {
-    console.log(`🧹 Clearing ${this.timers.size} active timers (${reason})...`);
+    console.error(`🧹 Clearing ${this.timers.size} active timers (${reason})...`);
     
     let clearedCount = 0;
     let errorCount = 0;
@@ -211,7 +211,7 @@ export class TimerManager {
         clearedCount++;
         
         if (process.env.DEBUG_TIMERS) {
-          console.log(`🗑️ Cleared timer: ${id} (executed ${handle.executionCount} times)`);
+          console.error(`🗑️ Cleared timer: ${id} (executed ${handle.executionCount} times)`);
         }
       } catch (error) {
         errorCount++;
@@ -222,9 +222,9 @@ export class TimerManager {
     this.timers.clear();
     
     if (errorCount > 0) {
-      console.log(`✅ Timers cleared: ${clearedCount} successful, ${errorCount} errors`);
+      console.error(`✅ Timers cleared: ${clearedCount} successful, ${errorCount} errors`);
     } else {
-      console.log(`✅ All ${clearedCount} timers cleared successfully`);
+      console.error(`✅ All ${clearedCount} timers cleared successfully`);
     }
   }
 
@@ -307,12 +307,12 @@ export class TimerManager {
    */
   prepareShutdown(): void {
     this.isShuttingDown = true;
-    console.log('🔄 Timer manager preparing for shutdown...');
+    console.error('🔄 Timer manager preparing for shutdown...');
     
     // Automatically start cleanup process after a brief delay
     setTimeout(() => {
       if (this.timers.size > 0) {
-        console.log(`⚠️ Force clearing ${this.timers.size} remaining timers during shutdown`);
+        console.error(`⚠️ Force clearing ${this.timers.size} remaining timers during shutdown`);
         this.clearAll('forced_shutdown');
       }
     }, 1000); // Give 1 second for graceful cleanup
@@ -349,7 +349,7 @@ export class TimerManager {
       intervalIds.forEach(id => this.clearTimer(id));
     }
     
-    console.log(`✅ Emergency cleanup complete. Remaining timers: ${this.timers.size}`);
+    console.error(`✅ Emergency cleanup complete. Remaining timers: ${this.timers.size}`);
   }
 
   /**
@@ -357,7 +357,7 @@ export class TimerManager {
    */
   forceGC(): void {
     if (global.gc) {
-      console.log('🗑️ Forcing garbage collection...');
+      console.error('🗑️ Forcing garbage collection...');
       global.gc();
     }
   }
@@ -369,10 +369,10 @@ export class TimerManager {
     const stats = this.getStats();
     const problematic = this.findProblematicTimers();
 
-    console.log('🕐 Timer Manager Status:');
-    console.log(`  Active timers: ${stats.totalTimers} (${stats.intervals} intervals, ${stats.timeouts} timeouts)`);
-    console.log(`  Total executions: ${stats.totalExecutions}`);
-    console.log(`  Oldest timer: ${stats.oldestTimer?.toISOString() || 'none'}`);
+    console.error('🕐 Timer Manager Status:');
+    console.error(`  Active timers: ${stats.totalTimers} (${stats.intervals} intervals, ${stats.timeouts} timeouts)`);
+    console.error(`  Total executions: ${stats.totalExecutions}`);
+    console.error(`  Oldest timer: ${stats.oldestTimer?.toISOString() || 'none'}`);
     
     if (problematic.longRunning.length > 0) {
       console.warn(`  ⚠️ Long-running timers: ${problematic.longRunning.length}`);
@@ -470,7 +470,7 @@ export class TimerManager {
     handle.streamCompleted = true;
     
     if (process.env.DEBUG_TIMERS) {
-      console.log(`🏁 Stream completed for timer: ${timerId}`);
+      console.error(`🏁 Stream completed for timer: ${timerId}`);
     }
     
     return true;

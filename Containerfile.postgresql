@@ -48,6 +48,14 @@ RUN cd /tmp \
     && cd / \
     && rm -rf /tmp/pgvector
 
+# Install Apache AGE for graph database capabilities
+RUN cd /tmp \
+    && git clone --branch release/PG16/1.5.0 https://github.com/apache/age.git \
+    && cd age \
+    && make install \
+    && cd / \
+    && rm -rf /tmp/age
+
 # Install additional useful extensions for cognitive workloads
 RUN apt-get update && apt-get install -y \
     postgresql-16-pg-stat-kcache \
@@ -66,9 +74,6 @@ COPY container-files/postgresql/config/postgresql.conf /usr/local/share/postgres
 # Copy initialization scripts
 COPY container-files/postgresql/init-scripts/ /docker-entrypoint-initdb.d/
 
-# Copy utility scripts (if available)
-COPY container-files/postgresql/bin/ /usr/local/bin/ || true
-
 # Health check that verifies database is ready
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD pg_isready -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" && \
@@ -77,8 +82,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Expose PostgreSQL port
 EXPOSE 5432
 
-# Use standard PostgreSQL startup with TimescaleDB and extensions preloaded
-CMD ["postgres", "-c", "shared_preload_libraries=timescaledb,pg_stat_statements", "-c", "log_statement=mod"]
+# Use standard PostgreSQL startup with TimescaleDB, AGE and extensions preloaded
+CMD ["postgres", "-c", "shared_preload_libraries=timescaledb,pg_stat_statements,age", "-c", "log_statement=mod"]
 
 # Container metadata
 LABEL org.opencontainers.image.title="Sentient AGI PostgreSQL" \

@@ -562,7 +562,7 @@ export class PrometheusMetricsExporter {
   startMetricsServer(port = 9090, intervalMs = 15000): void {
     // This would start an HTTP server to serve metrics
     // For now, we'll just log metrics periodically
-    console.log(`🔧 Starting Prometheus metrics export on port ${port} (interval: ${intervalMs}ms)`);
+    console.error(`🔧 Starting Prometheus metrics export on port ${port} (interval: ${intervalMs}ms)`);
     
     // Clear any existing interval
     if (this.metricsInterval) {
@@ -572,7 +572,7 @@ export class PrometheusMetricsExporter {
     this.metricsInterval = setInterval(async () => {
       try {
         const metricsText = await this.exportMetrics();
-        console.log(`📊 Prometheus metrics updated (${metricsText.split('\n').length} lines)`);
+        console.error(`📊 Prometheus metrics updated (${metricsText.split('\n').length} lines)`);
         
         // In a real implementation, this would be served via HTTP
         // Example: Express.js endpoint that returns metricsText
@@ -589,7 +589,7 @@ export class PrometheusMetricsExporter {
     if (this.metricsInterval) {
       clearInterval(this.metricsInterval);
       this.metricsInterval = null;
-      console.log('🔧 Prometheus metrics server stopped');
+      console.error('🔧 Prometheus metrics server stopped');
     }
   }
 
@@ -599,7 +599,7 @@ export class PrometheusMetricsExporter {
   dispose(): void {
     this.stopMetricsServer();
     this.metricsCache.clear();
-    console.log('📊 PrometheusMetricsExporter disposed');
+    console.error('📊 PrometheusMetricsExporter disposed');
   }
 }
 

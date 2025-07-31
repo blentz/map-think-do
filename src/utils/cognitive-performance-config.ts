@@ -113,10 +113,10 @@ export class CognitivePerformanceConfigManager {
   private calculateOptimalConfig(): CognitivePerformanceConfig {
     const specs = this.systemSpecs;
     
-    console.log(`🧠 Calculating optimal config for system:`);
-    console.log(`   CPU Cores: ${specs.cpuCores}`);
-    console.log(`   Total Memory: ${specs.totalMemoryGB.toFixed(1)}GB`);
-    console.log(`   Available Memory: ${specs.availableMemoryGB.toFixed(1)}GB`);
+    console.error(`🧠 Calculating optimal config for system:`);
+    console.error(`   CPU Cores: ${specs.cpuCores}`);
+    console.error(`   Total Memory: ${specs.totalMemoryGB.toFixed(1)}GB`);
+    console.error(`   Available Memory: ${specs.availableMemoryGB.toFixed(1)}GB`);
 
     // Base intervals (milliseconds)
     const BASE_CONSCIOUSNESS_INTERVAL = 10000; // 10 seconds
@@ -134,11 +134,11 @@ export class CognitivePerformanceConfigManager {
     const consciousnessInterval = Math.round(BASE_CONSCIOUSNESS_INTERVAL * cpuScaling * memoryScaling);
     const streamInterval = Math.round(BASE_STREAM_INTERVAL * cpuScaling * memoryScaling);
     
-    console.log(`📊 Scaling calculations:`);
-    console.log(`   CPU scaling factor: ${cpuScaling.toFixed(2)} (${specs.cpuCores} cores)`);
-    console.log(`   Memory scaling factor: ${memoryScaling.toFixed(2)} (${specs.totalMemoryGB.toFixed(1)}GB)`);
-    console.log(`   Final consciousness interval: ${consciousnessInterval}ms`);
-    console.log(`   Final stream interval: ${streamInterval}ms`);
+    console.error(`📊 Scaling calculations:`);
+    console.error(`   CPU scaling factor: ${cpuScaling.toFixed(2)} (${specs.cpuCores} cores)`);
+    console.error(`   Memory scaling factor: ${memoryScaling.toFixed(2)} (${specs.totalMemoryGB.toFixed(1)}GB)`);
+    console.error(`   Final consciousness interval: ${consciousnessInterval}ms`);
+    console.error(`   Final stream interval: ${streamInterval}ms`);
 
     // Memory-based array limits
     // Assumption: Each cognitive object uses ~1-2KB
@@ -155,13 +155,13 @@ export class CognitivePerformanceConfigManager {
     const maxStreamEntries = Math.min(180, Math.floor(maxObjects * 0.3)); // 30%
     const maxCurrentThoughts = Math.min(60, Math.floor(maxObjects * 0.2)); // 20%
 
-    console.log(`💾 Memory allocation calculations:`);
-    console.log(`   Memory budget: ${memoryBudgetMB.toFixed(1)}MB (7.5% of ${specs.totalMemoryGB.toFixed(1)}GB)`);
-    console.log(`   Max objects: ${maxObjects}`);
-    console.log(`   Existential questions: ${maxExistentialQuestions}`);
-    console.log(`   Thought history: ${maxThoughtHistory}`);
-    console.log(`   Stream entries: ${maxStreamEntries}`);
-    console.log(`   Current thoughts: ${maxCurrentThoughts}`);
+    console.error(`💾 Memory allocation calculations:`);
+    console.error(`   Memory budget: ${memoryBudgetMB.toFixed(1)}MB (7.5% of ${specs.totalMemoryGB.toFixed(1)}GB)`);
+    console.error(`   Max objects: ${maxObjects}`);
+    console.error(`   Existential questions: ${maxExistentialQuestions}`);
+    console.error(`   Thought history: ${maxThoughtHistory}`);
+    console.error(`   Stream entries: ${maxStreamEntries}`);
+    console.error(`   Current thoughts: ${maxCurrentThoughts}`);
 
     return {
       consciousnessProcessingInterval: consciousnessInterval,
@@ -211,7 +211,7 @@ export class CognitivePerformanceConfigManager {
    */
   updateConfig(updates: Partial<CognitivePerformanceConfig>): void {
     this.config = { ...this.config, ...updates };
-    console.log(`⚙️ Configuration updated:`, updates);
+    console.error(`⚙️ Configuration updated:`, updates);
   }
 
   /**
@@ -253,7 +253,7 @@ export class CognitivePerformanceConfigManager {
         break;
     }
     
-    console.log(`🎛️ Performance mode set to: ${mode}`);
+    console.error(`🎛️ Performance mode set to: ${mode}`);
     this.logCurrentSettings();
   }
 
@@ -274,7 +274,7 @@ export class CognitivePerformanceConfigManager {
     }
     
     if (this.config.enableDebugLogging) {
-      console.log(`📈 Adaptive scaling: memory usage ${(memoryUsagePercent * 100).toFixed(1)}%, scaling factor: ${this.config.memoryPressureScalingFactor.toFixed(2)}`);
+      console.error(`📈 Adaptive scaling: memory usage ${(memoryUsagePercent * 100).toFixed(1)}%, scaling factor: ${this.config.memoryPressureScalingFactor.toFixed(2)}`);
     }
   }
 
@@ -324,7 +324,7 @@ export class CognitivePerformanceConfigManager {
     if (Object.keys(envConfig).length > 0) {
       envConfig.mode = 'custom';
       this.updateConfig(envConfig);
-      console.log(`🌍 Configuration loaded from environment variables`);
+      console.error(`🌍 Configuration loaded from environment variables`);
     }
   }
 
@@ -342,7 +342,7 @@ export class CognitivePerformanceConfigManager {
     try {
       const importedConfig = JSON.parse(configJson);
       this.updateConfig(importedConfig);
-      console.log(`📥 Configuration imported successfully`);
+      console.error(`📥 Configuration imported successfully`);
     } catch (error) {
       console.error(`❌ Failed to import configuration:`, error);
       throw new Error('Invalid configuration JSON');
@@ -355,17 +355,17 @@ export class CognitivePerformanceConfigManager {
   logCurrentSettings(): void {
     const effective = this.getEffectiveIntervals();
     
-    console.log(`\n🎛️ Current Cognitive Performance Settings:`);
-    console.log(`   Mode: ${this.config.mode}`);
-    console.log(`   Consciousness processing: ${effective.consciousnessInterval}ms`);
-    console.log(`   Stream generation: ${effective.streamInterval}ms`);
-    console.log(`   Memory cleanup threshold: ${(this.config.memoryCleanupThreshold * 100).toFixed(0)}%`);
-    console.log(`   Max existential questions: ${this.config.maxExistentialQuestions}`);
-    console.log(`   Max thought history: ${this.config.maxThoughtHistory}`);
-    console.log(`   Max stream entries: ${this.config.maxStreamEntries}`);
-    console.log(`   Max current thoughts: ${this.config.maxCurrentThoughts}`);
-    console.log(`   CPU load scaling: ${this.config.cpuLoadScalingFactor.toFixed(2)}x`);
-    console.log(`   Memory pressure scaling: ${this.config.memoryPressureScalingFactor.toFixed(2)}x\n`);
+    console.error(`\n🎛️ Current Cognitive Performance Settings:`);
+    console.error(`   Mode: ${this.config.mode}`);
+    console.error(`   Consciousness processing: ${effective.consciousnessInterval}ms`);
+    console.error(`   Stream generation: ${effective.streamInterval}ms`);
+    console.error(`   Memory cleanup threshold: ${(this.config.memoryCleanupThreshold * 100).toFixed(0)}%`);
+    console.error(`   Max existential questions: ${this.config.maxExistentialQuestions}`);
+    console.error(`   Max thought history: ${this.config.maxThoughtHistory}`);
+    console.error(`   Max stream entries: ${this.config.maxStreamEntries}`);
+    console.error(`   Max current thoughts: ${this.config.maxCurrentThoughts}`);
+    console.error(`   CPU load scaling: ${this.config.cpuLoadScalingFactor.toFixed(2)}x`);
+    console.error(`   Memory pressure scaling: ${this.config.memoryPressureScalingFactor.toFixed(2)}x\n`);
   }
 
   /**

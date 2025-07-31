@@ -108,7 +108,7 @@ export class DependencyContainer {
   async resolve<T>(token: string | symbol): Promise<T> {
     // Check for circular dependencies
     if (this.resolutionStack.has(token)) {
-      const stackArray = Array.from(this.resolutionStack);
+      const stackArray = Array.from(this.resolutionStack).map(t => String(t));
       throw new Error(
         `Circular dependency detected: ${stackArray.join(' -> ')} -> ${String(token)}`
       );
@@ -271,6 +271,7 @@ export const ServiceTokens = {
   PERSONA_PLUGIN: Symbol('PersonaPlugin'),
   EXTERNAL_REASONING_PLUGIN: Symbol('ExternalReasoningPlugin'),
   PHASE5_INTEGRATION_PLUGIN: Symbol('Phase5IntegrationPlugin'),
+  PROMPT_INTELLIGENCE_PLUGIN: Symbol('PromptIntelligencePlugin'),
 
   // Error handling
   ERROR_BOUNDARY_FACTORY: Symbol('ErrorBoundaryFactory'),
