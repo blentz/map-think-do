@@ -452,12 +452,8 @@ export class CodeReasoningServer {
     });
 
     // Store the initial session to database to prevent foreign key constraint violations
-    try {
-      await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
-      console.error(`📝 Initial session stored: ${this.currentSessionId}`);
-    } catch (error) {
-      console.error('Failed to store initial session:', error);
-    }
+    await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
+    console.error(`📝 Initial session stored: ${this.currentSessionId}`);
   }
 
   /**
@@ -496,6 +492,14 @@ export class CodeReasoningServer {
     if (!this.currentSession) {
       console.error('Warning: Session not initialized, creating new session');
       this.initializeSession();
+    }
+
+    // Ensure session exists in database before storing thoughts
+    const existingSession = await this.memoryStore.getSession(this.currentSessionId);
+    if (!existingSession) {
+      console.error('Session not found in database, storing initial session');
+      await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
+      console.error(`✅ Session successfully stored: ${this.currentSessionId}`);
     }
 
     // Update session with current thought data

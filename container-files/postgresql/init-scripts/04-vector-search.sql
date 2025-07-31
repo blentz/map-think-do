@@ -52,6 +52,15 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Table to store prompt embeddings (separate from thoughts)
+        CREATE TABLE IF NOT EXISTS prompt_embeddings (
+            prompt_id VARCHAR(50) PRIMARY KEY REFERENCES stored_prompts(id) ON DELETE CASCADE,
+            embedding vector(384),  -- Default dimension for sentence-transformers/all-MiniLM-L6-v2
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
         
         RAISE NOTICE 'Vector tables created successfully with pgvector support';
     ELSE
@@ -68,6 +77,15 @@ BEGIN
             session_id VARCHAR(50) PRIMARY KEY REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
             objective_embedding_json JSONB,
             aggregated_embedding_json JSONB,  -- Average of all thought embeddings in session
+            embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Table to store prompt embeddings (JSONB fallback)
+        CREATE TABLE IF NOT EXISTS prompt_embeddings (
+            prompt_id VARCHAR(50) PRIMARY KEY REFERENCES stored_prompts(id) ON DELETE CASCADE,
+            embedding_json JSONB,  -- Store embedding as JSON array fallback
             embedding_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2',
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -130,6 +148,11 @@ BEGIN
         
         CREATE INDEX IF NOT EXISTS idx_session_embeddings_aggregated
         ON session_embeddings USING ivfflat (aggregated_embedding vector_cosine_ops)
+        WITH (lists = 50);
+        
+        -- IVFFlat index for prompt embeddings
+        CREATE INDEX IF NOT EXISTS idx_prompt_embeddings_vector 
+        ON prompt_embeddings USING ivfflat (embedding vector_cosine_ops)
         WITH (lists = 50);
         
         -- HNSW index for pattern embeddings (good for smaller datasets, faster queries)
@@ -231,6 +254,47 @@ BEGIN
     ELSE
         -- Fallback behavior
         RAISE NOTICE 'pgvector not available, cannot perform semantic session similarity';
+        RETURN;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to find similar prompts based on semantic similarity
+CREATE OR REPLACE FUNCTION find_similar_prompts_semantic(
+    query_embedding vector(384),
+    similarity_threshold REAL DEFAULT 0.7,
+    max_results INTEGER DEFAULT 10,
+    exclude_prompt_id VARCHAR(50) DEFAULT NULL
+)
+RETURNS TABLE (
+    prompt_id VARCHAR(50),
+    original_prompt TEXT,
+    similarity_score REAL,
+    prompt_type VARCHAR(50),
+    classification_confidence NUMERIC,
+    domain VARCHAR(100),
+    received_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
+        RETURN QUERY
+        SELECT 
+            pe.prompt_id,
+            sp.original_prompt,
+            (1 - (pe.embedding <=> query_embedding)) as similarity_score,
+            sp.prompt_type,
+            sp.classification_confidence,
+            sp.domain,
+            sp.received_at
+        FROM prompt_embeddings pe
+        JOIN stored_prompts sp ON pe.prompt_id = sp.id
+        WHERE (1 - (pe.embedding <=> query_embedding)) > similarity_threshold
+          AND (exclude_prompt_id IS NULL OR pe.prompt_id != exclude_prompt_id)
+        ORDER BY pe.embedding <=> query_embedding
+        LIMIT max_results;
+    ELSE
+        -- Fallback to text similarity if pgvector not available
+        RAISE NOTICE 'pgvector not available, cannot perform semantic similarity search for prompts';
         RETURN;
     END IF;
 END;
@@ -375,6 +439,24 @@ BEGIN
     INSERT INTO thought_embeddings (thought_id, embedding, embedding_model)
     VALUES (p_thought_id, p_embedding, p_model)
     ON CONFLICT (thought_id) 
+    DO UPDATE SET 
+        embedding = EXCLUDED.embedding,
+        embedding_model = EXCLUDED.embedding_model,
+        updated_at = CURRENT_TIMESTAMP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to update embedding for a prompt (to be called from application)
+CREATE OR REPLACE FUNCTION upsert_prompt_embedding(
+    p_prompt_id VARCHAR(50),
+    p_embedding vector(384),
+    p_model VARCHAR(100) DEFAULT 'all-MiniLM-L6-v2'
+)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO prompt_embeddings (prompt_id, embedding, embedding_model)
+    VALUES (p_prompt_id, p_embedding, p_model)
+    ON CONFLICT (prompt_id) 
     DO UPDATE SET 
         embedding = EXCLUDED.embedding,
         embedding_model = EXCLUDED.embedding_model,
@@ -652,19 +734,20 @@ SELECT
     'Vector Tables' as feature,
     COUNT(*) as count
 FROM information_schema.tables
-WHERE table_name IN ('thought_embeddings', 'session_embeddings', 'pattern_embeddings');
+WHERE table_name IN ('thought_embeddings', 'session_embeddings', 'pattern_embeddings', 'prompt_embeddings');
 
 -- Check if search functions were created
 SELECT 
     'Search Functions' as feature,
     COUNT(*) as count
 FROM information_schema.routines
-WHERE routine_name LIKE '%similar%semantic%' OR routine_name LIKE '%search%' OR routine_name LIKE '%embedding%';
+WHERE routine_name LIKE '%similar%semantic%' OR routine_name LIKE '%search%' OR routine_name LIKE '%embedding%' OR routine_name LIKE '%prompt%';
 
 \echo 'Vector search enhancement completed successfully!';
 \echo '';
 \echo 'New semantic search features available:';
 \echo '  ✓ Thought embeddings storage (384-dimensional vectors)';
+\echo '  ✓ Prompt embeddings storage (384-dimensional vectors)';
 \echo '  ✓ Session embeddings aggregation';
 \echo '  ✓ Pattern embeddings for pattern matching';
 \echo '  ✓ Semantic similarity functions';
@@ -675,5 +758,6 @@ WHERE routine_name LIKE '%similar%semantic%' OR routine_name LIKE '%search%' OR 
 \echo '';
 \echo 'Usage examples:';
 \echo '  SELECT * FROM find_similar_thoughts_semantic(query_vector, 0.7, 10);';
+\echo '  SELECT * FROM find_similar_prompts_semantic(query_vector, 0.7, 10);';
 \echo '  SELECT * FROM hybrid_search_thoughts(''debugging memory leaks'', query_vector);';
 \echo '  SELECT * FROM cluster_thoughts_semantic(0.8, 3);';

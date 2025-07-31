@@ -1375,6 +1375,20 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   }
 
   /**
+   * Store embedding for a prompt (integration point for sentence transformers)
+   */
+  async storePromptEmbedding(promptId: string, embedding: number[], model = 'all-MiniLM-L6-v2'): Promise<void> {
+    try {
+      await this.query(
+        'SELECT upsert_prompt_embedding($1, $2, $3)',
+        [promptId, `[${embedding.join(',')}]`, model]
+      );
+    } catch (error) {
+      console.warn('Prompt embedding storage not available:', error);
+    }
+  }
+
+  /**
    * Find semantically similar thoughts using vector similarity
    */
   async findSimilarThoughtsSemantic(embedding: number[], threshold = 0.7, limit = 10, excludeSessionId?: string): Promise<any[]> {
@@ -1492,9 +1506,8 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       const embeddingService = getEmbeddingService();
       const result = await embeddingService.generateEmbedding(promptText);
       
-      // Store as thought embedding (prompts are stored in the same embedding space)
-      // This enables cross-modal similarity search between prompts and thoughts
-      await this.storeThoughtEmbedding(promptId, result.embedding, result.model);
+      // Store in proper prompt embeddings table
+      await this.storePromptEmbedding(promptId, result.embedding, result.model);
       console.error(`✅ Generated embedding for prompt ${promptId} (${result.processingTime}ms)`);
     } catch (error) {
       console.warn(`Failed to generate/store embedding for prompt ${promptId}:`, error);
