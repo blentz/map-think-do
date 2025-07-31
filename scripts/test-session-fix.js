@@ -10,7 +10,7 @@ async function testSessionFix() {
   console.error('🧪 Testing Session Foreign Key Constraint Fix...\n');
 
   let memoryStore;
-  
+
   try {
     // Initialize PostgreSQL memory store
     console.error('📦 Initializing PostgreSQL memory store...');
@@ -34,9 +34,9 @@ async function testSessionFix() {
       queryTimeout: 30000,
       lockTimeout: 5000,
       debug: false,
-      logQueries: false
+      logQueries: false,
     });
-    
+
     await memoryStore.initialize();
     console.error('✅ Memory store initialized\n');
 
@@ -60,9 +60,9 @@ async function testSessionFix() {
       failed_approaches: [],
       tags: ['test', 'foreign-key'],
       created_at: new Date(),
-      updated_at: new Date()
+      updated_at: new Date(),
     };
-    
+
     console.error('📝 Storing test session...');
     await memoryStore.storeSession(testSession);
     console.error('✅ Session stored successfully\n');
@@ -72,7 +72,8 @@ async function testSessionFix() {
     const testThought = {
       id: testThoughtId,
       session_id: testSessionId, // This should now work without foreign key error
-      thought: 'This thought should successfully reference the existing session without causing a foreign key constraint violation.',
+      thought:
+        'This thought should successfully reference the existing session without causing a foreign key constraint violation.',
       thought_number: 1,
       total_thoughts: 1,
       next_thought_needed: false,
@@ -85,7 +86,7 @@ async function testSessionFix() {
       success: true,
       effectiveness_score: 0.9,
       context: {
-        test_context: 'foreign key constraint fix'
+        test_context: 'foreign key constraint fix',
       },
       tags: ['test', 'foreign-key-fix'],
       patterns_detected: ['constraint-validation'],
@@ -93,9 +94,9 @@ async function testSessionFix() {
       output: 'Foreign key constraint test',
       context_trace: ['session-first', 'thought-second'],
       created_at: new Date(),
-      updated_at: new Date()
+      updated_at: new Date(),
     };
-    
+
     console.error('💭 Storing test thought (referencing existing session)...');
     await memoryStore.storeThought(testThought);
     console.error('✅ Thought stored successfully without foreign key error!\n');
@@ -120,7 +121,6 @@ async function testSessionFix() {
     }
 
     console.error('\n🎉 Foreign key constraint fix test completed successfully!');
-    
   } catch (error) {
     console.error('❌ Test failed:', error);
     process.exit(1);

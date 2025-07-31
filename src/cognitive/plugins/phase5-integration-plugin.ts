@@ -331,7 +331,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     this.recursivePrompts = this.recursivePrompts.filter(
       p => Date.now() - p.timestamp.getTime() < 60000 // Keep for 1 minute only
     );
-    
+
     // Limit array size to prevent unbounded growth
     if (this.recursivePrompts.length > 20) {
       this.recursivePrompts = this.recursivePrompts.slice(-10); // Keep only 10 most recent
@@ -405,9 +405,9 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
 
     // Clean up old predictions more aggressively
     this.temporalPredictions = this.temporalPredictions.filter(
-      p => p.timeframe > Date.now() && (Date.now() - p.timeframe < 120000) // Keep for 2 minutes
+      p => p.timeframe > Date.now() && Date.now() - p.timeframe < 120000 // Keep for 2 minutes
     );
-    
+
     // Limit array size to prevent unbounded growth
     if (this.temporalPredictions.length > 15) {
       this.temporalPredictions = this.temporalPredictions.slice(-8); // Keep only 8 most recent
@@ -462,7 +462,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     this.ethicalEvaluations = this.ethicalEvaluations.filter(
       e => Date.now() - e.timestamp.getTime() < 120000 // Keep for 2 minutes
     );
-    
+
     // Limit array size to prevent unbounded growth
     if (this.ethicalEvaluations.length > 12) {
       this.ethicalEvaluations = this.ethicalEvaluations.slice(-6); // Keep only 6 most recent
@@ -471,7 +471,8 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     // Update ethical alignment based on evaluations
     if (this.ethicalEvaluations.length > 0) {
       const avgAlignment =
-        this.ethicalEvaluations.reduce((sum, e) => sum + e.alignment_score, 0) / this.ethicalEvaluations.length;
+        this.ethicalEvaluations.reduce((sum, e) => sum + e.alignment_score, 0) /
+        this.ethicalEvaluations.length;
       this.state.ethical_alignment = this.state.ethical_alignment * 0.9 + avgAlignment * 0.1;
     }
   }
@@ -534,7 +535,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
 
     // Clean up collapsed states and limit array size
     this.quantumStates = this.quantumStates.filter(s => s.collapse_probability < 0.8);
-    
+
     // Limit array size to prevent unbounded growth
     if (this.quantumStates.length > 10) {
       this.quantumStates = this.quantumStates.slice(-5); // Keep only 5 most recent

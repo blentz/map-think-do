@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @fileoverview Advanced Database Analytics and Migration CLI
- * 
+ *
  * Interactive command-line interface for PostgreSQL database analytics,
  * migration management, and cognitive insights analysis.
  */
@@ -44,10 +44,10 @@ async function initializeStore() {
 async function generateAnalyticsReport(store, options = {}) {
   const reportId = new Date().toISOString().replace(/[:.]/g, '-');
   const reportFile = `${ANALYTICS_DIR}/cognitive-analytics-${reportId}.json`;
-  
+
   console.log('📊 Generating comprehensive cognitive analytics report...');
   console.log(`Report will be saved to: ${reportFile}`);
-  
+
   const report = {
     generated_at: new Date().toISOString(),
     report_id: reportId,
@@ -78,9 +78,7 @@ async function generateAnalyticsReport(store, options = {}) {
 
     // Cognitive load alerts
     console.log('⚠️ Checking cognitive load alerts...');
-    report.analytics.load_alerts = await store.getCognitiveLoadAlerts(
-      options.hoursBack || 24
-    );
+    report.analytics.load_alerts = await store.getCognitiveLoadAlerts(options.hoursBack || 24);
 
     // Real-time metrics
     console.log('⏱️ Collecting real-time metrics...');
@@ -217,7 +215,7 @@ async function analyzeSuccessRates(store) {
 function displayAnalyticsSummary(report) {
   console.log('\n📋 Analytics Summary:');
   console.log('='.repeat(60));
-  
+
   const stats = report.analytics.basic_stats;
   if (stats) {
     console.log(`Total Thoughts: ${stats.total_thoughts.toLocaleString()}`);
@@ -231,7 +229,9 @@ function displayAnalyticsSummary(report) {
     console.log(`\n📈 Recent Performance (last ${trends.length} days):`);
     const recent = trends.slice(0, 3);
     recent.forEach(day => {
-      console.log(`   ${day.day}: ${day.thought_count} thoughts, ${(day.success_rate * 100).toFixed(1)}% success`);
+      console.log(
+        `   ${day.day}: ${day.thought_count} thoughts, ${(day.success_rate * 100).toFixed(1)}% success`
+      );
     });
   }
 
@@ -256,7 +256,7 @@ function displayAnalyticsSummary(report) {
 async function runMigrationWizard(store) {
   console.log('🔄 Database Migration Wizard');
   console.log('='.repeat(40));
-  
+
   const migrations = [
     {
       name: 'Update Search Vectors',
@@ -264,7 +264,7 @@ async function runMigrationWizard(store) {
       query: 'SELECT update_search_vectors()',
     },
     {
-      name: 'Update Pattern Embeddings', 
+      name: 'Update Pattern Embeddings',
       description: 'Refresh pattern embeddings based on current data',
       query: 'SELECT update_pattern_embeddings()',
     },
@@ -288,7 +288,7 @@ async function runMigrationWizard(store) {
     try {
       console.log(`\n🔧 Running: ${migration.name}`);
       console.log(`   ${migration.description}`);
-      
+
       if (migration.action) {
         await migration.action();
       } else if (migration.query) {
@@ -306,13 +306,13 @@ async function runMigrationWizard(store) {
           }
         }
       }
-      
+
       console.log(`   ✅ ${migration.name} completed`);
     } catch (error) {
       console.log(`   ❌ ${migration.name} failed: ${error.message}`);
     }
   }
-  
+
   console.log('\n✅ Migration wizard completed');
 }
 
@@ -322,10 +322,10 @@ async function runMigrationWizard(store) {
 async function exportData(store, format, options = {}) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `${EXPORT_DIR}/cognitive-data-${timestamp}.${format}`;
-  
+
   console.log(`📤 Exporting data in ${format.toUpperCase()} format...`);
   console.log(`Export file: ${filename}`);
-  
+
   try {
     if (options.streaming) {
       console.log('🌊 Using streaming export for large datasets...');
@@ -334,7 +334,7 @@ async function exportData(store, format, options = {}) {
       const data = await store.exportData(format, options.limit);
       writeFileSync(filename, data);
     }
-    
+
     console.log(`✅ Data exported successfully: ${filename}`);
     return filename;
   } catch (error) {
@@ -349,46 +349,48 @@ async function exportData(store, format, options = {}) {
 async function streamingExport(store, filename, format, options) {
   const fs = await import('fs');
   const stream = fs.createWriteStream(filename);
-  
+
   let totalThoughts = 0;
   let totalSessions = 0;
-  
+
   // Export thoughts in batches
   console.log('📝 Exporting thoughts...');
   for await (const batch of store.streamExportThoughts(options.batchSize || 1000)) {
     totalThoughts += batch.length;
-    
+
     if (format === 'jsonl') {
       for (const thought of batch) {
         stream.write(JSON.stringify(thought) + '\n');
       }
     }
-    
+
     // Progress indicator
     if (totalThoughts % 10000 === 0) {
       console.log(`   📊 Exported ${totalThoughts.toLocaleString()} thoughts...`);
     }
   }
-  
+
   // Export sessions in batches
   console.log('📋 Exporting sessions...');
   for await (const batch of store.streamExportSessions(options.batchSize || 1000)) {
     totalSessions += batch.length;
-    
+
     if (format === 'jsonl') {
       for (const session of batch) {
         stream.write(JSON.stringify({ type: 'session', ...session }) + '\n');
       }
     }
-    
+
     // Progress indicator
     if (totalSessions % 1000 === 0) {
       console.log(`   📊 Exported ${totalSessions.toLocaleString()} sessions...`);
-    }  
+    }
   }
-  
+
   stream.end();
-  console.log(`📊 Streaming export completed: ${totalThoughts.toLocaleString()} thoughts, ${totalSessions.toLocaleString()} sessions`);
+  console.log(
+    `📊 Streaming export completed: ${totalThoughts.toLocaleString()} thoughts, ${totalSessions.toLocaleString()} sessions`
+  );
 }
 
 /**
@@ -397,27 +399,33 @@ async function streamingExport(store, filename, format, options) {
 async function runInteractiveSearch(store) {
   console.log('🔍 Interactive Search & Analysis');
   console.log('='.repeat(40));
-  
+
   const searchTypes = [
     'Hybrid Search (text + semantic)',
-    'Semantic Similarity Search', 
+    'Semantic Similarity Search',
     'Full-Text Search',
     'Pattern Analysis',
     'Domain Analysis',
   ];
-  
+
   console.log('Available search types:');
   searchTypes.forEach((type, index) => {
     console.log(`${index + 1}. ${type}`);
   });
-  
+
   // For demo purposes, run a sample of each search type
   console.log('\n🎯 Running sample searches...');
-  
+
   // Sample hybrid search
   try {
     console.log('\n1. Sample Hybrid Search: "debugging memory leaks"');
-    const hybridResults = await store.hybridSearchThoughts('debugging memory leaks', null, 0.5, 0.5, 5);
+    const hybridResults = await store.hybridSearchThoughts(
+      'debugging memory leaks',
+      null,
+      0.5,
+      0.5,
+      5
+    );
     console.log(`   Found ${hybridResults.length} results`);
     if (hybridResults.length > 0) {
       console.log(`   Top result: "${hybridResults[0].thought_text?.substring(0, 100)}..."`);
@@ -425,7 +433,7 @@ async function runInteractiveSearch(store) {
   } catch (error) {
     console.log(`   ⏭️ Hybrid search not available: ${error.message}`);
   }
-  
+
   // Sample pattern analysis
   try {
     console.log('\n2. Pattern Effectiveness Analysis (last 30 days)');
@@ -433,12 +441,14 @@ async function runInteractiveSearch(store) {
     console.log(`   Found ${patterns.length} patterns`);
     if (patterns.length > 0) {
       const topPattern = patterns[0];
-      console.log(`   Most effective: "${topPattern.pattern}" (${topPattern.frequency} occurrences, ${(topPattern.success_rate * 100).toFixed(1)}% success)`);
+      console.log(
+        `   Most effective: "${topPattern.pattern}" (${topPattern.frequency} occurrences, ${(topPattern.success_rate * 100).toFixed(1)}% success)`
+      );
     }
   } catch (error) {
     console.log(`   ⏭️ Pattern analysis not available: ${error.message}`);
   }
-  
+
   // Sample clustering
   try {
     console.log('\n3. Semantic Clustering Analysis');
@@ -446,7 +456,9 @@ async function runInteractiveSearch(store) {
     console.log(`   Found ${clusters.length} semantic clusters`);
     if (clusters.length > 0) {
       const largestCluster = clusters[0];
-      console.log(`   Largest cluster: ${largestCluster.cluster_size} thoughts with ${(largestCluster.avg_confidence * 100).toFixed(1)}% avg confidence`);
+      console.log(
+        `   Largest cluster: ${largestCluster.cluster_size} thoughts with ${(largestCluster.avg_confidence * 100).toFixed(1)}% avg confidence`
+      );
     }
   } catch (error) {
     console.log(`   ⏭️ Semantic clustering not available: ${error.message}`);
@@ -459,14 +471,14 @@ async function runInteractiveSearch(store) {
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
-  
+
   if (!command) {
     showHelp();
     return;
   }
-  
+
   const store = await initializeStore();
-  
+
   try {
     switch (command) {
       case 'analytics':
@@ -478,12 +490,12 @@ async function main() {
         };
         await generateAnalyticsReport(store, options);
         break;
-        
+
       case 'migrate':
       case 'migration':
         await runMigrationWizard(store);
         break;
-        
+
       case 'export':
         const format = args[1] || 'json';
         const exportOptions = {
@@ -493,17 +505,17 @@ async function main() {
         };
         await exportData(store, format, exportOptions);
         break;
-        
+
       case 'search':
       case 'interactive':
         await runInteractiveSearch(store);
         break;
-        
+
       case 'health':
       case 'status':
         await checkDatabaseHealth(store);
         break;
-        
+
       default:
         console.error(`❌ Unknown command: ${command}`);
         showHelp();
@@ -520,16 +532,16 @@ async function main() {
 async function checkDatabaseHealth(store) {
   console.log('🏥 Database Health Check');
   console.log('='.repeat(30));
-  
+
   try {
     // Basic connectivity
     const timeResult = await store.query('SELECT NOW() as current_time');
     console.log(`✅ Database connectivity: OK (${timeResult.rows[0].current_time})`);
-    
+
     // Extensions check
     const extensions = await getAvailableExtensions(store);
     console.log(`✅ Available extensions: ${extensions.join(', ')}`);
-    
+
     // Table sizes
     const sizeResult = await store.query(`
       SELECT 
@@ -541,12 +553,12 @@ async function checkDatabaseHealth(store) {
       WHERE schemaname = 'public'
       ORDER BY size_bytes DESC
     `);
-    
+
     console.log('\n📊 Table Sizes:');
     sizeResult.rows.forEach(row => {
       console.log(`   ${row.tablename}: ${row.size}`);
     });
-    
+
     // Statistics
     const stats = await store.getStats();
     console.log(`\n📈 Data Statistics:`);
@@ -554,7 +566,7 @@ async function checkDatabaseHealth(store) {
     console.log(`   Total sessions: ${stats.total_sessions.toLocaleString()}`);
     console.log(`   Average confidence: ${stats.average_confidence?.toFixed(3) || 'N/A'}`);
     console.log(`   Success rate: ${(stats.overall_success_rate * 100).toFixed(1)}%`);
-    
+
     // Feature availability
     console.log(`\n🔧 Feature Availability:`);
     const features = [
@@ -563,12 +575,11 @@ async function checkDatabaseHealth(store) {
       { name: 'pg_trgm (Text Similarity)', available: extensions.includes('pg_trgm') },
       { name: 'Full-Text Search', available: true },
     ];
-    
+
     features.forEach(feature => {
       const status = feature.available ? '✅' : '❌';
       console.log(`   ${status} ${feature.name}`);
     });
-    
   } catch (error) {
     console.error('❌ Health check failed:', error);
   }
@@ -594,7 +605,7 @@ function showHelp() {
   console.log('  ./db-analytics.js search');
   console.log('\nEnvironment Variables:');
   console.log('  MEMORY_STORE_TYPE=postgresql');
-  console.log('  POSTGRES_HOST=localhost'); 
+  console.log('  POSTGRES_HOST=localhost');
   console.log('  POSTGRES_PORT=5432');
   console.log('  POSTGRES_DB=map_think_do');
   console.log('  POSTGRES_USER=mtd_user');

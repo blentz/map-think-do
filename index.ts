@@ -19,7 +19,7 @@ const { values } = parseArgs({
     debug: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
-  allowPositionals: true
+  allowPositionals: true,
 });
 
 // Import and run the server
@@ -27,7 +27,6 @@ import('./src/server.js')
   .then(module => {
     // Debug flag is passed to runServer
     if (values.debug) {
-      // eslint-disable-next-line no-console
       console.error('Starting server in debug mode');
     }
 

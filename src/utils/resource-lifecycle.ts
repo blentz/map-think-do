@@ -36,17 +36,19 @@ export class ResourceLifecycleManager extends EventEmitter {
   private readonly maxIdleTime: number;
   private readonly maxResources: number;
 
-  constructor(options: {
-    cleanupIntervalMs?: number;
-    maxIdleTime?: number;
-    maxResources?: number;
-  } = {}) {
+  constructor(
+    options: {
+      cleanupIntervalMs?: number;
+      maxIdleTime?: number;
+      maxResources?: number;
+    } = {}
+  ) {
     super();
-    
+
     this.cleanupIntervalMs = options.cleanupIntervalMs || 60000; // 1 minute
     this.maxIdleTime = options.maxIdleTime || 300000; // 5 minutes
     this.maxResources = options.maxResources || 100;
-    
+
     this.startCleanupTimer();
   }
 
@@ -64,11 +66,11 @@ export class ResourceLifecycleManager extends EventEmitter {
       createdAt: new Date(),
       lastAccessed: new Date(),
       accessCount: 1,
-      memoryUsage: resource.getMemoryUsage?.()
+      memoryUsage: resource.getMemoryUsage?.(),
     };
 
     this.resources.set(resource.id, info);
-    
+
     // Check if we're over the limit
     if (this.resources.size > this.maxResources) {
       console.warn(`🚨 Resource limit exceeded: ${this.resources.size}/${this.maxResources}`);
@@ -107,7 +109,7 @@ export class ResourceLifecycleManager extends EventEmitter {
     if (info) {
       info.lastAccessed = new Date();
       info.accessCount++;
-      
+
       // Update memory usage if available
       if (info.resource.getMemoryUsage) {
         info.memoryUsage = info.resource.getMemoryUsage();
@@ -126,7 +128,7 @@ export class ResourceLifecycleManager extends EventEmitter {
       ageMs: now.getTime() - info.createdAt.getTime(),
       idleMs: now.getTime() - info.lastAccessed.getTime(),
       accessCount: info.accessCount,
-      memoryUsage: info.memoryUsage || 0
+      memoryUsage: info.memoryUsage || 0,
     }));
 
     const totalMemory = resourceStats.reduce((sum, stat) => sum + stat.memoryUsage, 0);
@@ -137,10 +139,11 @@ export class ResourceLifecycleManager extends EventEmitter {
       totalMemoryUsage: totalMemory,
       oldResourceCount: oldResources.length,
       resourcesByType: this.getResourceCountsByType(),
-      oldestResource: resourceStats.reduce((oldest, current) => 
-        current.ageMs > oldest.ageMs ? current : oldest, resourceStats[0] || null
+      oldestResource: resourceStats.reduce(
+        (oldest, current) => (current.ageMs > oldest.ageMs ? current : oldest),
+        resourceStats[0] || null
       ),
-      resourceStats
+      resourceStats,
     };
   }
 
@@ -160,7 +163,7 @@ export class ResourceLifecycleManager extends EventEmitter {
 
     if (toCleanup.length > 0) {
       console.error(`🧹 Cleaning up ${toCleanup.length} idle resources`);
-      
+
       for (const id of toCleanup) {
         await this.unregister(id);
       }
@@ -174,18 +177,18 @@ export class ResourceLifecycleManager extends EventEmitter {
    */
   private async performEmergencyCleanup(): Promise<void> {
     console.error('🚨 Emergency resource cleanup initiated');
-    
+
     // Clean up oldest 25% of resources
     const resourceEntries = Array.from(this.resources.entries());
     resourceEntries.sort((a, b) => a[1].lastAccessed.getTime() - b[1].lastAccessed.getTime());
-    
+
     const cleanupCount = Math.floor(resourceEntries.length * 0.25);
     const toCleanup = resourceEntries.slice(0, cleanupCount);
-    
+
     for (const [id] of toCleanup) {
       await this.unregister(id);
     }
-    
+
     console.error(`🧹 Emergency cleanup completed: removed ${cleanupCount} resources`);
   }
 
@@ -202,7 +205,7 @@ export class ResourceLifecycleManager extends EventEmitter {
     // Cleanup all remaining resources
     const resourceIds = Array.from(this.resources.keys());
     console.error(`🗑️ Disposing ${resourceIds.length} remaining resources`);
-    
+
     for (const id of resourceIds) {
       await this.unregister(id);
     }
@@ -219,7 +222,9 @@ export class ResourceLifecycleManager extends EventEmitter {
         const cleanedUp = await this.performRoutineCleanup();
         if (cleanedUp > 0) {
           const stats = this.getStats();
-          console.error(`🔄 Resource cleanup: ${cleanedUp} cleaned, ${stats.totalResources} remaining`);
+          console.error(
+            `🔄 Resource cleanup: ${cleanedUp} cleaned, ${stats.totalResources} remaining`
+          );
         }
       } catch (error) {
         console.error('❌ Error during routine resource cleanup:', error);
@@ -232,12 +237,12 @@ export class ResourceLifecycleManager extends EventEmitter {
    */
   private getResourceCountsByType(): Record<string, number> {
     const counts: Record<string, number> = {};
-    
+
     for (const info of this.resources.values()) {
       const type = info.resource.type;
       counts[type] = (counts[type] || 0) + 1;
     }
-    
+
     return counts;
   }
 }
@@ -284,7 +289,7 @@ export abstract class ManagedNativeResource implements NativeResource {
  * Global resource manager instance
  */
 export const globalResourceManager = new ResourceLifecycleManager({
-  cleanupIntervalMs: 60000,  // 1 minute
-  maxIdleTime: 300000,       // 5 minutes
-  maxResources: 200          // Maximum tracked resources
+  cleanupIntervalMs: 60000, // 1 minute
+  maxIdleTime: 300000, // 5 minutes
+  maxResources: 200, // Maximum tracked resources
 });

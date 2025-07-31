@@ -112,22 +112,22 @@ export class CircularBuffer<T> {
   getStats(): CircularBufferStats {
     let oldestTimestamp: Date | undefined;
     let newestTimestamp: Date | undefined;
-    
+
     if (this.items.length > 0) {
       // Efficiently find min/max without spread operator to prevent memory issues
       let minTime = this.items[0].timestamp.getTime();
       let maxTime = this.items[0].timestamp.getTime();
-      
+
       for (let i = 1; i < this.items.length; i++) {
         const time = this.items[i].timestamp.getTime();
         if (time < minTime) minTime = time;
         if (time > maxTime) maxTime = time;
       }
-      
+
       oldestTimestamp = new Date(minTime);
       newestTimestamp = new Date(maxTime);
     }
-    
+
     return {
       size: this.items.length,
       capacity: this.maxSize,

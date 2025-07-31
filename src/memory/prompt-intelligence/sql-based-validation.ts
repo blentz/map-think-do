@@ -1,6 +1,6 @@
 /**
  * @fileoverview SQL-Based Validation System
- * 
+ *
  * Uses actual SQL queries against the PostgreSQL database to calculate
  * real metrics. NO ESTIMATES OR HARDCODED VALUES.
  */
@@ -37,19 +37,19 @@ export class SQLBasedValidation {
 
     // Execute each validation query
     const queries = this.getValidationQueries();
-    
+
     for (const { name, sql } of queries) {
       const queryStartTime = Date.now();
       try {
         const result = await pool.query(sql);
         const queryEndTime = Date.now();
-        
+
         metrics.push({
           name,
           value: this.extractValue(result.rows),
           sql_query: sql,
           execution_time_ms: queryEndTime - queryStartTime,
-          raw_result: result.rows
+          raw_result: result.rows,
         });
       } catch (error) {
         const queryEndTime = Date.now();
@@ -58,7 +58,7 @@ export class SQLBasedValidation {
           value: `ERROR: ${error instanceof Error ? error.message : String(error)}`,
           sql_query: sql,
           execution_time_ms: queryEndTime - queryStartTime,
-          raw_result: []
+          raw_result: [],
         });
       }
     }
@@ -68,7 +68,7 @@ export class SQLBasedValidation {
     return {
       timestamp: new Date(),
       total_execution_time_ms: totalTime,
-      metrics
+      metrics,
     };
   }
 
@@ -76,17 +76,17 @@ export class SQLBasedValidation {
     return [
       {
         name: 'total_prompts_count',
-        sql: 'SELECT COUNT(*) as count FROM stored_prompts'
+        sql: 'SELECT COUNT(*) as count FROM stored_prompts',
       },
       {
         name: 'prompts_last_24h',
         sql: `SELECT COUNT(*) as count 
               FROM stored_prompts 
-              WHERE received_at >= NOW() - INTERVAL '24 hours'`
+              WHERE received_at >= NOW() - INTERVAL '24 hours'`,
       },
       {
         name: 'unique_session_count',
-        sql: 'SELECT COUNT(DISTINCT session_id) as count FROM stored_prompts'
+        sql: 'SELECT COUNT(DISTINCT session_id) as count FROM stored_prompts',
       },
       {
         name: 'classification_accuracy_rate',
@@ -94,7 +94,7 @@ export class SQLBasedValidation {
                 AVG(classification_confidence) as avg_confidence,
                 COUNT(*) as total_classified
               FROM stored_prompts 
-              WHERE classification_confidence IS NOT NULL`
+              WHERE classification_confidence IS NOT NULL`,
       },
       {
         name: 'intent_extraction_stats',
@@ -103,7 +103,7 @@ export class SQLBasedValidation {
                 AVG((extracted_intent->>'extraction_confidence')::float) as avg_confidence
               FROM stored_prompts 
               WHERE extracted_intent IS NOT NULL 
-                AND extracted_intent->>'extraction_confidence' IS NOT NULL`
+                AND extracted_intent->>'extraction_confidence' IS NOT NULL`,
       },
       {
         name: 'similarity_detection_stats',
@@ -112,7 +112,7 @@ export class SQLBasedValidation {
                 AVG(jsonb_array_length(similar_prompts)) as avg_similar_count
               FROM stored_prompts 
               WHERE similar_prompts IS NOT NULL 
-                AND jsonb_array_length(similar_prompts) > 0`
+                AND jsonb_array_length(similar_prompts) > 0`,
       },
       {
         name: 'processing_success_rate',
@@ -120,7 +120,7 @@ export class SQLBasedValidation {
                 COUNT(CASE WHEN processing_success = true THEN 1 END)::float / COUNT(*)::float as success_rate,
                 COUNT(*) as total_processed
               FROM stored_prompts 
-              WHERE processing_success IS NOT NULL`
+              WHERE processing_success IS NOT NULL`,
       },
       {
         name: 'reasoning_improvement_stats',
@@ -128,7 +128,7 @@ export class SQLBasedValidation {
                 AVG(reasoning_improvement) as avg_improvement,
                 COUNT(*) as total_with_improvement
               FROM stored_prompts 
-              WHERE reasoning_improvement IS NOT NULL`
+              WHERE reasoning_improvement IS NOT NULL`,
       },
       {
         name: 'cognitive_priming_effectiveness',
@@ -136,7 +136,7 @@ export class SQLBasedValidation {
                 AVG(cognitive_priming_effectiveness) as avg_effectiveness,
                 COUNT(*) as total_with_priming
               FROM stored_prompts 
-              WHERE cognitive_priming_effectiveness IS NOT NULL`
+              WHERE cognitive_priming_effectiveness IS NOT NULL`,
       },
       {
         name: 'storage_performance_analysis',
@@ -151,7 +151,7 @@ export class SQLBasedValidation {
                   ELSE 50.0
                 END as prompts_per_second
               FROM stored_prompts 
-              WHERE created_at IS NOT NULL`
+              WHERE created_at IS NOT NULL`,
       },
       {
         name: 'data_integrity_check',
@@ -159,7 +159,7 @@ export class SQLBasedValidation {
                 COUNT(CASE WHEN session_id IS NULL THEN 1 END) as null_session_ids,
                 COUNT(CASE WHEN original_prompt IS NULL OR original_prompt = '' THEN 1 END) as empty_prompts,
                 COUNT(CASE WHEN received_at IS NULL THEN 1 END) as null_timestamps
-              FROM stored_prompts`
+              FROM stored_prompts`,
       },
       {
         name: 'complexity_distribution',
@@ -169,8 +169,8 @@ export class SQLBasedValidation {
                 AVG(complexity_estimate) as avg_complexity,
                 COUNT(*) as total_with_complexity
               FROM stored_prompts 
-              WHERE complexity_estimate IS NOT NULL`
-      }
+              WHERE complexity_estimate IS NOT NULL`,
+      },
     ];
   }
 
@@ -200,7 +200,7 @@ export class SQLBasedValidation {
                 SELECT FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_name = 'stored_prompts'
-              ) as exists`
+              ) as exists`,
       },
       {
         name: 'required_columns',
@@ -210,7 +210,7 @@ export class SQLBasedValidation {
                 COUNT(CASE WHEN column_name = 'original_prompt' THEN 1 END) as has_original_prompt,
                 COUNT(CASE WHEN column_name = 'received_at' THEN 1 END) as has_received_at
               FROM information_schema.columns 
-              WHERE table_name = 'stored_prompts'`
+              WHERE table_name = 'stored_prompts'`,
       },
       {
         name: 'foreign_key_constraint',
@@ -221,8 +221,8 @@ export class SQLBasedValidation {
                 ON tc.constraint_name = kcu.constraint_name
               WHERE tc.table_name = 'stored_prompts' 
                 AND tc.constraint_type = 'FOREIGN KEY'
-                AND kcu.column_name = 'session_id'`
-      }
+                AND kcu.column_name = 'session_id'`,
+      },
     ];
 
     const metrics: SQLMetric[] = [];
@@ -232,13 +232,13 @@ export class SQLBasedValidation {
       try {
         const result = await pool.query(sql);
         const queryEndTime = Date.now();
-        
+
         metrics.push({
           name,
           value: this.extractValue(result.rows),
           sql_query: sql,
           execution_time_ms: queryEndTime - queryStartTime,
-          raw_result: result.rows
+          raw_result: result.rows,
         });
       } catch (error) {
         const queryEndTime = Date.now();
@@ -247,7 +247,7 @@ export class SQLBasedValidation {
           value: `ERROR: ${error instanceof Error ? error.message : String(error)}`,
           sql_query: sql,
           execution_time_ms: queryEndTime - queryStartTime,
-          raw_result: []
+          raw_result: [],
         });
       }
     }
@@ -298,7 +298,7 @@ export class SQLBasedValidation {
     query_response_time_ms: number[];
   }> {
     const validation = await this.runSQLValidation();
-    
+
     let classification_accuracy = 0;
     let intent_extraction_precision = 0;
     let similarity_detection_recall = 0;
@@ -308,7 +308,7 @@ export class SQLBasedValidation {
 
     for (const metric of validation.metrics) {
       query_response_times.push(metric.execution_time_ms);
-      
+
       switch (metric.name) {
         case 'classification_accuracy_rate':
           if (typeof metric.value === 'object' && metric.value.avg_confidence) {
@@ -347,7 +347,7 @@ export class SQLBasedValidation {
       similarity_detection_recall,
       reasoning_improvement_average,
       storage_performance_ms,
-      query_response_time_ms: query_response_times
+      query_response_time_ms: query_response_times,
     };
   }
 }

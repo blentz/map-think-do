@@ -2,7 +2,7 @@
  * Enhanced mutex implementation with timeout and contention monitoring
  */
 export class Mutex {
-  private queue: Array<{tryLock: () => void, timeout?: NodeJS.Timeout}> = [];
+  private queue: Array<{ tryLock: () => void; timeout?: NodeJS.Timeout }> = [];
   private locked = false;
   private lockAcquisitionCount = 0;
   private contentionCount = 0;
@@ -20,7 +20,9 @@ export class Mutex {
         } else {
           this.contentionCount++;
           if (this.contentionCount % 100 === 0) {
-            console.warn(`🔒 High mutex contention: ${this.contentionCount} contentions, queue: ${this.queue.length}`);
+            console.warn(
+              `🔒 High mutex contention: ${this.contentionCount} contentions, queue: ${this.queue.length}`
+            );
           }
         }
       };
@@ -30,20 +32,24 @@ export class Mutex {
         if (queueIndex !== -1) {
           this.queue.splice(queueIndex, 1);
         }
-        reject(new Error(`Mutex timeout after ${timeoutMs}ms. Holder: ${this.currentHolder}, Queue: ${this.queue.length}`));
+        reject(
+          new Error(
+            `Mutex timeout after ${timeoutMs}ms. Holder: ${this.currentHolder}, Queue: ${this.queue.length}`
+          )
+        );
       }, timeoutMs);
 
-      const queueItem = { 
+      const queueItem = {
         tryLock: () => {
           clearTimeout(timeout);
           tryLock();
         },
-        timeout
+        timeout,
       };
-      
+
       this.queue.push(queueItem);
       this.maxQueueSize = Math.max(this.maxQueueSize, this.queue.length);
-      
+
       if (this.queue.length === 1) {
         queueItem.tryLock();
       }
@@ -54,7 +60,7 @@ export class Mutex {
     this.locked = false;
     this.currentHolder = undefined;
     const current = this.queue.shift();
-    
+
     if (current?.timeout) {
       clearTimeout(current.timeout);
     }
@@ -81,7 +87,7 @@ export class Mutex {
       lockAcquisitionCount: this.lockAcquisitionCount,
       contentionCount: this.contentionCount,
       maxQueueSize: this.maxQueueSize,
-      currentHolder: this.currentHolder
+      currentHolder: this.currentHolder,
     };
   }
 
@@ -131,7 +137,7 @@ export class MutexRegistry {
       const highContentionMutexes = Object.entries(allStats)
         .filter(([, stats]) => stats.contentionCount > 50 || stats.queueSize > 10)
         .map(([key, stats]) => ({ key, ...stats }));
-      
+
       if (highContentionMutexes.length > 0) {
         console.warn('🚨 High mutex contention:', highContentionMutexes);
       }

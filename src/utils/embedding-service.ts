@@ -1,6 +1,6 @@
 /**
  * @fileoverview Embedding Service for Text Vectorization
- * 
+ *
  * Provides text-to-vector embedding generation using Transformers.js.
  * Supports local execution of sentence-transformers models for semantic similarity.
  */
@@ -32,7 +32,7 @@ export class EmbeddingService {
   private pipeline: any = null;
   private modelLoaded = false;
   private loadingPromise: Promise<void> | null = null;
-  
+
   private config: EmbeddingConfig = {
     model: 'Xenova/all-MiniLM-L6-v2', // 384-dimensional embeddings
     maxLength: 512,
@@ -43,7 +43,7 @@ export class EmbeddingService {
     if (config) {
       this.config = { ...this.config, ...config };
     }
-    
+
     // Set cache directory if provided
     if (this.config.cacheDir) {
       env.cacheDir = this.config.cacheDir;
@@ -55,7 +55,7 @@ export class EmbeddingService {
    */
   private async initializeModel(): Promise<void> {
     if (this.modelLoaded) return;
-    
+
     if (this.loadingPromise) {
       await this.loadingPromise;
       return;
@@ -69,7 +69,7 @@ export class EmbeddingService {
     try {
       console.error(`🔄 Loading embedding model: ${this.config.model}`);
       const startTime = Date.now();
-      
+
       this.pipeline = await pipeline('feature-extraction', this.config.model, {
         quantized: true, // Use quantized model for better performance
         progress_callback: (progress: any) => {
@@ -77,19 +77,21 @@ export class EmbeddingService {
             const percent = progress.progress ? Math.round(progress.progress * 100) : 0;
             console.error(`📥 Downloading ${progress.file}: ${percent}%`);
           }
-        }
+        },
       });
-      
+
       const loadTime = Date.now() - startTime;
       console.error(`✅ Embedding model loaded successfully in ${loadTime}ms`);
       console.error(`📊 Model: ${this.config.model} (384-dimensional vectors)`);
-      
+
       this.modelLoaded = true;
       this.loadingPromise = null;
     } catch (error) {
       console.error('❌ Failed to load embedding model:', error);
       this.loadingPromise = null;
-      throw new Error(`Failed to load embedding model: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to load embedding model: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -98,18 +100,19 @@ export class EmbeddingService {
    */
   async generateEmbedding(text: string): Promise<EmbeddingResult> {
     await this.initializeModel();
-    
+
     if (!text || text.trim().length === 0) {
       throw new Error('Text cannot be empty');
     }
 
     const startTime = Date.now();
-    
+
     try {
       // Truncate text if too long
-      const truncatedText = text.length > this.config.maxLength * 4 
-        ? text.substring(0, this.config.maxLength * 4) + '...'
-        : text;
+      const truncatedText =
+        text.length > this.config.maxLength * 4
+          ? text.substring(0, this.config.maxLength * 4) + '...'
+          : text;
 
       // Generate embedding
       const output = await this.pipeline(truncatedText, {
@@ -126,7 +129,9 @@ export class EmbeddingService {
         throw new Error(`Expected 384-dimensional embedding, got ${embedding.length} dimensions`);
       }
 
-      console.error(`🎯 Generated embedding for text (${text.length} chars) in ${processingTime}ms`);
+      console.error(
+        `🎯 Generated embedding for text (${text.length} chars) in ${processingTime}ms`
+      );
 
       return {
         embedding,
@@ -134,11 +139,12 @@ export class EmbeddingService {
         processingTime,
         tokenCount: Math.ceil(truncatedText.length / 4), // Rough token estimate
       };
-
     } catch (error) {
       const processingTime = Date.now() - startTime;
       console.error(`❌ Embedding generation failed after ${processingTime}ms:`, error);
-      throw new Error(`Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -151,14 +157,16 @@ export class EmbeddingService {
     }
 
     await this.initializeModel();
-    
+
     const results: EmbeddingResult[] = [];
     const totalStartTime = Date.now();
 
     // Process in batches
     for (let i = 0; i < texts.length; i += this.config.batchSize) {
       const batch = texts.slice(i, i + this.config.batchSize);
-      console.error(`📦 Processing batch ${Math.floor(i / this.config.batchSize) + 1}/${Math.ceil(texts.length / this.config.batchSize)} (${batch.length} texts)`);
+      console.error(
+        `📦 Processing batch ${Math.floor(i / this.config.batchSize) + 1}/${Math.ceil(texts.length / this.config.batchSize)} (${batch.length} texts)`
+      );
 
       // Generate embeddings for batch
       const batchPromises = batch.map(text => this.generateEmbedding(text));
@@ -172,7 +180,9 @@ export class EmbeddingService {
     }
 
     const totalTime = Date.now() - totalStartTime;
-    console.error(`✅ Generated ${results.length} embeddings in ${totalTime}ms (avg: ${Math.round(totalTime / results.length)}ms per embedding)`);
+    console.error(
+      `✅ Generated ${results.length} embeddings in ${totalTime}ms (avg: ${Math.round(totalTime / results.length)}ms per embedding)`
+    );
 
     return results;
   }

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Real Metrics Calculator
- * 
+ *
  * Calculates actual PRP metrics using real database queries and measurements.
  * ALL calculations based on actual data - NO placeholders or hardcoded values.
  */
@@ -59,32 +59,33 @@ export class RealMetricsCalculator {
 
   async calculateTier1Metrics(): Promise<Tier1Metrics> {
     console.error('📊 Calculating Tier 1 metrics from real database queries...');
-    
+
     // Get real SQL-based metrics
     const sqlResult = await this.sqlValidation.runSQLValidation();
     const performanceMetrics = await this.sqlValidation.calculateRealPerformanceMetrics();
-    
+
     // Calculate metrics from actual SQL results
     const sqlMetrics = this.extractSQLMetrics(sqlResult.metrics);
-    
+
     // Calculate prompt capture rate from actual data
     const totalPrompts = sqlMetrics.total_prompts;
     const integrityViolations = this.countDataIntegrityViolations(sqlMetrics);
-    const promptCaptureRate = totalPrompts > 0 ? 
-      Math.max(0, (totalPrompts - integrityViolations) / totalPrompts) : 0;
+    const promptCaptureRate =
+      totalPrompts > 0 ? Math.max(0, (totalPrompts - integrityViolations) / totalPrompts) : 0;
 
     // Calculate storage performance from actual measurements
     const storagePerformanceAvg = performanceMetrics.storage_performance_ms;
-    
+
     // Calculate query response time from actual query execution times
-    const queryResponseTime = performanceMetrics.query_response_time_ms.length > 0 ?
-      performanceMetrics.query_response_time_ms.reduce((sum, time) => sum + time, 0) / 
-      performanceMetrics.query_response_time_ms.length : 
-      performanceMetrics.query_response_time_ms.length;
+    const queryResponseTime =
+      performanceMetrics.query_response_time_ms.length > 0
+        ? performanceMetrics.query_response_time_ms.reduce((sum, time) => sum + time, 0) /
+          performanceMetrics.query_response_time_ms.length
+        : performanceMetrics.query_response_time_ms.length;
 
     // Calculate memory efficiency from process measurements
     const memoryUsage = process.memoryUsage();
-    const memoryEfficiency = (memoryUsage.heapUsed / memoryUsage.heapTotal);
+    const memoryEfficiency = memoryUsage.heapUsed / memoryUsage.heapTotal;
 
     // Count actual data integrity violations from SQL
     const dataIntegrityViolations = integrityViolations;
@@ -95,7 +96,7 @@ export class RealMetricsCalculator {
       storagePerformanceAvg,
       queryResponseTime,
       memoryEfficiency,
-      dataIntegrityViolations
+      dataIntegrityViolations,
     });
 
     return {
@@ -106,37 +107,38 @@ export class RealMetricsCalculator {
       data_integrity_violations: dataIntegrityViolations,
       backward_compatibility_regressions: await this.countBackwardCompatibilityRegressions(),
       score,
-      sql_metrics: sqlMetrics
+      sql_metrics: sqlMetrics,
     };
   }
 
   async calculateTier2Metrics(): Promise<Tier2Metrics> {
     console.error('📊 Calculating Tier 2 metrics from real AI component performance...');
-    
+
     // Get actual prompts from database to test AI components
     const testPrompts = await this.memoryStore.queryPrompts({ limit: 100 });
-    
+
     if (testPrompts.length === 0) {
       throw new Error('No prompts available in database for Tier 2 validation');
     }
 
     // Test classification accuracy with real prompts
     const classificationResults = await this.testClassificationAccuracy(testPrompts);
-    
+
     // Test intent extraction precision with real prompts
     const intentResults = await this.testIntentExtractionPrecision(testPrompts);
-    
+
     // Test similarity detection recall with real prompts
     const similarityResults = await this.testSimilarityDetectionRecall(testPrompts);
-    
+
     // Calculate reasoning improvement from actual database data
     const reasoningImprovementAvg = await this.calculateActualReasoningImprovement();
-    
+
     // Calculate bias reduction from confidence vs success correlation
     const biasReductionPercentage = await this.calculateActualBiasReduction(testPrompts);
-    
+
     // Calculate confidence calibration from prediction accuracy
-    const confidenceCalibrationAccuracy = await this.calculateActualConfidenceCalibration(testPrompts);
+    const confidenceCalibrationAccuracy =
+      await this.calculateActualConfidenceCalibration(testPrompts);
 
     const score = this.calculateTier2Score({
       promptClassificationAccuracy: classificationResults.accuracy,
@@ -144,7 +146,7 @@ export class RealMetricsCalculator {
       similarityDetectionRecall: similarityResults.recall,
       reasoningImprovementAvg,
       biasReductionPercentage,
-      confidenceCalibrationAccuracy
+      confidenceCalibrationAccuracy,
     });
 
     return {
@@ -154,40 +156,42 @@ export class RealMetricsCalculator {
       reasoning_improvement_avg: reasoningImprovementAvg,
       bias_reduction_percentage: biasReductionPercentage,
       confidence_calibration_accuracy: confidenceCalibrationAccuracy,
-      score
+      score,
     };
   }
 
   async calculateTier3Metrics(): Promise<Tier3Metrics> {
     console.error('📊 Calculating Tier 3 metrics from longitudinal data analysis...');
-    
+
     const prompts = await this.memoryStore.queryPrompts({ limit: 200 });
-    
+
     if (prompts.length < 20) {
       throw new Error('Insufficient data for Tier 3 validation - need at least 20 prompts');
     }
 
     // Calculate actual outcompetition baseline by comparing performance
     const outcompetitionBaseline = await this.calculateActualOutcompetitionBaseline(prompts);
-    
+
     // Test cross-environment robustness by analyzing different prompt types
-    const crossEnvironmentRobustness = await this.calculateActualCrossEnvironmentRobustness(prompts);
-    
+    const crossEnvironmentRobustness =
+      await this.calculateActualCrossEnvironmentRobustness(prompts);
+
     // Measure adaptation speed from prompt processing times over time
     const adaptationSpeed = await this.calculateActualAdaptationSpeed(prompts);
-    
+
     // Test generalization by comparing similar vs different prompt performance
     const generalizationSuccess = await this.calculateActualGeneralizationSuccess(prompts);
-    
+
     // Analyze pattern learning convergence from similar prompt groupings
-    const patternLearningConvergence = await this.calculateActualPatternLearningConvergence(prompts);
+    const patternLearningConvergence =
+      await this.calculateActualPatternLearningConvergence(prompts);
 
     const score = this.calculateTier3Score({
       outcompetitionBaseline,
       crossEnvironmentRobustness,
       adaptationSpeed,
       generalizationSuccess,
-      patternLearningConvergence
+      patternLearningConvergence,
     });
 
     return {
@@ -196,7 +200,7 @@ export class RealMetricsCalculator {
       adaptation_speed: adaptationSpeed,
       generalization_success: generalizationSuccess,
       pattern_learning_convergence: patternLearningConvergence,
-      score
+      score,
     };
   }
 
@@ -215,7 +219,7 @@ export class RealMetricsCalculator {
     }
 
     return {
-      accuracy: totalTests > 0 ? correctClassifications / totalTests : 0
+      accuracy: totalTests > 0 ? correctClassifications / totalTests : 0,
     };
   }
 
@@ -225,23 +229,24 @@ export class RealMetricsCalculator {
 
     for (const prompt of prompts) {
       const result = await this.intentExtractor.extractIntent(prompt.original_prompt);
-      
+
       // Compare with stored intent if available
       if (prompt.extracted_intent) {
         const storedObjectives = prompt.extracted_intent.objectives || [];
         const extractedObjectives = result.objectives;
-        
+
         if (storedObjectives.length > 0) {
-          const matches = extractedObjectives.filter(obj => 
-            storedObjectives.some((stored: string) => 
-              obj.toLowerCase().includes(stored.toLowerCase()) || 
-              stored.toLowerCase().includes(obj.toLowerCase())
+          const matches = extractedObjectives.filter(obj =>
+            storedObjectives.some(
+              (stored: string) =>
+                obj.toLowerCase().includes(stored.toLowerCase()) ||
+                stored.toLowerCase().includes(obj.toLowerCase())
             )
           ).length;
-          
-          const precision = extractedObjectives.length > 0 ? 
-            matches / extractedObjectives.length : 0;
-          
+
+          const precision =
+            extractedObjectives.length > 0 ? matches / extractedObjectives.length : 0;
+
           totalPrecision += precision;
           totalTests++;
         }
@@ -253,7 +258,7 @@ export class RealMetricsCalculator {
     }
 
     return {
-      precision: totalTests > 0 ? totalPrecision / totalTests : 0
+      precision: totalTests > 0 ? totalPrecision / totalTests : 0,
     };
   }
 
@@ -264,37 +269,36 @@ export class RealMetricsCalculator {
     for (let i = 0; i < Math.min(prompts.length, 20); i++) {
       const testPrompt = prompts[i];
       const otherPrompts = prompts.filter((_, idx) => idx !== i);
-      
+
       const similarities = await this.similarityDetector.findSimilarPrompts(
-        testPrompt.original_prompt, 
-        otherPrompts, 
-        10, 
+        testPrompt.original_prompt,
+        otherPrompts,
+        10,
         0.25
       );
-      
+
       // If the prompt has stored similar prompts, compare
       if (testPrompt.similar_prompts && testPrompt.similar_prompts.length > 0) {
         const storedSimilarIds = testPrompt.similar_prompts.map((s: any) => s.prompt_id);
         const foundSimilarIds = similarities.map(s => s.prompt_id);
-        
-        const matches = storedSimilarIds.filter((id: string) => 
+
+        const matches = storedSimilarIds.filter((id: string) =>
           foundSimilarIds.includes(id)
         ).length;
-        
-        const recall = storedSimilarIds.length > 0 ? 
-          matches / storedSimilarIds.length : 0;
-        
+
+        const recall = storedSimilarIds.length > 0 ? matches / storedSimilarIds.length : 0;
+
         totalRecall += recall;
       } else {
         // Use number of similarities found as indicator
         totalRecall += Math.min(similarities.length / 5, 1.0);
       }
-      
+
       totalTests++;
     }
 
     return {
-      recall: totalTests > 0 ? totalRecall / totalTests : 0
+      recall: totalTests > 0 ? totalRecall / totalTests : 0,
     };
   }
 
@@ -305,13 +309,14 @@ export class RealMetricsCalculator {
 
   private async calculateActualBiasReduction(prompts: any[]): Promise<number> {
     // Use the dedicated bias reduction tracker for more sophisticated analysis
-    const validPrompts = prompts.filter(p => 
-      p.classification_confidence !== null && 
-      p.classification_confidence !== undefined &&
-      p.processing_success !== null &&
-      p.processing_success !== undefined &&
-      p.created_at &&
-      p.session_id
+    const validPrompts = prompts.filter(
+      p =>
+        p.classification_confidence !== null &&
+        p.classification_confidence !== undefined &&
+        p.processing_success !== null &&
+        p.processing_success !== undefined &&
+        p.created_at &&
+        p.session_id
     );
 
     if (validPrompts.length < 5) {
@@ -325,12 +330,13 @@ export class RealMetricsCalculator {
       classification_confidence: p.classification_confidence,
       processing_success: p.processing_success,
       created_at: new Date(p.created_at),
-      session_id: p.session_id
+      session_id: p.session_id,
     }));
 
     // Calculate bias reduction using the dedicated tracker
-    const biasReductionPercentage = await this.biasTracker.calculateOverallBiasReduction(biasPrompts);
-    
+    const biasReductionPercentage =
+      await this.biasTracker.calculateOverallBiasReduction(biasPrompts);
+
     // Convert percentage back to 0-1 range
     return Math.max(0, Math.min(1, biasReductionPercentage / 100));
   }
@@ -342,7 +348,7 @@ export class RealMetricsCalculator {
       { min: 0.2, max: 0.4, prompts: [] as any[] },
       { min: 0.4, max: 0.6, prompts: [] as any[] },
       { min: 0.6, max: 0.8, prompts: [] as any[] },
-      { min: 0.8, max: 1.0, prompts: [] as any[] }
+      { min: 0.8, max: 1.0, prompts: [] as any[] },
     ];
 
     // Assign prompts to confidence bins
@@ -361,29 +367,34 @@ export class RealMetricsCalculator {
     for (const bin of confidenceBins) {
       if (bin.prompts.length > 0) {
         const avgConfidence = (bin.min + bin.max) / 2;
-        const actualSuccessRate = bin.prompts.filter(p => p.processing_success).length / bin.prompts.length;
+        const actualSuccessRate =
+          bin.prompts.filter(p => p.processing_success).length / bin.prompts.length;
         const calibrationError = Math.abs(avgConfidence - actualSuccessRate);
-        
+
         totalCalibrationError += calibrationError;
         validBins++;
       }
     }
 
     // Return 1 - average calibration error (higher is better)
-    return validBins > 0 ? Math.max(0, 1 - (totalCalibrationError / validBins)) : 0;
+    return validBins > 0 ? Math.max(0, 1 - totalCalibrationError / validBins) : 0;
   }
 
   private async calculateActualOutcompetitionBaseline(prompts: any[]): Promise<number> {
     // Compare prompts with similar_prompts data vs those without
     const withSimilarData = prompts.filter(p => p.similar_prompts && p.similar_prompts.length > 0);
-    const withoutSimilarData = prompts.filter(p => !p.similar_prompts || p.similar_prompts.length === 0);
+    const withoutSimilarData = prompts.filter(
+      p => !p.similar_prompts || p.similar_prompts.length === 0
+    );
 
     if (withSimilarData.length === 0 || withoutSimilarData.length === 0) {
       return 0;
     }
 
-    const withSimilarSuccessRate = withSimilarData.filter(p => p.processing_success).length / withSimilarData.length;
-    const withoutSimilarSuccessRate = withoutSimilarData.filter(p => p.processing_success).length / withoutSimilarData.length;
+    const withSimilarSuccessRate =
+      withSimilarData.filter(p => p.processing_success).length / withSimilarData.length;
+    const withoutSimilarSuccessRate =
+      withoutSimilarData.filter(p => p.processing_success).length / withoutSimilarData.length;
 
     return Math.max(0, withSimilarSuccessRate - withoutSimilarSuccessRate);
   }
@@ -391,7 +402,7 @@ export class RealMetricsCalculator {
   private async calculateActualCrossEnvironmentRobustness(prompts: any[]): Promise<number> {
     // Group prompts by type and calculate success rates
     const promptsByType: { [key: string]: any[] } = {};
-    
+
     prompts.forEach(prompt => {
       const type = prompt.prompt_type || 'unknown';
       if (!promptsByType[type]) promptsByType[type] = [];
@@ -410,7 +421,9 @@ export class RealMetricsCalculator {
 
     // Calculate coefficient of variation (lower = more robust)
     const mean = typeSuccessRates.reduce((sum, rate) => sum + rate, 0) / typeSuccessRates.length;
-    const variance = typeSuccessRates.reduce((sum, rate) => sum + Math.pow(rate - mean, 2), 0) / typeSuccessRates.length;
+    const variance =
+      typeSuccessRates.reduce((sum, rate) => sum + Math.pow(rate - mean, 2), 0) /
+      typeSuccessRates.length;
     const stdDev = Math.sqrt(variance);
     const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
 
@@ -433,8 +446,10 @@ export class RealMetricsCalculator {
     const firstHalf = sortedPrompts.slice(0, midpoint);
     const secondHalf = sortedPrompts.slice(midpoint);
 
-    const firstHalfSuccessRate = firstHalf.filter(p => p.processing_success).length / firstHalf.length;
-    const secondHalfSuccessRate = secondHalf.filter(p => p.processing_success).length / secondHalf.length;
+    const firstHalfSuccessRate =
+      firstHalf.filter(p => p.processing_success).length / firstHalf.length;
+    const secondHalfSuccessRate =
+      secondHalf.filter(p => p.processing_success).length / secondHalf.length;
 
     // Adaptation speed = improvement over time (examples needed to adapt)
     const improvement = secondHalfSuccessRate - firstHalfSuccessRate;
@@ -447,7 +462,7 @@ export class RealMetricsCalculator {
   private async calculateActualGeneralizationSuccess(prompts: any[]): Promise<number> {
     // Test performance on prompt types with few examples vs many examples
     const promptsByType: { [key: string]: any[] } = {};
-    
+
     prompts.forEach(prompt => {
       const type = prompt.prompt_type || 'unknown';
       if (!promptsByType[type]) promptsByType[type] = [];
@@ -465,8 +480,10 @@ export class RealMetricsCalculator {
     const rareTypePrompts = rareTypes.flatMap(type => promptsByType[type]);
     const commonTypePrompts = commonTypes.flatMap(type => promptsByType[type]);
 
-    const rareSuccessRate = rareTypePrompts.filter(p => p.processing_success).length / rareTypePrompts.length;
-    const commonSuccessRate = commonTypePrompts.filter(p => p.processing_success).length / commonTypePrompts.length;
+    const rareSuccessRate =
+      rareTypePrompts.filter(p => p.processing_success).length / rareTypePrompts.length;
+    const commonSuccessRate =
+      commonTypePrompts.filter(p => p.processing_success).length / commonTypePrompts.length;
 
     // Generalization success = how well we do on rare types relative to common types
     return commonSuccessRate > 0 ? rareSuccessRate / commonSuccessRate : 0;
@@ -474,8 +491,10 @@ export class RealMetricsCalculator {
 
   private async calculateActualPatternLearningConvergence(prompts: any[]): Promise<number> {
     // Analyze similar prompt groupings and their collective performance
-    const promptsWithSimilar = prompts.filter(p => p.similar_prompts && p.similar_prompts.length > 0);
-    
+    const promptsWithSimilar = prompts.filter(
+      p => p.similar_prompts && p.similar_prompts.length > 0
+    );
+
     if (promptsWithSimilar.length === 0) {
       return 0;
     }
@@ -511,9 +530,14 @@ export class RealMetricsCalculator {
     // Calculate convergence as consistency within clusters
     let totalConsistency = 0;
     for (const cluster of clusters) {
-      const successRates = cluster.map(p => p.processing_success ? 1 : 0);
-      const avgSuccessRate = successRates.reduce((sum: number, rate: number) => sum + rate, 0) / successRates.length;
-      const variance = successRates.reduce((sum: number, rate: number) => sum + Math.pow(rate - avgSuccessRate, 2), 0) / successRates.length;
+      const successRates = cluster.map(p => (p.processing_success ? 1 : 0));
+      const avgSuccessRate =
+        successRates.reduce((sum: number, rate: number) => sum + rate, 0) / successRates.length;
+      const variance =
+        successRates.reduce(
+          (sum: number, rate: number) => sum + Math.pow(rate - avgSuccessRate, 2),
+          0
+        ) / successRates.length;
       const consistency = 1 - Math.sqrt(variance); // Lower variance = higher consistency
       totalConsistency += consistency;
     }
@@ -526,7 +550,7 @@ export class RealMetricsCalculator {
   // Helper methods for scoring remain the same as before...
   private extractSQLMetrics(metrics: any[]): any {
     const extracted: any = {};
-    
+
     for (const metric of metrics) {
       switch (metric.name) {
         case 'total_prompts_count':
@@ -549,20 +573,20 @@ export class RealMetricsCalculator {
           break;
       }
     }
-    
+
     return extracted;
   }
 
   private countDataIntegrityViolations(sqlMetrics: any): number {
     let violations = 0;
-    
+
     if (sqlMetrics.data_integrity_violations) {
       const checks = sqlMetrics.data_integrity_violations;
       violations += parseInt(checks.null_session_ids) || 0;
       violations += parseInt(checks.empty_prompts) || 0;
       violations += parseInt(checks.null_timestamps) || 0;
     }
-    
+
     return violations;
   }
 
@@ -580,117 +604,120 @@ export class RealMetricsCalculator {
   private calculateTier1Score(metrics: any): number {
     let score = 0;
     let maxScore = 0;
-    
+
     // Prompt capture rate (target: >99.5%)
     if (metrics.promptCaptureRate >= 0.995) score += 20;
     else if (metrics.promptCaptureRate >= 0.99) score += 15;
     else if (metrics.promptCaptureRate >= 0.95) score += 10;
     maxScore += 20;
-    
+
     // Storage performance (target: <10ms)
     if (metrics.storagePerformanceAvg <= 10) score += 20;
     else if (metrics.storagePerformanceAvg <= 20) score += 15;
     else if (metrics.storagePerformanceAvg <= 50) score += 10;
     maxScore += 20;
-    
+
     // Query response time (target: <50ms)
     if (metrics.queryResponseTime <= 50) score += 20;
     else if (metrics.queryResponseTime <= 100) score += 15;
     else if (metrics.queryResponseTime <= 200) score += 10;
     maxScore += 20;
-    
+
     // Memory efficiency (target: >40% utilization is good, >60% is excellent)
-    if (metrics.memoryEfficiency >= 0.60) score += 20;
-    else if (metrics.memoryEfficiency >= 0.40) score += 15;
+    if (metrics.memoryEfficiency >= 0.6) score += 20;
+    else if (metrics.memoryEfficiency >= 0.4) score += 15;
     else if (metrics.memoryEfficiency >= 0.25) score += 10;
     maxScore += 20;
-    
+
     // Data integrity (target: 0 violations)
     if (metrics.dataIntegrityViolations === 0) score += 20;
     else if (metrics.dataIntegrityViolations <= 5) score += 10;
     maxScore += 20;
-    
+
     return maxScore > 0 ? score / maxScore : 0;
   }
 
   private calculateTier2Score(metrics: any): number {
     let score = 0;
     let maxScore = 0;
-    
+
     // Classification accuracy (target: >85%)
     if (metrics.promptClassificationAccuracy >= 0.85) score += 20;
     else if (metrics.promptClassificationAccuracy >= 0.75) score += 15;
     else if (metrics.promptClassificationAccuracy >= 0.65) score += 10;
     maxScore += 20;
-    
+
     // Intent extraction precision (target: >80%)
-    if (metrics.intentExtractionPrecision >= 0.80) score += 20;
-    else if (metrics.intentExtractionPrecision >= 0.70) score += 15;
-    else if (metrics.intentExtractionPrecision >= 0.60) score += 10;
+    if (metrics.intentExtractionPrecision >= 0.8) score += 20;
+    else if (metrics.intentExtractionPrecision >= 0.7) score += 15;
+    else if (metrics.intentExtractionPrecision >= 0.6) score += 10;
     maxScore += 20;
-    
+
     // Similarity detection recall (target: >90%)
-    if (metrics.similarityDetectionRecall >= 0.90) score += 20;
-    else if (metrics.similarityDetectionRecall >= 0.80) score += 15;
-    else if (metrics.similarityDetectionRecall >= 0.70) score += 10;
+    if (metrics.similarityDetectionRecall >= 0.9) score += 20;
+    else if (metrics.similarityDetectionRecall >= 0.8) score += 15;
+    else if (metrics.similarityDetectionRecall >= 0.7) score += 10;
     maxScore += 20;
-    
+
     // Reasoning improvement (target: 15-25%)
     const improvement = Math.abs(metrics.reasoningImprovementAvg);
     if (improvement >= 0.15 && improvement <= 0.25) score += 20;
-    else if (improvement >= 0.10) score += 15;
+    else if (improvement >= 0.1) score += 15;
     else if (improvement >= 0.05) score += 10;
     maxScore += 20;
-    
+
     // Bias reduction (target: >18%)
     if (metrics.biasReductionPercentage >= 0.18) score += 10;
-    else if (metrics.biasReductionPercentage >= 0.10) score += 7;
+    else if (metrics.biasReductionPercentage >= 0.1) score += 7;
     else if (metrics.biasReductionPercentage >= 0.05) score += 5;
     maxScore += 10;
-    
+
     // Confidence calibration (target: ±10%)
-    if (metrics.confidenceCalibrationAccuracy >= 0.90) score += 10;
-    else if (metrics.confidenceCalibrationAccuracy >= 0.80) score += 7;
-    else if (metrics.confidenceCalibrationAccuracy >= 0.70) score += 5;
+    if (metrics.confidenceCalibrationAccuracy >= 0.9) score += 10;
+    else if (metrics.confidenceCalibrationAccuracy >= 0.8) score += 7;
+    else if (metrics.confidenceCalibrationAccuracy >= 0.7) score += 5;
     maxScore += 10;
-    
+
     return maxScore > 0 ? score / maxScore : 0;
   }
 
   private calculateTier3Score(metrics: any): number {
     let score = 0;
     let maxScore = 0;
-    
+
     // Outcompetition baseline (target: >20%)
-    if (metrics.outcompetitionBaseline >= 0.20) score += 20;
+    if (metrics.outcompetitionBaseline >= 0.2) score += 20;
     else if (metrics.outcompetitionBaseline >= 0.15) score += 15;
-    else if (metrics.outcompetitionBaseline >= 0.10) score += 10;
+    else if (metrics.outcompetitionBaseline >= 0.1) score += 10;
     maxScore += 20;
-    
+
     // Cross-environment robustness (target: >80%)
-    if (metrics.crossEnvironmentRobustness >= 0.80) score += 20;
-    else if (metrics.crossEnvironmentRobustness >= 0.70) score += 15;
-    else if (metrics.crossEnvironmentRobustness >= 0.60) score += 10;
+    if (metrics.crossEnvironmentRobustness >= 0.8) score += 20;
+    else if (metrics.crossEnvironmentRobustness >= 0.7) score += 15;
+    else if (metrics.crossEnvironmentRobustness >= 0.6) score += 10;
     maxScore += 20;
-    
+
     // Adaptation speed (target: within 20 examples)
-    if (metrics.adaptationSpeed >= 0.05) score += 20; // 1/20 = 0.05
-    else if (metrics.adaptationSpeed >= 0.033) score += 15; // 1/30
+    if (metrics.adaptationSpeed >= 0.05)
+      score += 20; // 1/20 = 0.05
+    else if (metrics.adaptationSpeed >= 0.033)
+      score += 15; // 1/30
     else if (metrics.adaptationSpeed >= 0.02) score += 10; // 1/50
     maxScore += 20;
-    
+
     // Generalization success (target: >70%)
-    if (metrics.generalizationSuccess >= 0.70) score += 20;
-    else if (metrics.generalizationSuccess >= 0.60) score += 15;
-    else if (metrics.generalizationSuccess >= 0.50) score += 10;
+    if (metrics.generalizationSuccess >= 0.7) score += 20;
+    else if (metrics.generalizationSuccess >= 0.6) score += 15;
+    else if (metrics.generalizationSuccess >= 0.5) score += 10;
     maxScore += 20;
-    
+
     // Pattern learning convergence (target: 200-500 examples)
-    if (metrics.patternLearningConvergence >= 200 && metrics.patternLearningConvergence <= 500) score += 20;
+    if (metrics.patternLearningConvergence >= 200 && metrics.patternLearningConvergence <= 500)
+      score += 20;
     else if (metrics.patternLearningConvergence <= 600) score += 15;
     else if (metrics.patternLearningConvergence <= 800) score += 10;
     maxScore += 20;
-    
+
     return maxScore > 0 ? score / maxScore : 0;
   }
 }

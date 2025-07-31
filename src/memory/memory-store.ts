@@ -67,21 +67,21 @@ export interface StoredPrompt {
   // Primary identification
   id: string;
   session_id: string;
-  
+
   // Core prompt data
   original_prompt: string;
   prompt_type?: string;
   prompt_source?: 'mcp-tool' | 'api' | 'direct';
-  
+
   // Temporal data
   received_at: Date;
-  
+
   // AI-Generated Classification (Algorithmic processing results)
   domain?: string;
   complexity_estimate?: number;
   estimated_cognitive_load?: number;
   classification_confidence?: number; // Confidence in AI classification
-  
+
   // Structured metadata
   prompt_context?: {
     tool_parameters?: Record<string, any>;
@@ -95,13 +95,13 @@ export interface StoredPrompt {
     expected_output_type?: string;
     extraction_confidence?: number; // Confidence in intent extraction
   };
-  
+
   // Processing metadata
   processing_started_at?: Date;
   processing_completed_at?: Date;
   processing_success?: boolean;
   processing_error?: string;
-  
+
   // Learning analytics (Enhanced with similarity scores)
   tags?: string[];
   similar_prompts?: Array<{
@@ -109,12 +109,12 @@ export interface StoredPrompt {
     similarity_score: number;
     similarity_type: 'semantic' | 'structural' | 'domain' | 'intent';
   }>;
-  
+
   // Performance tracking (For validation criteria)
   reasoning_improvement?: number; // Measured improvement over baseline
   persona_selected?: string; // Which persona was chosen based on this prompt
   cognitive_priming_effectiveness?: number; // Measured priming impact
-  
+
   // Audit
   created_at: Date;
   updated_at: Date;
@@ -315,11 +315,13 @@ export abstract class MemoryStore {
   /**
    * Analyze success patterns from prompt history
    */
-  abstract analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
-    pattern_type: string;
-    success_rate: number;
-    common_attributes: Record<string, any>;
-  }>>;
+  abstract analyzeSuccessPatterns(promptIds: string[]): Promise<
+    Array<{
+      pattern_type: string;
+      success_rate: number;
+      common_attributes: Record<string, any>;
+    }>
+  >;
 
   /**
    * Calculate performance metrics for validation
@@ -335,7 +337,7 @@ export abstract class MemoryStore {
    * Update prompt with performance tracking data
    */
   abstract updatePromptPerformance(
-    promptId: string, 
+    promptId: string,
     performance: {
       processing_success: boolean;
       reasoning_improvement?: number;

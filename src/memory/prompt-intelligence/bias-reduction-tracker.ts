@@ -1,6 +1,6 @@
 /**
  * @fileoverview Bias Reduction Tracker
- * 
+ *
  * Tracks and measures bias reduction in AI responses by analyzing
  * confidence calibration, prediction accuracy, and systematic biases.
  */
@@ -21,7 +21,6 @@ export interface BiasReduction {
 }
 
 export class BiasReductionTracker {
-  
   /**
    * Calculate bias reduction for prompts by analyzing confidence vs success patterns
    */
@@ -40,11 +39,12 @@ export class BiasReductionTracker {
     }
 
     // Filter prompts with both confidence and success data
-    const validPrompts = prompts.filter(p => 
-      p.classification_confidence !== null && 
-      p.classification_confidence !== undefined &&
-      p.processing_success !== null &&
-      p.processing_success !== undefined
+    const validPrompts = prompts.filter(
+      p =>
+        p.classification_confidence !== null &&
+        p.classification_confidence !== undefined &&
+        p.processing_success !== null &&
+        p.processing_success !== undefined
     );
 
     if (validPrompts.length < 5) {
@@ -66,13 +66,17 @@ export class BiasReductionTracker {
     }
 
     const earlierBias = this.calculateBiasMetrics(
-      earlierPrompts.filter(p => p.classification_confidence !== undefined && p.processing_success !== undefined) as Array<{
+      earlierPrompts.filter(
+        p => p.classification_confidence !== undefined && p.processing_success !== undefined
+      ) as Array<{
         classification_confidence: number;
         processing_success: boolean;
       }>
     );
     const laterBias = this.calculateBiasMetrics(
-      laterPrompts.filter(p => p.classification_confidence !== undefined && p.processing_success !== undefined) as Array<{
+      laterPrompts.filter(
+        p => p.classification_confidence !== undefined && p.processing_success !== undefined
+      ) as Array<{
         classification_confidence: number;
         processing_success: boolean;
       }>
@@ -95,16 +99,16 @@ export class BiasReductionTracker {
   ): BiasMetrics {
     // Confidence calibration: how well confidence matches actual success
     const confidenceCalibration = this.calculateConfidenceCalibration(prompts);
-    
+
     // Overconfidence bias: tendency to be too confident
     const overconfidenceBias = this.calculateOverconfidenceBias(prompts);
-    
+
     // Underconfidence bias: tendency to be too conservative
     const underconfidenceBias = this.calculateUnderconfidenceBias(prompts);
-    
+
     // Prediction accuracy: how often predictions match reality
     const predictionAccuracy = this.calculatePredictionAccuracy(prompts);
-    
+
     // Systematic error rate: consistent patterns of error
     const systematicErrorRate = this.calculateSystematicErrorRate(prompts);
 
@@ -113,7 +117,7 @@ export class BiasReductionTracker {
       overconfidence_bias: overconfidenceBias,
       underconfidence_bias: underconfidenceBias,
       prediction_accuracy: predictionAccuracy,
-      systematic_error_rate: systematicErrorRate
+      systematic_error_rate: systematicErrorRate,
     };
   }
 
@@ -126,13 +130,14 @@ export class BiasReductionTracker {
       { min: 0.2, max: 0.4, prompts: [] as typeof prompts },
       { min: 0.4, max: 0.6, prompts: [] as typeof prompts },
       { min: 0.6, max: 0.8, prompts: [] as typeof prompts },
-      { min: 0.8, max: 1.0, prompts: [] as typeof prompts }
+      { min: 0.8, max: 1.0, prompts: [] as typeof prompts },
     ];
 
     // Assign prompts to bins
     prompts.forEach(prompt => {
       const confidence = prompt.classification_confidence;
-      const bin = bins.find(b => confidence >= b.min && confidence < b.max) || bins[bins.length - 1];
+      const bin =
+        bins.find(b => confidence >= b.min && confidence < b.max) || bins[bins.length - 1];
       bin.prompts.push(prompt);
     });
 
@@ -143,16 +148,17 @@ export class BiasReductionTracker {
     for (const bin of bins) {
       if (bin.prompts.length > 0) {
         const avgConfidence = (bin.min + bin.max) / 2;
-        const actualSuccessRate = bin.prompts.filter(p => p.processing_success).length / bin.prompts.length;
+        const actualSuccessRate =
+          bin.prompts.filter(p => p.processing_success).length / bin.prompts.length;
         const calibrationError = Math.abs(avgConfidence - actualSuccessRate);
-        
+
         totalCalibrationError += calibrationError;
         validBins++;
       }
     }
 
     // Return 1 - average calibration error (higher is better)
-    return validBins > 0 ? Math.max(0, 1 - (totalCalibrationError / validBins)) : 0;
+    return validBins > 0 ? Math.max(0, 1 - totalCalibrationError / validBins) : 0;
   }
 
   private calculateOverconfidenceBias(
@@ -160,7 +166,7 @@ export class BiasReductionTracker {
   ): number {
     // Calculate how often high confidence (>0.8) leads to failure
     const highConfidencePrompts = prompts.filter(p => p.classification_confidence > 0.8);
-    
+
     if (highConfidencePrompts.length === 0) {
       return 0;
     }
@@ -177,7 +183,7 @@ export class BiasReductionTracker {
   ): number {
     // Calculate how often low confidence (<0.5) leads to success
     const lowConfidencePrompts = prompts.filter(p => p.classification_confidence < 0.5);
-    
+
     if (lowConfidencePrompts.length === 0) {
       return 0;
     }
@@ -198,7 +204,7 @@ export class BiasReductionTracker {
     for (const prompt of prompts) {
       const predictedSuccess = prompt.classification_confidence > 0.5;
       const actualSuccess = prompt.processing_success;
-      
+
       if (predictedSuccess === actualSuccess) {
         correctPredictions++;
       }
@@ -237,7 +243,7 @@ export class BiasReductionTracker {
     // Systematic error rate based on clustering vs random distribution
     const expectedMaxConsecutive = Math.ceil(Math.sqrt(totalErrors));
     const clusteringRatio = maxConsecutiveErrors / expectedMaxConsecutive;
-    
+
     // Higher clustering suggests systematic bias
     return Math.min(clusteringRatio, 1.0);
   }
@@ -251,13 +257,12 @@ export class BiasReductionTracker {
     const systematicErrorReduction = earlier.systematic_error_rate - later.systematic_error_rate;
 
     // Weight the improvements
-    const weightedImprovement = (
+    const weightedImprovement =
       calibrationImprovement * 0.3 +
       overconfidenceReduction * 0.2 +
       underconfidenceReduction * 0.2 +
       accuracyImprovement * 0.2 +
-      systematicErrorReduction * 0.1
-    );
+      systematicErrorReduction * 0.1;
 
     return weightedImprovement;
   }
@@ -324,11 +329,12 @@ export class BiasReductionTracker {
 
     // Calculate bias metrics for each type
     for (const [type, typePrompts] of promptsByType) {
-      const validPrompts = typePrompts.filter(p => 
-        p.classification_confidence !== null && 
-        p.classification_confidence !== undefined &&
-        p.processing_success !== null &&
-        p.processing_success !== undefined
+      const validPrompts = typePrompts.filter(
+        p =>
+          p.classification_confidence !== null &&
+          p.classification_confidence !== undefined &&
+          p.processing_success !== null &&
+          p.processing_success !== undefined
       );
 
       if (validPrompts.length >= 3) {
@@ -360,14 +366,15 @@ export class BiasReductionTracker {
   ): Promise<number> {
     // Calculate session-based bias reductions
     const sessionBiasReductions = await this.calculateSessionBasedBiasReduction(prompts);
-    
+
     if (sessionBiasReductions.size === 0) {
       return 0;
     }
 
     // Calculate average bias reduction across sessions
     const reductions = Array.from(sessionBiasReductions.values());
-    const averageReduction = reductions.reduce((sum, reduction) => sum + reduction, 0) / reductions.length;
+    const averageReduction =
+      reductions.reduce((sum, reduction) => sum + reduction, 0) / reductions.length;
 
     // Convert to percentage and ensure positive values represent improvement
     return Math.max(0, averageReduction * 100);
@@ -398,11 +405,11 @@ export class BiasReductionTracker {
 
     // Generate recommendations based on analysis
     const recommendations: string[] = [];
-    
+
     if (overallBiasReduction < 5) {
       recommendations.push('Consider implementing confidence calibration training');
     }
-    
+
     // Analyze type-specific biases
     for (const [type, metrics] of typeBiasMetrics) {
       if (metrics.overconfidence_bias > 0.3) {
@@ -424,7 +431,7 @@ export class BiasReductionTracker {
       overall_bias_reduction: overallBiasReduction,
       session_bias_reductions: sessionBiasReductions,
       type_bias_metrics: typeBiasMetrics,
-      recommendations
+      recommendations,
     };
   }
 }

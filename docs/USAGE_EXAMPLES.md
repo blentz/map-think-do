@@ -72,6 +72,7 @@ npm run tune:benchmark
 ```
 
 **Expected Output:**
+
 ```
 🎯 Performance Mode: high-performance
 ⏱️ Processing Intervals:
@@ -140,7 +141,7 @@ const session = {
   revision_count: 2,
   branch_count: 1,
   insights_learned: ['Memory profiling tools are essential', 'EventEmitter leaks are common'],
-  successful_strategies: ['Systematic elimination', 'Memory profiling']
+  successful_strategies: ['Systematic elimination', 'Memory profiling'],
 };
 
 await store.storeSession(session);
@@ -158,12 +159,12 @@ const thoughts = [
     context: {
       problem_type: 'memory_leak',
       tools_used: ['node --inspect', 'chrome://inspect'],
-      cognitive_load: 0.6
+      cognitive_load: 0.6,
     },
-    tags: ['debugging', 'memory_management', 'systematic_approach']
+    tags: ['debugging', 'memory_management', 'systematic_approach'],
   },
   {
-    id: 'thought_002', 
+    id: 'thought_002',
     session_id: 'debugging_session_001',
     thought: 'The heap snapshot shows growing EventEmitter instances...',
     thought_number: 2,
@@ -173,10 +174,10 @@ const thoughts = [
     context: {
       problem_type: 'memory_leak',
       breakthrough: true,
-      tools_used: ['heap_snapshot', 'memory_profiler']
+      tools_used: ['heap_snapshot', 'memory_profiler'],
     },
-    tags: ['debugging', 'eventemitter', 'breakthrough']
-  }
+    tags: ['debugging', 'eventemitter', 'breakthrough'],
+  },
 ];
 
 for (const thought of thoughts) {
@@ -193,7 +194,7 @@ const highConfidenceThoughts = await store.queryThoughts({
   confidence_range: [0.8, 1.0],
   limit: 20,
   sort_by: 'timestamp',
-  sort_order: 'desc'
+  sort_order: 'desc',
 });
 
 // Find similar debugging approaches
@@ -261,6 +262,7 @@ function processUsers(users) {
 ### Expected AGI Response Features
 
 The system provides:
+
 - **Multi-Persona Analysis**: Different cognitive perspectives (Engineer, Architect, Skeptic, etc.)
 - **Metacognitive Awareness**: Self-reflection on reasoning quality
 - **Memory Integration**: Learning from previous similar problems
@@ -310,27 +312,27 @@ setInterval(() => {
 psql -h localhost -U mtd_user -d map_think_do
 
 -- Check table sizes
-SELECT 
+SELECT
   schemaname,
   tablename,
   pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
-FROM pg_tables 
+FROM pg_tables
 WHERE schemaname = 'public';
 
 -- Analyze query performance
-SELECT 
+SELECT
   query,
   calls,
   total_time,
   mean_time,
   rows
-FROM pg_stat_statements 
-ORDER BY mean_time DESC 
+FROM pg_stat_statements
+ORDER BY mean_time DESC
 LIMIT 10;
 
 -- Check connection usage
-SELECT count(*) as active_connections 
-FROM pg_stat_activity 
+SELECT count(*) as active_connections
+FROM pg_stat_activity
 WHERE state = 'active';
 ```
 
@@ -339,6 +341,7 @@ WHERE state = 'active';
 ### High Memory Usage
 
 **Problem**: Memory consumption grows continuously
+
 ```bash
 # Check current configuration
 npm run tune:show
@@ -357,6 +360,7 @@ npm run tune:eco
 ### Database Connection Issues
 
 **Problem**: "connection refused" errors
+
 ```bash
 # Check container status
 npm run db:status
@@ -374,6 +378,7 @@ psql -h localhost -U mtd_user -d map_think_do -c "SELECT version();"
 ### Performance Degradation
 
 **Problem**: Slow response times
+
 ```bash
 # Check current performance settings
 npm run tune:benchmark
@@ -389,6 +394,7 @@ npm run tune:eco
 ### Configuration Recovery
 
 **Problem**: Invalid configuration causing startup issues
+
 ```bash
 # Reset to system defaults
 npm run tune:reset

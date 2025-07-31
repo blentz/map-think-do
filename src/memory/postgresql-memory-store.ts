@@ -25,9 +25,14 @@ import { PostgreSQLConfig, PostgreSQLConfigs } from './postgresql-config.js';
 import { MemoryMonitor } from './memory-monitor.js';
 import { ReasoningImprovementTracker } from './prompt-intelligence/reasoning-improvement-tracker.js';
 import { PromptClassifier } from './prompt-intelligence/prompt-classifier.js';
-import { IntentExtractor } from './prompt-intelligence/intent-extractor.js';  
+import { IntentExtractor } from './prompt-intelligence/intent-extractor.js';
 import { SimilarityDetector } from './prompt-intelligence/similarity-detector.js';
 import { BiasReductionTracker } from './prompt-intelligence/bias-reduction-tracker.js';
+import {
+  ThoughtQualityAnalyzer,
+  ThoughtAnalysisResult,
+  ThoughtChainContext,
+} from './thought-intelligence/thought-quality-analyzer.js';
 import { getEmbeddingService } from '../utils/embedding-service.js';
 
 /**
@@ -37,6 +42,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   protected config: PostgreSQLConfig;
   private pool: Pool | null = null;
   private isInitialized = false;
+  private isShuttingDown = false;
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private memoryMonitor: MemoryMonitor;
   private reasoningTracker: ReasoningImprovementTracker;
@@ -44,6 +50,8 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   private intentExtractor: IntentExtractor;
   private similarityDetector: SimilarityDetector;
   private biasTracker: BiasReductionTracker;
+  private thoughtAnalyzer: ThoughtQualityAnalyzer;
+  private pendingOperations: Set<Promise<any>> = new Set();
 
   constructor(config?: PostgreSQLConfig) {
     super();
@@ -56,6 +64,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     this.intentExtractor = new IntentExtractor();
     this.similarityDetector = new SimilarityDetector();
     this.biasTracker = new BiasReductionTracker();
+    this.thoughtAnalyzer = new ThoughtQualityAnalyzer(this);
   }
 
   /**
@@ -74,7 +83,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         min: 2,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
-        allowExitOnIdle: true
+        allowExitOnIdle: true,
       });
 
       // Test connection
@@ -178,55 +187,64 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     const MAX_FAILURES = 3;
 
     // Use TimerManager for managed timers with auto-cleanup
-    import('../utils/timer-manager.js').then(({ TimerManager }) => {
-      const timerManager = TimerManager.getInstance();
-      
-      const healthCheckId = timerManager.setInterval(async () => {
-        try {
-          if (!this.pool) {
-            timerManager.clearTimer(healthCheckId);
-            return;
-          }
+    import('../utils/timer-manager.js')
+      .then(({ TimerManager }) => {
+        const timerManager = TimerManager.getInstance();
 
-          // Skip health check if too many consecutive failures (circuit breaker)
-          if (consecutiveFailures >= MAX_FAILURES) {
-            console.warn(`PostgreSQL health check suspended after ${consecutiveFailures} failures`);
-            return;
-          }
+        const healthCheckId = timerManager.setInterval(
+          async () => {
+            try {
+              if (!this.pool) {
+                timerManager.clearTimer(healthCheckId);
+                return;
+              }
 
-          const client = await this.pool.connect();
-          try {
-            await client.query('SELECT 1');
-            consecutiveFailures = 0; // Reset on success
-            if (this.config.debug) {
-              console.error('PostgreSQL health check passed');
+              // Skip health check if too many consecutive failures (circuit breaker)
+              if (consecutiveFailures >= MAX_FAILURES) {
+                console.warn(
+                  `PostgreSQL health check suspended after ${consecutiveFailures} failures`
+                );
+                return;
+              }
+
+              const client = await this.pool.connect();
+              try {
+                await client.query('SELECT 1');
+                consecutiveFailures = 0; // Reset on success
+                if (this.config.debug) {
+                  console.error('PostgreSQL health check passed');
+                }
+              } finally {
+                client.release();
+              }
+            } catch (error) {
+              consecutiveFailures++;
+              console.error(
+                `PostgreSQL health check failed (${consecutiveFailures}/${MAX_FAILURES}):`,
+                error
+              );
+
+              // Stop health checks after max failures to prevent further resource consumption
+              if (consecutiveFailures >= MAX_FAILURES) {
+                timerManager.clearTimer(healthCheckId);
+              }
             }
-          } finally {
-            client.release();
+          },
+          120000,
+          'postgresql-health-check',
+          {
+            maxExecutions: 100, // Limit to 100 health checks max
+            ttlMs: 10 * 60 * 1000, // 10 minutes max lifetime
+            memoryPressureLimit: 0.8, // Stop at 80% memory usage
           }
-        } catch (error) {
-          consecutiveFailures++;
-          console.error(
-            `PostgreSQL health check failed (${consecutiveFailures}/${MAX_FAILURES}):`,
-            error
-          );
-          
-          // Stop health checks after max failures to prevent further resource consumption
-          if (consecutiveFailures >= MAX_FAILURES) {
-            timerManager.clearTimer(healthCheckId);
-          }
-        }
-      }, 120000, 'postgresql-health-check', {
-        maxExecutions: 100, // Limit to 100 health checks max
-        ttlMs: 10 * 60 * 1000, // 10 minutes max lifetime
-        memoryPressureLimit: 0.8 // Stop at 80% memory usage
+        );
+
+        // Store the timer ID for cleanup
+        this.healthCheckInterval = { [Symbol.toPrimitive]: () => healthCheckId } as any;
+      })
+      .catch(error => {
+        console.warn('Failed to start managed health monitoring:', error);
       });
-      
-      // Store the timer ID for cleanup
-      this.healthCheckInterval = { [Symbol.toPrimitive]: () => healthCheckId } as any;
-    }).catch(error => {
-      console.warn('Failed to start managed health monitoring:', error);
-    });
   }
 
   /**
@@ -246,14 +264,14 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       // Add query timeout to prevent long-running queries that could cause OOM
       let timeoutId: NodeJS.Timeout;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Query timeout')), this.config.queryTimeout || 30000);
+        timeoutId = setTimeout(
+          () => reject(new Error('Query timeout')),
+          this.config.queryTimeout || 30000
+        );
       });
 
       try {
-        const result = await Promise.race([
-          client.query(text, params),
-          timeoutPromise
-        ]);
+        const result = await Promise.race([client.query(text, params), timeoutPromise]);
         clearTimeout(timeoutId!);
         return result;
       } catch (error) {
@@ -262,6 +280,47 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       }
     } finally {
       client.release();
+    }
+  }
+
+  /**
+   * Track an async operation and handle its completion
+   */
+  private trackAsyncOperation<T>(operation: Promise<T>): Promise<T> {
+    if (this.isShuttingDown) {
+      // Don't start new operations during shutdown
+      return Promise.resolve(undefined as T);
+    }
+
+    this.pendingOperations.add(operation);
+    
+    const cleanupOperation = operation.finally(() => {
+      this.pendingOperations.delete(operation);
+    });
+
+    return cleanupOperation;
+  }
+
+  /**
+   * Wait for all pending async operations to complete
+   */
+  private async waitForPendingOperations(timeoutMs: number = 5000): Promise<void> {
+    if (this.pendingOperations.size === 0) {
+      return;
+    }
+
+    console.log(`⏳ Waiting for ${this.pendingOperations.size} pending operations to complete...`);
+    
+    try {
+      await Promise.race([
+        Promise.allSettled([...this.pendingOperations]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout waiting for operations')), timeoutMs)
+        )
+      ]);
+      console.log('✅ All pending operations completed');
+    } catch (error) {
+      console.warn('⚠️ Some operations did not complete in time:', error);
     }
   }
 
@@ -339,27 +398,46 @@ export class PostgreSQLMemoryStore extends MemoryStore {
 
     await this.query(query, params);
 
-    // Generate and store embedding asynchronously (don't block the main storage)
-    this.generateAndStoreThoughtEmbedding(thought.id, limitedThought).then(() => {
-      // After thought embedding is stored, update session embeddings
-      this.updateSessionEmbeddings(thought.session_id).catch(error => {
-        console.warn(`Failed to update session embeddings for ${thought.session_id}:`, error);
-      });
-      
-      // Update pattern embeddings if patterns were detected
-      if (thought.patterns_detected && thought.patterns_detected.length > 0) {
-        this.updatePatternEmbeddings().catch(error => {
-          console.warn('Failed to update pattern embeddings:', error);
-        });
-        
-        // Generate embeddings for new patterns immediately (don't wait for frequency threshold)
-        this.generatePatternEmbeddings(thought.patterns_detected).catch(error => {
-          console.warn('Failed to generate pattern embeddings:', error);
-        });
-      }
-    }).catch(error => {
-      console.warn(`Failed to generate embedding for thought ${thought.id}:`, error);
-    });
+    // Generate and store embedding asynchronously but tracked
+    this.trackAsyncOperation(
+      this.generateAndStoreThoughtEmbedding(thought.id, limitedThought)
+        .then(() => {
+          // After thought embedding is stored, update session embeddings
+          return this.trackAsyncOperation(
+            this.updateSessionEmbeddings(thought.session_id).catch(error => {
+              if (this.isInitialized && !this.isShuttingDown) {
+                console.warn(`Failed to update session embeddings for ${thought.session_id}:`, error);
+              }
+            })
+          );
+        })
+        .then(() => {
+          // Update pattern embeddings if patterns were detected
+          if (thought.patterns_detected && thought.patterns_detected.length > 0) {
+            this.trackAsyncOperation(
+              this.updatePatternEmbeddings().catch(error => {
+                if (this.isInitialized && !this.isShuttingDown) {
+                  console.warn('Failed to update pattern embeddings:', error);
+                }
+              })
+            );
+
+            // Generate embeddings for new patterns immediately
+            this.trackAsyncOperation(
+              this.generatePatternEmbeddings(thought.patterns_detected).catch(error => {
+                if (this.isInitialized && !this.isShuttingDown) {
+                  console.warn('Failed to generate pattern embeddings:', error);
+                }
+              })
+            );
+          }
+        })
+        .catch(error => {
+          if (this.isInitialized && !this.isShuttingDown) {
+            console.warn(`Failed to generate embedding for thought ${thought.id}:`, error);
+          }
+        })
+    );
   }
 
   /**
@@ -409,10 +487,15 @@ export class PostgreSQLMemoryStore extends MemoryStore {
 
     await this.query(query, params);
 
-    // Generate session objective embedding asynchronously
-    this.generateAndStoreSessionObjectiveEmbedding(session.id, session.objective).catch(error => {
-      console.warn(`Failed to generate session objective embedding for ${session.id}:`, error);
-    });
+    // Generate session objective embedding asynchronously but tracked
+    this.trackAsyncOperation(
+      this.generateAndStoreSessionObjectiveEmbedding(session.id, session.objective)
+        .catch(error => {
+          if (this.isInitialized && !this.isShuttingDown) {
+            console.warn(`Failed to generate session objective embedding for ${session.id}:`, error);
+          }
+        })
+    );
   }
 
   /**
@@ -426,7 +509,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       extracted_intent: prompt.extracted_intent,
       similar_prompts: prompt.similar_prompts,
       reasoning_improvement: prompt.reasoning_improvement,
-      tags: prompt.tags
+      tags: prompt.tags,
     };
 
     try {
@@ -436,7 +519,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         const classification = await this.promptClassifier.classifyPrompt(prompt.original_prompt);
         analysisResults.prompt_type = classification.type;
         analysisResults.classification_confidence = classification.confidence;
-        console.error(`✅ Classified as: ${classification.type} (${(classification.confidence * 100).toFixed(1)}%)`);
+        console.error(
+          `✅ Classified as: ${classification.type} (${(classification.confidence * 100).toFixed(1)}%)`
+        );
       }
 
       // Extract intent if not provided
@@ -444,7 +529,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         console.error('🧠 Extracting intent from prompt...');
         const intentResult = await this.intentExtractor.extractIntent(prompt.original_prompt);
         analysisResults.extracted_intent = intentResult;
-        console.error(`✅ Extracted ${intentResult.objectives.length} objectives, ${intentResult.constraints.length} constraints`);
+        console.error(
+          `✅ Extracted ${intentResult.objectives.length} objectives, ${intentResult.constraints.length} constraints`
+        );
       }
 
       // Find similar prompts if not provided
@@ -454,7 +541,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         const similarities = await this.similarityDetector.findSimilarPrompts(
           prompt.original_prompt,
           existingPrompts,
-          5,  // Top 5 similar prompts
+          5, // Top 5 similar prompts
           0.3 // Minimum similarity threshold
         );
         analysisResults.similar_prompts = similarities;
@@ -462,14 +549,17 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       }
 
       // Calculate reasoning improvement if not provided
-      if (analysisResults.reasoning_improvement === undefined || analysisResults.reasoning_improvement === null) {
+      if (
+        analysisResults.reasoning_improvement === undefined ||
+        analysisResults.reasoning_improvement === null
+      ) {
         console.error('📈 Calculating reasoning improvement...');
         try {
           const sessionPrompts = await this.queryPrompts({
             session_id: prompt.session_id,
             limit: 10,
             orderBy: 'created_at',
-            ascending: true
+            ascending: true,
           });
 
           if (sessionPrompts.length > 0) {
@@ -477,15 +567,18 @@ export class PostgreSQLMemoryStore extends MemoryStore {
               .filter(p => p.id !== prompt.id)
               .map(p => ({
                 prompt: p.original_prompt,
-                created_at: p.created_at
+                created_at: p.created_at,
               }));
 
             if (previousPrompts.length > 0) {
-              analysisResults.reasoning_improvement = await this.reasoningTracker.calculateReasoningImprovement(
-                prompt.original_prompt,
-                previousPrompts
+              analysisResults.reasoning_improvement =
+                await this.reasoningTracker.calculateReasoningImprovement(
+                  prompt.original_prompt,
+                  previousPrompts
+                );
+              console.error(
+                `✅ Reasoning improvement: ${(analysisResults.reasoning_improvement * 100).toFixed(1)}%`
               );
-              console.error(`✅ Reasoning improvement: ${(analysisResults.reasoning_improvement * 100).toFixed(1)}%`);
             }
           }
         } catch (error) {
@@ -503,7 +596,6 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         }
         analysisResults.tags = tags.slice(0, 5); // Limit to 5 tags
       }
-
     } catch (error) {
       console.error('❌ AI analysis failed, using provided values:', error);
     }
@@ -567,15 +659,18 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async analyzeExistingPrompts(limit: number = 50): Promise<void> {
     console.error('🔄 Starting batch analysis of existing prompts...');
-    
+
     // Get prompts that haven't been analyzed yet
-    const unanalyzedPrompts = await this.query(`
+    const unanalyzedPrompts = await this.query(
+      `
       SELECT id, original_prompt, session_id, created_at 
       FROM stored_prompts 
       WHERE (prompt_type IS NULL OR classification_confidence IS NULL OR extracted_intent IS NULL)
       ORDER BY created_at DESC 
       LIMIT $1
-    `, [limit]);
+    `,
+      [limit]
+    );
 
     if (unanalyzedPrompts.rows.length === 0) {
       console.error('✅ All prompts have been analyzed');
@@ -591,11 +686,15 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       try {
         // Run classification
         const classification = await this.promptClassifier.classifyPrompt(row.original_prompt);
-        console.error(`   📝 Classification: ${classification.type} (${(classification.confidence * 100).toFixed(1)}%)`);
+        console.error(
+          `   📝 Classification: ${classification.type} (${(classification.confidence * 100).toFixed(1)}%)`
+        );
 
         // Extract intent
         const intentResult = await this.intentExtractor.extractIntent(row.original_prompt);
-        console.error(`   🧠 Intent: ${intentResult.objectives.length} objectives, ${intentResult.constraints.length} constraints`);
+        console.error(
+          `   🧠 Intent: ${intentResult.objectives.length} objectives, ${intentResult.constraints.length} constraints`
+        );
 
         // Find similar prompts (excluding self)
         const existingPrompts = await this.queryPrompts({ limit: 100, exclude_id: row.id });
@@ -614,13 +713,13 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           limit: 10,
           orderBy: 'created_at',
           ascending: true,
-          exclude_id: row.id
+          exclude_id: row.id,
         });
 
         if (sessionPrompts.length > 0) {
           const previousPrompts = sessionPrompts.map(p => ({
             prompt: p.original_prompt,
-            created_at: p.created_at
+            created_at: p.created_at,
           }));
 
           reasoningImprovement = await this.reasoningTracker.calculateReasoningImprovement(
@@ -636,7 +735,8 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         tags.push(...intentResult.objectives.slice(0, 3));
 
         // Update the prompt with analysis results
-        await this.query(`
+        await this.query(
+          `
           UPDATE stored_prompts 
           SET 
             prompt_type = $1,
@@ -647,18 +747,19 @@ export class PostgreSQLMemoryStore extends MemoryStore {
             tags = $6,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = $7
-        `, [
-          classification.type,
-          classification.confidence,
-          JSON.stringify(intentResult),
-          JSON.stringify(similarities),
-          reasoningImprovement,
-          tags.slice(0, 5),
-          row.id
-        ]);
+        `,
+          [
+            classification.type,
+            classification.confidence,
+            JSON.stringify(intentResult),
+            JSON.stringify(similarities),
+            reasoningImprovement,
+            tags.slice(0, 5),
+            row.id,
+          ]
+        );
 
         console.error(`   ✅ Updated prompt ${row.id} with AI analysis`);
-
       } catch (error) {
         console.error(`   ❌ Failed to analyze prompt ${row.id}:`, error);
       }
@@ -858,18 +959,21 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       `;
       const result = await this.query(hybridQuery, [thought, limit]);
       if (result.rows.length > 0) {
-        return result.rows.map(row => ({
-          id: row.thought_id,
-          session_id: row.session_id,
-          thought: row.thought_text,
-          confidence: row.confidence,
-          domain: row.domain,
-          timestamp: row.timestamp,
-          // Map additional fields as needed
-          thought_number: 0,
-          total_thoughts: 0,
-          next_thought_needed: false,
-        } as StoredThought));
+        return result.rows.map(
+          row =>
+            ({
+              id: row.thought_id,
+              session_id: row.session_id,
+              thought: row.thought_text,
+              confidence: row.confidence,
+              domain: row.domain,
+              timestamp: row.timestamp,
+              // Map additional fields as needed
+              thought_number: 0,
+              total_thoughts: 0,
+              next_thought_needed: false,
+            }) as StoredThought
+        );
       }
     } catch (error) {
       console.warn('Hybrid search not available, falling back to trigram similarity');
@@ -1181,14 +1285,17 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Analyze success patterns from prompt history
    */
-  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
-    pattern_type: string;
-    success_rate: number;
-    common_attributes: Record<string, any>;
-  }>> {
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<
+    Array<{
+      pattern_type: string;
+      success_rate: number;
+      common_attributes: Record<string, any>;
+    }>
+  > {
     const client = await this.pool!.connect();
     try {
-      const result = await client.query(`
+      const result = await client.query(
+        `
         SELECT 
           p.prompt_type,
           p.domain,
@@ -1201,8 +1308,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         GROUP BY p.prompt_type, p.domain
         HAVING COUNT(*) >= 3
         ORDER BY success_rate DESC
-      `, [promptIds]);
-      
+      `,
+        [promptIds]
+      );
+
       return result.rows.map(row => ({
         pattern_type: `${row.prompt_type}_${row.domain}`,
         success_rate: parseFloat(row.success_rate),
@@ -1211,8 +1320,8 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           domain: row.domain,
           avg_complexity: parseFloat(row.avg_complexity),
           avg_confidence: parseFloat(row.avg_confidence),
-          sample_size: parseInt(row.sample_size)
-        }
+          sample_size: parseInt(row.sample_size),
+        },
       }));
     } finally {
       client.release();
@@ -1242,13 +1351,13 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         FROM stored_prompts 
         WHERE created_at >= NOW() - INTERVAL '30 days'
       `);
-      
+
       const row = result.rows[0];
       return {
         classification_accuracy: parseFloat(row.avg_classification_confidence) || 0,
         intent_extraction_precision: parseFloat(row.avg_intent_precision) || 0,
         similarity_detection_recall: parseFloat(row.similarity_recall_estimate) || 0,
-        reasoning_improvement_average: parseFloat(row.avg_reasoning_improvement) || 0
+        reasoning_improvement_average: parseFloat(row.avg_reasoning_improvement) || 0,
       };
     } finally {
       client.release();
@@ -1259,7 +1368,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    * Update prompt with performance tracking data
    */
   async updatePromptPerformance(
-    promptId: string, 
+    promptId: string,
     performance: {
       processing_success: boolean;
       reasoning_improvement?: number;
@@ -1269,7 +1378,8 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   ): Promise<void> {
     const client = await this.pool!.connect();
     try {
-      await client.query(`
+      await client.query(
+        `
         UPDATE stored_prompts 
         SET 
           processing_completed_at = NOW(),
@@ -1279,13 +1389,15 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           cognitive_priming_effectiveness = $5,
           updated_at = NOW()
         WHERE id = $1
-      `, [
-        promptId,
-        performance.processing_success,
-        performance.reasoning_improvement,
-        performance.persona_selected,
-        performance.cognitive_priming_effectiveness
-      ]);
+      `,
+        [
+          promptId,
+          performance.processing_success,
+          performance.reasoning_improvement,
+          performance.persona_selected,
+          performance.cognitive_priming_effectiveness,
+        ]
+      );
     } finally {
       client.release();
     }
@@ -1296,10 +1408,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async getCognitivePerformanceTrend(daysBack = 30, domain?: string): Promise<any[]> {
     try {
-      const result = await this.query(
-        'SELECT * FROM get_cognitive_performance_trend($1, $2)',
-        [daysBack, domain || null]
-      );
+      const result = await this.query('SELECT * FROM get_cognitive_performance_trend($1, $2)', [
+        daysBack,
+        domain || null,
+      ]);
       return result.rows;
     } catch (error) {
       console.warn('Cognitive performance trend analysis not available:', error);
@@ -1312,10 +1424,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async analyzePatternEffectiveness(daysBack = 60): Promise<any[]> {
     try {
-      const result = await this.query(
-        'SELECT * FROM analyze_pattern_effectiveness($1)',
-        [daysBack]
-      );
+      const result = await this.query('SELECT * FROM analyze_pattern_effectiveness($1)', [
+        daysBack,
+      ]);
       return result.rows;
     } catch (error) {
       console.warn('Pattern effectiveness analysis not available:', error);
@@ -1328,10 +1439,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async getCognitiveLoadAlerts(hoursBack = 24): Promise<any[]> {
     try {
-      const result = await this.query(
-        'SELECT * FROM get_cognitive_load_alerts($1)',
-        [hoursBack]
-      );
+      const result = await this.query('SELECT * FROM get_cognitive_load_alerts($1)', [hoursBack]);
       return result.rows;
     } catch (error) {
       console.warn('Cognitive load alerts not available:', error);
@@ -1363,14 +1471,21 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Store embedding for a thought (integration point for sentence transformers)
    */
-  async storeThoughtEmbedding(thoughtId: string, embedding: number[], model = 'all-MiniLM-L6-v2'): Promise<void> {
+  async storeThoughtEmbedding(
+    thoughtId: string,
+    embedding: number[],
+    model = 'all-MiniLM-L6-v2'
+  ): Promise<void> {
     try {
-      await this.query(
-        'SELECT upsert_thought_embedding($1, $2, $3)',
-        [thoughtId, `[${embedding.join(',')}]`, model]
-      );
+      await this.query('SELECT upsert_thought_embedding($1, $2, $3)', [
+        thoughtId,
+        `[${embedding.join(',')}]`,
+        model,
+      ]);
     } catch (error) {
-      console.warn('Thought embedding storage not available:', error);
+      if (this.isInitialized && !this.isShuttingDown) {
+        console.warn('Thought embedding storage not available:', error);
+      }
     }
   }
 
@@ -1391,7 +1506,12 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Find semantically similar thoughts using vector similarity
    */
-  async findSimilarThoughtsSemantic(embedding: number[], threshold = 0.7, limit = 10, excludeSessionId?: string): Promise<any[]> {
+  async findSimilarThoughtsSemantic(
+    embedding: number[],
+    threshold = 0.7,
+    limit = 10,
+    excludeSessionId?: string
+  ): Promise<any[]> {
     try {
       const result = await this.query(
         'SELECT * FROM find_similar_thoughts_semantic($1, $2, $3, $4)',
@@ -1407,7 +1527,12 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Find similar sessions based on objective embeddings
    */
-  async findSimilarSessionsSemantic(embedding: number[], threshold = 0.6, limit = 5, excludeSessionId?: string): Promise<any[]> {
+  async findSimilarSessionsSemantic(
+    embedding: number[],
+    threshold = 0.6,
+    limit = 5,
+    excludeSessionId?: string
+  ): Promise<any[]> {
     try {
       const result = await this.query(
         'SELECT * FROM find_similar_sessions_semantic($1, $2, $3, $4)',
@@ -1425,10 +1550,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async clusterThoughtsSemantic(threshold = 0.8, minClusterSize = 3): Promise<any[]> {
     try {
-      const result = await this.query(
-        'SELECT * FROM cluster_thoughts_semantic($1, $2)',
-        [threshold, minClusterSize]
-      );
+      const result = await this.query('SELECT * FROM cluster_thoughts_semantic($1, $2)', [
+        threshold,
+        minClusterSize,
+      ]);
       return result.rows;
     } catch (error) {
       console.warn('Semantic thought clustering not available:', error);
@@ -1440,9 +1565,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    * Hybrid search combining full-text and semantic similarity
    */
   async hybridSearchThoughts(
-    queryText: string, 
-    embedding?: number[], 
-    semanticWeight = 0.5, 
+    queryText: string,
+    embedding?: number[],
+    semanticWeight = 0.5,
     fulltextWeight = 0.5,
     limit = 10,
     excludeSessionId?: string
@@ -1467,7 +1592,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     try {
       await this.query('SELECT update_session_embeddings($1)', [sessionId]);
     } catch (error) {
-      console.warn('Session embedding update not available:', error);
+      if (this.isInitialized && !this.isShuttingDown) {
+        console.warn('Session embedding update not available:', error);
+      }
     }
   }
 
@@ -1487,7 +1614,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Helper method to generate and store thought embedding
    */
-  private async generateAndStoreThoughtEmbedding(thoughtId: string, thoughtText: string): Promise<void> {
+  private async generateAndStoreThoughtEmbedding(
+    thoughtId: string,
+    thoughtText: string
+  ): Promise<void> {
     try {
       const embeddingService = getEmbeddingService();
       const result = await embeddingService.generateEmbedding(thoughtText);
@@ -1501,7 +1631,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Helper method to generate and store prompt embedding
    */
-  private async generateAndStorePromptEmbedding(promptId: string, promptText: string): Promise<void> {
+  private async generateAndStorePromptEmbedding(
+    promptId: string,
+    promptText: string
+  ): Promise<void> {
     try {
       const embeddingService = getEmbeddingService();
       const result = await embeddingService.generateEmbedding(promptText);
@@ -1517,19 +1650,26 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Helper method to generate and store session objective embedding
    */
-  private async generateAndStoreSessionObjectiveEmbedding(sessionId: string, objective: string): Promise<void> {
+  private async generateAndStoreSessionObjectiveEmbedding(
+    sessionId: string,
+    objective: string
+  ): Promise<void> {
     try {
       const embeddingService = getEmbeddingService();
       const result = await embeddingService.generateEmbedding(objective);
-      
+
       // Store session objective embedding directly in session_embeddings table
       await this.query(
         'INSERT INTO session_embeddings (session_id, objective_embedding, embedding_model) VALUES ($1, $2, $3) ON CONFLICT (session_id) DO UPDATE SET objective_embedding = EXCLUDED.objective_embedding, embedding_model = EXCLUDED.embedding_model, updated_at = CURRENT_TIMESTAMP',
         [sessionId, `[${result.embedding.join(',')}]`, result.model]
       );
-      console.error(`✅ Generated session objective embedding for ${sessionId} (${result.processingTime}ms)`);
+      console.error(
+        `✅ Generated session objective embedding for ${sessionId} (${result.processingTime}ms)`
+      );
     } catch (error) {
-      console.warn(`Failed to generate/store session objective embedding for ${sessionId}:`, error);
+      if (this.isInitialized && !this.isShuttingDown) {
+        console.warn(`Failed to generate/store session objective embedding for ${sessionId}:`, error);
+      }
     }
   }
 
@@ -1539,17 +1679,19 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   private async generatePatternEmbeddings(patterns: string[]): Promise<void> {
     try {
       const embeddingService = getEmbeddingService();
-      
+
       for (const pattern of patterns) {
         try {
           const result = await embeddingService.generateEmbedding(pattern);
-          
+
           // Store pattern embedding
           await this.query(
             'INSERT INTO pattern_embeddings (pattern_name, embedding, embedding_model, pattern_frequency) VALUES ($1, $2, $3, 1) ON CONFLICT (pattern_name) DO UPDATE SET pattern_frequency = pattern_embeddings.pattern_frequency + 1, updated_at = CURRENT_TIMESTAMP',
             [pattern, `[${result.embedding.join(',')}]`, result.model]
           );
-          console.error(`✅ Generated pattern embedding for "${pattern}" (${result.processingTime}ms)`);
+          console.error(
+            `✅ Generated pattern embedding for "${pattern}" (${result.processingTime}ms)`
+          );
         } catch (error) {
           console.warn(`Failed to generate pattern embedding for "${pattern}":`, error);
         }
@@ -1589,7 +1731,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-      
+
       batchCount++;
       yield result.rows.map(this.mapRowToStoredThought);
       offset += batchSize;
@@ -1625,17 +1767,394 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     }
   }
 
+  // =============================================================================
+  // THOUGHT ANALYSIS METHODS
+  // =============================================================================
+
+  /**
+   * Analyze a thought chain for quality metrics and store the results
+   */
+  async analyzeAndStoreThoughtChain(sessionId: string): Promise<ThoughtAnalysisResult | null> {
+    try {
+      // Get all thoughts for the session
+      const thoughts = await this.queryThoughts({
+        session_ids: [sessionId],
+        limit: 1000, // Get all thoughts for the session
+        sort_by: 'timestamp',
+        sort_order: 'asc',
+      });
+
+      if (thoughts.length === 0) {
+        console.warn(`No thoughts found for session ${sessionId}`);
+        return null;
+      }
+
+      // Get session data for additional context
+      const sessionData = await this.getSession(sessionId);
+
+      // Get similar sessions for cross-session analysis
+      const similarSessions = await this.findSimilarSessions(sessionData?.domain || '', 5);
+
+      // Create analysis context
+      const context: ThoughtChainContext = {
+        session_id: sessionId,
+        thoughts,
+        session_data: sessionData,
+        similar_sessions: similarSessions,
+      };
+
+      // Perform analysis
+      const analysisResult = await this.thoughtAnalyzer.analyzeThoughtChain(context);
+
+      // Store analysis results in database
+      await this.storeThoughtAnalysis(analysisResult);
+
+      console.log(
+        `✅ Thought chain analysis completed for session ${sessionId} (${analysisResult.tier_scores.overall_score.toFixed(3)} overall score)`
+      );
+
+      return analysisResult;
+    } catch (error) {
+      console.error(`❌ Failed to analyze thought chain for session ${sessionId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Store thought analysis results in the database
+   */
+  private async storeThoughtAnalysis(analysis: ThoughtAnalysisResult): Promise<void> {
+    const query = `
+      INSERT INTO thought_analysis (
+        session_id, thought_chain_ids, thought_chain_length, revision_count, branch_count,
+        parameter_adherence, sequential_integrity, branching_effectiveness, revision_improvement,
+        logical_coherence, depth_progression, metacognitive_awareness, creative_synthesis,
+        pattern_recognition, cross_session_transfer, failure_mode_avoidance, adaptation_speed,
+        analysis_confidence, processing_time_ms, analysis_version,
+        tier1_score, tier2_score, tier3_score, overall_score
+      ) VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9,
+        $10, $11, $12, $13,
+        $14, $15, $16, $17,
+        $18, $19, $20,
+        $21, $22, $23, $24
+      )
+    `;
+
+    const values = [
+      analysis.session_id,
+      analysis.thought_chain_ids,
+      analysis.metadata.thought_chain_length,
+      analysis.metadata.revision_count,
+      analysis.metadata.branch_count,
+
+      // Tier 1 metrics
+      analysis.metrics.parameter_adherence,
+      analysis.metrics.sequential_integrity,
+      analysis.metrics.branching_effectiveness,
+      analysis.metrics.revision_improvement,
+
+      // Tier 2 metrics
+      analysis.metrics.logical_coherence,
+      analysis.metrics.depth_progression,
+      analysis.metrics.metacognitive_awareness,
+      analysis.metrics.creative_synthesis,
+
+      // Tier 3 metrics
+      analysis.metrics.pattern_recognition,
+      analysis.metrics.cross_session_transfer,
+      analysis.metrics.failure_mode_avoidance,
+      analysis.metrics.adaptation_speed,
+
+      // Metadata
+      analysis.analysis_confidence,
+      analysis.processing_time_ms,
+      analysis.metadata.analysis_version,
+
+      // Tier scores
+      analysis.tier_scores.tier1_score,
+      analysis.tier_scores.tier2_score,
+      analysis.tier_scores.tier3_score,
+      analysis.tier_scores.overall_score,
+    ];
+
+    await this.query(query, values);
+  }
+
+  /**
+   * Get thought analysis results for a session
+   */
+  async getThoughtAnalysis(sessionId: string): Promise<ThoughtAnalysisResult | null> {
+    try {
+      const result = await this.query(
+        'SELECT * FROM thought_analysis WHERE session_id = $1 ORDER BY analysis_timestamp DESC LIMIT 1',
+        [sessionId]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      return this.mapRowToThoughtAnalysis(result.rows[0]);
+    } catch (error) {
+      console.error(`Failed to get thought analysis for session ${sessionId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get thought analysis results with filtering options
+   */
+  async queryThoughtAnalyses(
+    options: {
+      session_ids?: string[];
+      min_overall_score?: number;
+      max_overall_score?: number;
+      analysis_version?: string;
+      limit?: number;
+      offset?: number;
+      sort_by?: 'analysis_timestamp' | 'overall_score' | 'processing_time_ms';
+      sort_order?: 'asc' | 'desc';
+    } = {}
+  ): Promise<ThoughtAnalysisResult[]> {
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    // Build WHERE conditions
+    if (options.session_ids && options.session_ids.length > 0) {
+      conditions.push(`session_id = ANY($${paramIndex})`);
+      values.push(options.session_ids);
+      paramIndex++;
+    }
+
+    if (options.min_overall_score !== undefined) {
+      conditions.push(`overall_score >= $${paramIndex}`);
+      values.push(options.min_overall_score);
+      paramIndex++;
+    }
+
+    if (options.max_overall_score !== undefined) {
+      conditions.push(`overall_score <= $${paramIndex}`);
+      values.push(options.max_overall_score);
+      paramIndex++;
+    }
+
+    if (options.analysis_version) {
+      conditions.push(`analysis_version = $${paramIndex}`);
+      values.push(options.analysis_version);
+      paramIndex++;
+    }
+
+    // Build query
+    let query = 'SELECT * FROM thought_analysis';
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    // Add sorting
+    const sortBy = options.sort_by || 'analysis_timestamp';
+    const sortOrder = options.sort_order || 'desc';
+    query += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
+
+    // Add pagination
+    const limit = options.limit || 100;
+    const offset = options.offset || 0;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    values.push(limit, offset);
+
+    try {
+      const result = await this.query(query, values);
+      return result.rows.map(row => this.mapRowToThoughtAnalysis(row));
+    } catch (error) {
+      console.error('Failed to query thought analyses:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Batch analyze multiple sessions
+   */
+  async batchAnalyzeThoughtChains(sessionIds: string[]): Promise<ThoughtAnalysisResult[]> {
+    const results: ThoughtAnalysisResult[] = [];
+
+    for (const sessionId of sessionIds) {
+      try {
+        const result = await this.analyzeAndStoreThoughtChain(sessionId);
+        if (result) {
+          results.push(result);
+        }
+      } catch (error) {
+        console.warn(`Batch analysis failed for session ${sessionId}:`, error);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get thought analysis statistics
+   */
+  async getThoughtAnalysisStats(): Promise<{
+    total_analyses: number;
+    avg_overall_score: number;
+    avg_processing_time_ms: number;
+    score_distribution: {
+      tier1_avg: number;
+      tier2_avg: number;
+      tier3_avg: number;
+    };
+    analysis_count_by_version: { [version: string]: number };
+  }> {
+    try {
+      const result = await this.query(`
+        SELECT 
+          COUNT(*) as total_analyses,
+          AVG(overall_score) as avg_overall_score,
+          AVG(processing_time_ms) as avg_processing_time_ms,
+          AVG(tier1_score) as tier1_avg,
+          AVG(tier2_score) as tier2_avg,
+          AVG(tier3_score) as tier3_avg
+        FROM thought_analysis
+      `);
+
+      const versionResult = await this.query(`
+        SELECT analysis_version, COUNT(*) as count
+        FROM thought_analysis
+        GROUP BY analysis_version
+        ORDER BY analysis_version
+      `);
+
+      const analysisCountByVersion: { [version: string]: number } = {};
+      for (const row of versionResult.rows) {
+        analysisCountByVersion[row.analysis_version] = parseInt(row.count);
+      }
+
+      const stats = result.rows[0];
+      return {
+        total_analyses: parseInt(stats.total_analyses) || 0,
+        avg_overall_score: parseFloat(stats.avg_overall_score) || 0,
+        avg_processing_time_ms: parseFloat(stats.avg_processing_time_ms) || 0,
+        score_distribution: {
+          tier1_avg: parseFloat(stats.tier1_avg) || 0,
+          tier2_avg: parseFloat(stats.tier2_avg) || 0,
+          tier3_avg: parseFloat(stats.tier3_avg) || 0,
+        },
+        analysis_count_by_version: analysisCountByVersion,
+      };
+    } catch (error) {
+      console.error('Failed to get thought analysis stats:', error);
+      return {
+        total_analyses: 0,
+        avg_overall_score: 0,
+        avg_processing_time_ms: 0,
+        score_distribution: { tier1_avg: 0, tier2_avg: 0, tier3_avg: 0 },
+        analysis_count_by_version: {},
+      };
+    }
+  }
+
+  /**
+   * Find sessions with similar domains for cross-session analysis
+   */
+  private async findSimilarSessions(domain: string, limit: number = 5): Promise<any[]> {
+    if (!domain) return [];
+
+    try {
+      const result = await this.query(
+        `
+        SELECT s.*, 
+               array_agg(t.id) as thought_ids,
+               array_agg(t.thought) as thoughts
+        FROM reasoning_sessions s
+        LEFT JOIN stored_thoughts t ON s.id = t.session_id
+        WHERE s.domain = $1
+        GROUP BY s.id, s.start_time, s.end_time, s.objective, s.domain, 
+                 s.initial_complexity, s.final_complexity, s.goal_achieved,
+                 s.confidence_level, s.total_thoughts, s.revision_count,
+                 s.branch_count, s.cognitive_roles_used, s.metacognitive_interventions,
+                 s.effectiveness_score, s.lessons_learned, s.successful_strategies,
+                 s.failed_approaches, s.tags
+        ORDER BY s.start_time DESC
+        LIMIT $2
+      `,
+        [domain, limit]
+      );
+
+      return result.rows.map(row => ({
+        ...this.mapRowToReasoningSession(row),
+        thoughts: row.thoughts
+          ? row.thoughts.map((thought: string, idx: number) => ({
+              id: row.thought_ids[idx],
+              thought: thought,
+            }))
+          : [],
+      }));
+    } catch (error) {
+      console.warn(`Failed to find similar sessions for domain ${domain}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Map database row to ThoughtAnalysisResult object
+   */
+  private mapRowToThoughtAnalysis(row: any): ThoughtAnalysisResult {
+    return {
+      session_id: row.session_id,
+      thought_chain_ids: row.thought_chain_ids || [],
+      metrics: {
+        parameter_adherence: parseFloat(row.parameter_adherence) || 0,
+        sequential_integrity: parseFloat(row.sequential_integrity) || 0,
+        branching_effectiveness: parseFloat(row.branching_effectiveness) || 0,
+        revision_improvement: parseFloat(row.revision_improvement) || 0,
+        logical_coherence: parseFloat(row.logical_coherence) || 0,
+        depth_progression: parseFloat(row.depth_progression) || 0,
+        metacognitive_awareness: parseFloat(row.metacognitive_awareness) || 0,
+        creative_synthesis: parseFloat(row.creative_synthesis) || 0,
+        pattern_recognition: parseFloat(row.pattern_recognition) || 0,
+        cross_session_transfer: parseFloat(row.cross_session_transfer) || 0,
+        failure_mode_avoidance: parseFloat(row.failure_mode_avoidance) || 0,
+        adaptation_speed: parseFloat(row.adaptation_speed) || 0,
+      },
+      analysis_confidence: parseFloat(row.analysis_confidence) || 0,
+      processing_time_ms: parseInt(row.processing_time_ms) || 0,
+      tier_scores: {
+        tier1_score: parseFloat(row.tier1_score) || 0,
+        tier2_score: parseFloat(row.tier2_score) || 0,
+        tier3_score: parseFloat(row.tier3_score) || 0,
+        overall_score: parseFloat(row.overall_score) || 0,
+      },
+      metadata: {
+        thought_chain_length: parseInt(row.thought_chain_length) || 0,
+        revision_count: parseInt(row.revision_count) || 0,
+        branch_count: parseInt(row.branch_count) || 0,
+        analysis_version: row.analysis_version || '1.0.0',
+      },
+    };
+  }
+
   /**
    * Close the memory store and cleanup resources
    */
   async close(): Promise<void> {
     console.error('🔄 Closing PostgreSQL Memory Store...');
-    
+
+    // Signal shutdown to prevent new operations
+    this.isShuttingDown = true;
+
+    // Wait for pending async operations to complete
+    await this.waitForPendingOperations();
+
     // Clear health check timer
     if (this.healthCheckInterval) {
       try {
         // If using TimerManager, get the timer ID and clear it
-        const timerManager = await import('../utils/timer-manager.js').then(m => m.TimerManager.getInstance());
+        const timerManager = await import('../utils/timer-manager.js').then(m =>
+          m.TimerManager.getInstance()
+        );
         const timerId = String(this.healthCheckInterval);
         timerManager.clearTimer(timerId);
       } catch (error) {
@@ -1657,10 +2176,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       try {
         // Wait for active connections to finish (max 5s)
         const closePromise = this.pool.end();
-        const timeoutPromise = new Promise<void>((_, reject) => 
+        const timeoutPromise = new Promise<void>((_, reject) =>
           setTimeout(() => reject(new Error('Pool close timeout')), 5000)
         );
-        
+
         await Promise.race([closePromise, timeoutPromise]);
         console.error('✅ Connection pool closed gracefully');
       } catch (error) {
@@ -1729,19 +2248,31 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       complexity_estimate: row.complexity_estimate,
       estimated_cognitive_load: row.estimated_cognitive_load,
       classification_confidence: row.classification_confidence,
-      prompt_context: row.prompt_context ? (typeof row.prompt_context === 'string' ? JSON.parse(row.prompt_context) : row.prompt_context) : undefined,
-      extracted_intent: row.extracted_intent ? (typeof row.extracted_intent === 'string' ? JSON.parse(row.extracted_intent) : row.extracted_intent) : undefined,
+      prompt_context: row.prompt_context
+        ? typeof row.prompt_context === 'string'
+          ? JSON.parse(row.prompt_context)
+          : row.prompt_context
+        : undefined,
+      extracted_intent: row.extracted_intent
+        ? typeof row.extracted_intent === 'string'
+          ? JSON.parse(row.extracted_intent)
+          : row.extracted_intent
+        : undefined,
       processing_started_at: row.processing_started_at,
       processing_completed_at: row.processing_completed_at,
       processing_success: row.processing_success,
       processing_error: row.processing_error,
       tags: row.tags,
-      similar_prompts: row.similar_prompts ? (typeof row.similar_prompts === 'string' ? JSON.parse(row.similar_prompts) : row.similar_prompts) : undefined,
+      similar_prompts: row.similar_prompts
+        ? typeof row.similar_prompts === 'string'
+          ? JSON.parse(row.similar_prompts)
+          : row.similar_prompts
+        : undefined,
       reasoning_improvement: row.reasoning_improvement,
       persona_selected: row.persona_selected,
       cognitive_priming_effectiveness: row.cognitive_priming_effectiveness,
       created_at: row.created_at,
-      updated_at: row.updated_at
+      updated_at: row.updated_at,
     };
   }
 

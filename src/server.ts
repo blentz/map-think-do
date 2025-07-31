@@ -343,13 +343,13 @@ export class CodeReasoningServer {
   private readonly memoryStore: MemoryStore;
   private currentSessionId: string;
   private readonly thoughtMutex = new Mutex();
-  
+
   // Prompt Intelligence Components for AGI-like Learning
   private readonly promptClassifier: PromptClassifier;
   private readonly intentExtractor: IntentExtractor;
   private readonly similarityDetector: SimilarityDetector;
   private readonly complexityEstimator: ComplexityEstimator;
-  
+
   // Session tracking for persistence
   private currentSession: Partial<ReasoningSession> | null = null;
   private sessionStartTime: Date = new Date();
@@ -383,7 +383,7 @@ export class CodeReasoningServer {
 
     // Generate session ID for this reasoning session
     this.currentSessionId = this.generateSessionId();
-    
+
     // Initialize session tracking
     this.sessionStartTime = new Date();
     this.initializeSession();
@@ -481,14 +481,17 @@ export class CodeReasoningServer {
       lessons_learned: [],
       successful_strategies: [],
       failed_approaches: [],
-      tags: []
+      tags: [],
     };
   }
 
   /**
    * Update session data and persist to database
    */
-  private async updateAndStoreSession(data: ValidatedThoughtData, cognitiveResult: any): Promise<void> {
+  private async updateAndStoreSession(
+    data: ValidatedThoughtData,
+    cognitiveResult: any
+  ): Promise<void> {
     if (!this.currentSession) {
       console.error('Warning: Session not initialized, creating new session');
       this.initializeSession();
@@ -508,10 +511,10 @@ export class CodeReasoningServer {
     this.currentSession!.total_thoughts = data.total_thoughts;
     this.currentSession!.revision_count = this.thoughtHistory.filter(t => t.is_revision).length;
     this.currentSession!.branch_count = this.branches.size;
-    
+
     // Update confidence level from cognitive result
     if (cognitiveResult.cognitiveState.confidence_trajectory.length > 0) {
-      this.currentSession!.confidence_level = 
+      this.currentSession!.confidence_level =
         cognitiveResult.cognitiveState.confidence_trajectory[
           cognitiveResult.cognitiveState.confidence_trajectory.length - 1
         ];
@@ -542,10 +545,10 @@ export class CodeReasoningServer {
     this.currentSession!.cognitive_roles_used = Array.from(rolesUsed);
 
     // Count metacognitive interventions
-    const metacognitiveCount = cognitiveResult.interventions?.filter(
-      (i: any) => i.metadata?.plugin_id === 'metacognitive'
-    ).length || 0;
-    this.currentSession!.metacognitive_interventions = 
+    const metacognitiveCount =
+      cognitiveResult.interventions?.filter((i: any) => i.metadata?.plugin_id === 'metacognitive')
+        .length || 0;
+    this.currentSession!.metacognitive_interventions =
       (this.currentSession!.metacognitive_interventions || 0) + metacognitiveCount;
 
     // Update effectiveness score based on cognitive metrics
@@ -555,7 +558,7 @@ export class CodeReasoningServer {
     if (!data.next_thought_needed) {
       this.currentSession!.end_time = new Date();
       this.currentSession!.goal_achieved = this.assessGoalAchievement(data, cognitiveResult);
-      
+
       // Extract lessons learned from final cognitive state
       this.updateSessionLearnings(cognitiveResult);
     }
@@ -566,7 +569,9 @@ export class CodeReasoningServer {
     // Store session to database
     try {
       await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
-      console.error(`📝 Session stored: ${this.currentSessionId} (thought ${data.thought_number}/${data.total_thoughts})`);
+      console.error(
+        `📝 Session stored: ${this.currentSessionId} (thought ${data.thought_number}/${data.total_thoughts})`
+      );
     } catch (error) {
       console.error('Failed to store session:', error);
     }
@@ -577,11 +582,12 @@ export class CodeReasoningServer {
    */
   private calculateSessionEffectiveness(cognitiveResult: any): number {
     const cognitiveState = cognitiveResult.cognitiveState;
-    const avgConfidence = cognitiveState.confidence_trajectory.reduce((a: number, b: number) => a + b, 0) / 
-                         cognitiveState.confidence_trajectory.length;
+    const avgConfidence =
+      cognitiveState.confidence_trajectory.reduce((a: number, b: number) => a + b, 0) /
+      cognitiveState.confidence_trajectory.length;
     const metacognitiveAwareness = cognitiveState.metacognitive_awareness || 0.5;
     const engagementLevel = cognitiveState.engagement_level || 0.5;
-    
+
     return Math.min(1.0, (avgConfidence + metacognitiveAwareness + engagementLevel) / 3);
   }
 
@@ -590,13 +596,15 @@ export class CodeReasoningServer {
    */
   private assessGoalAchievement(data: ValidatedThoughtData, cognitiveResult: any): boolean {
     // Basic heuristic: high confidence and completion suggests goal achievement
-    const finalConfidence = cognitiveResult.cognitiveState.confidence_trajectory[
-      cognitiveResult.cognitiveState.confidence_trajectory.length - 1
-    ];
-    const hasConclusion = data.thought.toLowerCase().includes('conclusion') || 
-                         data.thought.toLowerCase().includes('answer') ||
-                         data.thought.toLowerCase().includes('solution');
-    
+    const finalConfidence =
+      cognitiveResult.cognitiveState.confidence_trajectory[
+        cognitiveResult.cognitiveState.confidence_trajectory.length - 1
+      ];
+    const hasConclusion =
+      data.thought.toLowerCase().includes('conclusion') ||
+      data.thought.toLowerCase().includes('answer') ||
+      data.thought.toLowerCase().includes('solution');
+
     return finalConfidence > 0.7 && hasConclusion;
   }
 
@@ -609,7 +617,7 @@ export class CodeReasoningServer {
     // Extract insights from cognitive interventions
     const insights = cognitiveResult.interventions?.map((i: any) => i.content) || [];
     const patterns = cognitiveResult.patterns_detected || [];
-    
+
     // Identify successful strategies (simplified heuristic)
     const successfulStrategies: string[] = [];
     if (cognitiveResult.cognitiveState.analytical_depth > 0.7) {
@@ -623,7 +631,7 @@ export class CodeReasoningServer {
     }
 
     this.currentSession.successful_strategies = successfulStrategies;
-    
+
     // Basic lessons learned extraction
     const lessonsLearned: string[] = [];
     if (patterns.length > 0) {
@@ -632,7 +640,7 @@ export class CodeReasoningServer {
     if (insights.length > 0) {
       lessonsLearned.push(`Applied ${insights.length} cognitive interventions`);
     }
-    
+
     this.currentSession.lessons_learned = lessonsLearned;
   }
 
@@ -641,23 +649,23 @@ export class CodeReasoningServer {
    */
   private generateSessionTags(data: ValidatedThoughtData, cognitiveResult: any): string[] {
     const tags: string[] = [];
-    
+
     // Add domain tag
     const domain = this.inferDomain(data);
     if (domain) tags.push(domain);
-    
+
     // Add complexity tag
     const complexity = cognitiveResult.cognitiveState.current_complexity;
     if (complexity > 7) tags.push('high-complexity');
     else if (complexity > 4) tags.push('medium-complexity');
     else tags.push('low-complexity');
-    
+
     // Add reasoning type tags
     if (cognitiveResult.cognitiveState.analytical_depth > 0.7) tags.push('analytical');
     if (cognitiveResult.cognitiveState.creative_pressure > 0.7) tags.push('creative');
     if (this.branches.size > 0) tags.push('branching');
     if (this.thoughtHistory.filter(t => t.is_revision).length > 0) tags.push('iterative');
-    
+
     return tags;
   }
 
@@ -671,7 +679,7 @@ export class CodeReasoningServer {
       // Check memory usage before cleanup
       const beforeMemory = process.memoryUsage();
       const beforeMB = Math.round(beforeMemory.heapUsed / 1024 / 1024);
-      
+
       // Clear large objects from cognitive result to break references
       if (cognitiveResult) {
         // Clear intervention data arrays
@@ -681,7 +689,7 @@ export class CodeReasoningServer {
         if (cognitiveResult.insights) {
           cognitiveResult.insights.length = 0;
         }
-        
+
         // Clear cognitive state history arrays
         if (cognitiveResult.cognitiveState) {
           if (cognitiveResult.cognitiveState.confidence_trajectory) {
@@ -690,7 +698,7 @@ export class CodeReasoningServer {
           }
         }
       }
-      
+
       // Force garbage collection if available
       if (global.gc) {
         global.gc();
@@ -699,27 +707,27 @@ export class CodeReasoningServer {
         const largeArray = new Array(1000000).fill(null);
         largeArray.length = 0;
       }
-      
+
       // Check memory after cleanup
       const afterMemory = process.memoryUsage();
       const afterMB = Math.round(afterMemory.heapUsed / 1024 / 1024);
       const freedMB = beforeMB - afterMB;
-      
+
       console.error('🧹 Memory cleanup completed', {
         thought: data.thought_number,
         beforeMB,
         afterMB,
         freedMB,
         heapTotal: Math.round(afterMemory.heapTotal / 1024 / 1024),
-        heapUsedPercent: Math.round((afterMemory.heapUsed / afterMemory.heapTotal) * 100)
+        heapUsedPercent: Math.round((afterMemory.heapUsed / afterMemory.heapTotal) * 100),
       });
-      
+
       // Emergency cleanup if still over threshold
-      if (afterMB > 2000) { // 2GB threshold
+      if (afterMB > 2000) {
+        // 2GB threshold
         console.error('🚨 Emergency memory cleanup triggered at', afterMB, 'MB');
         this.emergencyMemoryCleanup();
       }
-      
     } catch (error) {
       console.error('⚠️ Memory cleanup error:', error);
     }
@@ -734,7 +742,7 @@ export class CodeReasoningServer {
       if (this.thoughtHistory.length > 10) {
         this.thoughtHistory.splice(0, this.thoughtHistory.length - 10);
       }
-      
+
       // Clear all branches except most recent
       if (this.branches.size > 1) {
         const entries = Array.from(this.branches.entries());
@@ -745,13 +753,13 @@ export class CodeReasoningServer {
           this.branches.set(lastKey, lastValue);
         }
       }
-      
+
       // Force aggressive garbage collection
       if (global.gc) {
         global.gc();
         global.gc(); // Double GC for aggressive cleanup
       }
-      
+
       console.error('🚨 Emergency cleanup completed');
     } catch (error) {
       console.error('⚠️ Emergency cleanup error:', error);
@@ -901,25 +909,25 @@ export class CodeReasoningServer {
       // Use the thought content as a proxy for the original prompt
       // In a more advanced implementation, this would capture the actual user prompt
       const promptText = thoughtData.thought;
-      
+
       console.error('🧠 Analyzing prompt with AGI intelligence components...');
-      
+
       // Run all analyses in parallel for efficiency
       const [classification, intent, complexity] = await Promise.all([
         this.promptClassifier.classifyPrompt(promptText),
         this.intentExtractor.extractIntent(promptText),
-        this.complexityEstimator.estimateComplexity(promptText)
+        this.complexityEstimator.estimateComplexity(promptText),
       ]);
 
       // Find similar prompts for pattern learning
-      const existingPrompts = await this.memoryStore.queryPrompts({ 
-        limit: 50
+      const existingPrompts = await this.memoryStore.queryPrompts({
+        limit: 50,
       });
-      
+
       const similarPrompts = await this.similarityDetector.findSimilarPrompts(
-        promptText, 
-        existingPrompts, 
-        5, 
+        promptText,
+        existingPrompts,
+        5,
         0.4
       );
 
@@ -946,12 +954,12 @@ export class CodeReasoningServer {
         updated_at: new Date(),
         domain: this.inferDomain(thoughtData),
         tags: this.generatePromptTags(classification, intent, complexity),
-        reasoning_improvement: undefined
+        reasoning_improvement: undefined,
       };
 
       // Store the prompt with analysis
       await this.memoryStore.storePrompt(storedPrompt);
-      
+
       console.error('✅ Prompt analyzed and stored', {
         promptId: storedPrompt.id,
         type: classification.type,
@@ -960,7 +968,7 @@ export class CodeReasoningServer {
         objectives: intent.objectives.length,
         constraints: intent.constraints.length,
         requirements: intent.requirements.length,
-        similarPrompts: similarPrompts.length
+        similarPrompts: similarPrompts.length,
       });
 
       return storedPrompt.id;
@@ -980,28 +988,24 @@ export class CodeReasoningServer {
   /**
    * Generate tags for prompt based on analysis
    */
-  private generatePromptTags(
-    classification: any, 
-    intent: any, 
-    complexity: any
-  ): string[] {
+  private generatePromptTags(classification: any, intent: any, complexity: any): string[] {
     const tags: string[] = [];
-    
+
     // Add classification-based tags
     tags.push(classification.type);
     if (classification.confidence > 0.8) tags.push('high-confidence');
-    
+
     // Add complexity-based tags
     if (complexity.complexity > 7) tags.push('complex');
     else if (complexity.complexity > 4) tags.push('moderate');
     else tags.push('simple');
-    
+
     // Add intent-based tags
     if (intent.objectives.length > 0) tags.push('has-objectives');
     if (intent.constraints.length > 0) tags.push('has-constraints');
     if (intent.requirements.length > 0) tags.push('has-requirements');
     if (intent.expected_output_type) tags.push(`output-${intent.expected_output_type}`);
-    
+
     return tags;
   }
 
@@ -1009,14 +1013,14 @@ export class CodeReasoningServer {
    * Update prompt processing status after thought completion
    */
   private async updatePromptProcessingStatus(
-    promptId: string, 
-    success: boolean, 
+    promptId: string,
+    success: boolean,
     outcomeQuality: 'excellent' | 'good' | 'fair' | 'poor'
   ): Promise<void> {
     try {
       await this.memoryStore.updatePrompt(promptId, {
         processing_success: success,
-        reasoning_improvement: success ? 0.1 : -0.1 // Simple heuristic
+        reasoning_improvement: success ? 0.1 : -0.1, // Simple heuristic
       });
     } catch (error) {
       console.error('⚠️ Error updating prompt processing status:', error);
@@ -1043,13 +1047,15 @@ export class CodeReasoningServer {
         );
       }
 
-      // 🧠 AGI MAGIC: Prompt intelligence and cognitive orchestration 
+      // 🧠 AGI MAGIC: Prompt intelligence and cognitive orchestration
       console.error('🧠 Capturing and analyzing prompt with AGI intelligence...');
-      
+
       // Capture and analyze the prompt before cognitive processing
       const promptId = await this.captureAndAnalyzePrompt(data);
-      
-      console.error('🧠 Engaging cognitive orchestrator for AGI-level processing with prompt context...');
+
+      console.error(
+        '🧠 Engaging cognitive orchestrator for AGI-level processing with prompt context...'
+      );
 
       // Build prompt context for enhanced cognitive processing
       let promptContext: any = undefined;
@@ -1063,23 +1069,23 @@ export class CodeReasoningServer {
               promptId: storedPrompt.id,
               classification: {
                 type: storedPrompt.prompt_type,
-                confidence: storedPrompt.classification_confidence || 0.5
+                confidence: storedPrompt.classification_confidence || 0.5,
               },
               intent: storedPrompt.extracted_intent,
               complexity: {
                 complexity: storedPrompt.complexity_estimate || 5.0,
-                confidence: 0.8 // Default confidence for complexity
+                confidence: 0.8, // Default confidence for complexity
               },
-              similarPrompts: storedPrompt.similar_prompts || []
+              similarPrompts: storedPrompt.similar_prompts || [],
             };
-            
+
             console.error('🧠 Prompt context built for cognitive priming:', {
               type: promptContext.classification.type,
               objectives: promptContext.intent?.objectives?.length || 0,
               constraints: promptContext.intent?.constraints?.length || 0,
               requirements: promptContext.intent?.requirements?.length || 0,
               complexity: promptContext.complexity.complexity,
-              similarPrompts: promptContext.similarPrompts.length
+              similarPrompts: promptContext.similarPrompts.length,
             });
           } else {
             console.error('⚠️ Stored prompt not found for ID:', promptId);
@@ -1090,18 +1096,22 @@ export class CodeReasoningServer {
       }
 
       // Use enhanced cognitive processing with prompt context priming
-      const cognitiveResult = promptContext 
-        ? await this.cognitiveOrchestrator.processThoughtWithPromptContext(data, {
-            id: this.currentSessionId,
-            objective: this.inferObjective(data),
-            domain: this.inferDomain(data),
-            start_time: new Date(),
-            goal_achieved: false,
-            confidence_level: 0.5,
-            total_thoughts: data.total_thoughts,
-            revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
-            branch_count: this.branches.size,
-          }, promptContext)
+      const cognitiveResult = promptContext
+        ? await this.cognitiveOrchestrator.processThoughtWithPromptContext(
+            data,
+            {
+              id: this.currentSessionId,
+              objective: this.inferObjective(data),
+              domain: this.inferDomain(data),
+              start_time: new Date(),
+              goal_achieved: false,
+              confidence_level: 0.5,
+              total_thoughts: data.total_thoughts,
+              revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
+              branch_count: this.branches.size,
+            },
+            promptContext
+          )
         : await this.cognitiveOrchestrator.processThought(data, {
             id: this.currentSessionId,
             objective: this.inferObjective(data),
@@ -1156,7 +1166,7 @@ export class CodeReasoningServer {
       await this.thoughtMutex.withLock(async () => {
         // Add thought to history with size management
         this.addThoughtToHistory(data);
-        
+
         // Add to branch with size management
         if (data.branch_id) {
           this.addThoughtToBranch(data.branch_id, data);
@@ -1178,22 +1188,22 @@ export class CodeReasoningServer {
       if (data.thought_number % 25 === 0) {
         const memStats = this.getMemoryStats();
         console.error('📊 Memory Stats:', memStats);
-        
+
         // Trigger cleanup if memory pressure is high
         if (memStats.memoryPressure > 0.8) {
           console.error('⚠️ High memory pressure detected - triggering automatic cleanup:', {
             pressure: memStats.memoryPressure,
             thoughtHistory: memStats.thoughtHistorySize,
-            branches: memStats.branchCount
+            branches: memStats.branchCount,
           });
-          
+
           // Trigger aggressive memory cleanup
           this.performEmergencyMemoryCleanup();
-          
+
           // Also trigger timer manager emergency cleanup
           const timerManager = TimerManager.getInstance();
           timerManager.emergencyCleanup();
-          
+
           // Force garbage collection
           if (global.gc) {
             global.gc();
@@ -1203,7 +1213,11 @@ export class CodeReasoningServer {
 
       // Update prompt processing success status
       if (promptId) {
-        await this.updatePromptProcessingStatus(promptId, true, this.assessOutcomeQuality(cognitiveResult));
+        await this.updatePromptProcessingStatus(
+          promptId,
+          true,
+          this.assessOutcomeQuality(cognitiveResult)
+        );
       }
 
       console.error('✔️ AGI processed', {
@@ -1215,7 +1229,7 @@ export class CodeReasoningServer {
 
       // 🚨 CRITICAL MEMORY LEAK FIX: Force garbage collection after processing
       this.forceMemoryCleanup(data, cognitiveResult);
-      
+
       return this.buildSuccess(data, cognitiveResult);
     } catch (err) {
       const e = err as Error;
@@ -1329,10 +1343,13 @@ export class CodeReasoningServer {
    */
   private addThoughtToHistory(data: ValidatedThoughtData): void {
     // Check if cleanup is needed
-    if (this.thoughtHistory.length >= this.memoryConfig.maxThoughtHistory * this.memoryConfig.cleanupThreshold) {
+    if (
+      this.thoughtHistory.length >=
+      this.memoryConfig.maxThoughtHistory * this.memoryConfig.cleanupThreshold
+    ) {
       this.cleanupThoughtHistory();
     }
-    
+
     this.thoughtHistory.push(data);
   }
 
@@ -1344,16 +1361,16 @@ export class CodeReasoningServer {
     if (this.branches.size >= this.memoryConfig.maxBranches) {
       this.cleanupOldestBranches();
     }
-    
+
     const arr = this.branches.get(branchId) ?? [];
-    
+
     // Check if this branch has too many thoughts
     if (arr.length >= this.memoryConfig.maxBranchThoughts * this.memoryConfig.cleanupThreshold) {
       // Remove oldest thoughts from this branch (keep most recent)
       const keepCount = Math.floor(this.memoryConfig.maxBranchThoughts * 0.7);
       arr.splice(0, arr.length - keepCount);
     }
-    
+
     arr.push(data);
     this.branches.set(branchId, arr);
   }
@@ -1364,7 +1381,7 @@ export class CodeReasoningServer {
   private cleanupThoughtHistory(): void {
     const removeCount = Math.floor(this.memoryConfig.maxThoughtHistory * 0.3); // Remove 30%
     this.thoughtHistory.splice(0, removeCount);
-    
+
     console.error(`🧹 Cleaned up ${removeCount} old thoughts from history`);
   }
 
@@ -1377,18 +1394,18 @@ export class CodeReasoningServer {
       .map(([branchId, thoughts]) => ({
         branchId,
         oldestThought: Math.min(...thoughts.map(t => t.thought_number)),
-        thoughtCount: thoughts.length
+        thoughtCount: thoughts.length,
       }))
       .sort((a, b) => a.oldestThought - b.oldestThought);
-    
+
     // Remove oldest 20% of branches
     const removeCount = Math.floor(this.memoryConfig.maxBranches * 0.2);
     const toRemove = branchAges.slice(0, removeCount);
-    
+
     for (const { branchId } of toRemove) {
       this.branches.delete(branchId);
     }
-    
+
     console.error(`🧹 Cleaned up ${removeCount} old branches`);
   }
 
@@ -1401,20 +1418,22 @@ export class CodeReasoningServer {
     totalBranchThoughts: number;
     memoryPressure: number;
   } {
-    const totalBranchThoughts = Array.from(this.branches.values())
-      .reduce((total, thoughts) => total + thoughts.length, 0);
-    
+    const totalBranchThoughts = Array.from(this.branches.values()).reduce(
+      (total, thoughts) => total + thoughts.length,
+      0
+    );
+
     const memoryPressure = Math.max(
       this.thoughtHistory.length / this.memoryConfig.maxThoughtHistory,
       this.branches.size / this.memoryConfig.maxBranches,
       totalBranchThoughts / (this.memoryConfig.maxBranches * this.memoryConfig.maxBranchThoughts)
     );
-    
+
     return {
       thoughtHistorySize: this.thoughtHistory.length,
       branchCount: this.branches.size,
       totalBranchThoughts,
-      memoryPressure
+      memoryPressure,
     };
   }
 
@@ -1423,16 +1442,18 @@ export class CodeReasoningServer {
    */
   private performEmergencyMemoryCleanup(): void {
     console.error('🚨 Performing emergency memory cleanup...');
-    
-    const beforeSize = this.thoughtHistory.length + Array.from(this.branches.values()).reduce((total, thoughts) => total + thoughts.length, 0);
-    
+
+    const beforeSize =
+      this.thoughtHistory.length +
+      Array.from(this.branches.values()).reduce((total, thoughts) => total + thoughts.length, 0);
+
     // Aggressively trim thought history to 25% of max
     const maxHistoryEmergency = Math.floor(this.memoryConfig.maxThoughtHistory * 0.25);
     if (this.thoughtHistory.length > maxHistoryEmergency) {
       this.thoughtHistory.splice(0, this.thoughtHistory.length - maxHistoryEmergency);
       console.error(`🗑️ Trimmed thought history to ${this.thoughtHistory.length} entries`);
     }
-    
+
     // Clear older branches, keep only the most recent ones
     const branchEntries = Array.from(this.branches.entries());
     if (branchEntries.length > 3) {
@@ -1442,23 +1463,27 @@ export class CodeReasoningServer {
         const bLastThought = b[1][b[1].length - 1];
         return bLastThought.thought_number - aLastThought.thought_number;
       });
-      
+
       // Remove older branches
       for (let i = 3; i < branchEntries.length; i++) {
         this.branches.delete(branchEntries[i][0]);
       }
       console.error(`🗑️ Trimmed branches from ${branchEntries.length} to 3`);
     }
-    
+
     // Trim remaining branches to smaller sizes
     for (const [branchId, thoughts] of this.branches.entries()) {
       if (thoughts.length > 10) {
         thoughts.splice(0, thoughts.length - 10);
       }
     }
-    
-    const afterSize = this.thoughtHistory.length + Array.from(this.branches.values()).reduce((total, thoughts) => total + thoughts.length, 0);
-    console.error(`✅ Emergency cleanup complete: ${beforeSize} → ${afterSize} total objects (${((beforeSize - afterSize) / beforeSize * 100).toFixed(1)}% reduction)`);
+
+    const afterSize =
+      this.thoughtHistory.length +
+      Array.from(this.branches.values()).reduce((total, thoughts) => total + thoughts.length, 0);
+    console.error(
+      `✅ Emergency cleanup complete: ${beforeSize} → ${afterSize} total objects (${(((beforeSize - afterSize) / beforeSize) * 100).toFixed(1)}% reduction)`
+    );
   }
 
   /**
@@ -1467,33 +1492,39 @@ export class CodeReasoningServer {
   forceEmergencyMemoryCleanup(): void {
     const beforeHistory = this.thoughtHistory.length;
     const beforeBranches = this.branches.size;
-    
+
     // Aggressively trim arrays to emergency levels
-    const emergencyHistorySize = Math.min(10, Math.floor(this.memoryConfig.maxThoughtHistory * 0.2));
+    const emergencyHistorySize = Math.min(
+      10,
+      Math.floor(this.memoryConfig.maxThoughtHistory * 0.2)
+    );
     const emergencyBranchSize = Math.min(2, Math.floor(this.memoryConfig.maxBranches * 0.2));
-    
+
     // Keep only most recent thoughts
     if (this.thoughtHistory.length > emergencyHistorySize) {
       this.thoughtHistory.splice(0, this.thoughtHistory.length - emergencyHistorySize);
     }
-    
+
     // Clear oldest branches if too many
     if (this.branches.size > emergencyBranchSize) {
-      const sorted = Array.from(this.branches.entries())
-        .sort(([,a], [,b]) => (a[0]?.thought_number || 0) - (b[0]?.thought_number || 0));
+      const sorted = Array.from(this.branches.entries()).sort(
+        ([, a], [, b]) => (a[0]?.thought_number || 0) - (b[0]?.thought_number || 0)
+      );
       const toRemove = sorted.slice(0, this.branches.size - emergencyBranchSize);
       toRemove.forEach(([id]) => this.branches.delete(id));
     }
-    
+
     // Force garbage collection if available
     if (global.gc) {
       global.gc();
     }
-    
+
     const afterHistory = this.thoughtHistory.length;
     const afterBranches = this.branches.size;
-    
-    console.error(`🧹 EMERGENCY CLEANUP: History ${beforeHistory}→${afterHistory}, Branches ${beforeBranches}→${afterBranches}`);
+
+    console.error(
+      `🧹 EMERGENCY CLEANUP: History ${beforeHistory}→${afterHistory}, Branches ${beforeBranches}→${afterBranches}`
+    );
   }
 
   /**
@@ -1533,13 +1564,18 @@ export class CodeReasoningServer {
     try {
       const pathModule = createRequire(import.meta.url)('path');
       const fsModule = createRequire(import.meta.url)('fs');
-      
-      const configPath = pathModule.join(process.env.HOME || '', '.config', 'sentient-agi', 'cognitive-performance.json');
+
+      const configPath = pathModule.join(
+        process.env.HOME || '',
+        '.config',
+        'sentient-agi',
+        'cognitive-performance.json'
+      );
       if (fsModule.existsSync(configPath)) {
         return JSON.parse(fsModule.readFileSync(configPath, 'utf8'));
       }
     } catch (error) {
-      console.error("⚠️ Could not load performance config:", (error as Error).message);
+      console.error('⚠️ Could not load performance config:', (error as Error).message);
     }
     return null;
   }
@@ -2024,11 +2060,13 @@ class InMemoryStore extends MemoryStore {
     throw new Error('InMemoryStore prompt methods not implemented yet');
   }
 
-  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
-    pattern_type: string;
-    success_rate: number;
-    common_attributes: Record<string, any>;
-  }>> {
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<
+    Array<{
+      pattern_type: string;
+      success_rate: number;
+      common_attributes: Record<string, any>;
+    }>
+  > {
     throw new Error('InMemoryStore prompt methods not implemented yet');
   }
 
@@ -2042,7 +2080,7 @@ class InMemoryStore extends MemoryStore {
   }
 
   async updatePromptPerformance(
-    promptId: string, 
+    promptId: string,
     performance: {
       processing_success: boolean;
       reasoning_improvement?: number;

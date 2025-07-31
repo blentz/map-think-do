@@ -1,6 +1,6 @@
 /**
  * @fileoverview Prometheus Metrics Export for Cognitive Analytics
- * 
+ *
  * Exports cognitive performance metrics in Prometheus format for monitoring
  * and alerting. Integrates with TimescaleDB analytics and real-time data.
  */
@@ -21,31 +21,31 @@ export interface CognitiveMetrics {
   total_thoughts: number;
   total_sessions: number;
   active_sessions: number;
-  
+
   // Performance metrics
   average_confidence: number;
   success_rate: number;
   average_complexity: number;
   thoughts_per_minute: number;
-  
+
   // Quality metrics
   revision_rate: number;
   branch_rate: number;
   effectiveness_score: number;
-  
+
   // Load metrics
   cognitive_load_current: number;
   memory_usage_percent: number;
   processing_latency_ms: number;
-  
+
   // Domain metrics
   active_domains: string[];
   domain_distribution: Record<string, number>;
-  
+
   // Pattern metrics
   pattern_count: number;
   pattern_effectiveness: number;
-  
+
   // Alert metrics
   alert_count: number;
   critical_alert_count: number;
@@ -87,47 +87,47 @@ export class PrometheusMetricsExporter {
     try {
       // Get basic statistics
       const stats = await this.memoryStore.getStats();
-      
+
       // Get real-time metrics (if available)
       const realtimeMetrics = await this.getRealTimeMetrics();
-      
+
       // Get performance trends
       const performanceTrends = await this.getPerformanceTrends();
-      
+
       // Get cognitive load alerts
       const alerts = await this.getCognitiveAlerts();
-      
+
       // Calculate derived metrics
       const cognitiveMetrics: CognitiveMetrics = {
         // Core metrics
         total_thoughts: stats.total_thoughts || 0,
         total_sessions: stats.total_sessions || 0,
         active_sessions: await this.countActiveSessions(),
-        
+
         // Performance metrics
         average_confidence: await this.getAverageConfidence(),
         success_rate: stats.overall_success_rate || 0,
         average_complexity: await this.getAverageComplexity(),
         thoughts_per_minute: realtimeMetrics.thoughts_per_minute || 0,
-        
+
         // Quality metrics
         revision_rate: await this.getRevisionRate(),
         branch_rate: await this.getBranchRate(),
         effectiveness_score: await this.getAverageEffectiveness(),
-        
+
         // Load metrics
         cognitive_load_current: realtimeMetrics.cognitive_load || 0,
         memory_usage_percent: this.getMemoryUsagePercent(),
         processing_latency_ms: realtimeMetrics.processing_latency || 0,
-        
+
         // Domain metrics
         active_domains: await this.getActiveDomains(),
         domain_distribution: await this.getDomainDistribution(),
-        
+
         // Pattern metrics
         pattern_count: await this.getPatternCount(),
         pattern_effectiveness: await this.getPatternEffectiveness(),
-        
+
         // Alert metrics
         alert_count: alerts.length,
         critical_alert_count: alerts.filter(a => a.severity === 'CRITICAL').length,
@@ -136,7 +136,7 @@ export class PrometheusMetricsExporter {
       // Cache results
       this.lastUpdateTime = now;
       this.cacheMetrics(cognitiveMetrics);
-      
+
       return cognitiveMetrics;
     } catch (error) {
       console.error('Error collecting cognitive metrics:', error);
@@ -168,7 +168,7 @@ export class PrometheusMetricsExporter {
         type: 'gauge',
         value: metrics.active_sessions,
       },
-      
+
       // Performance metrics
       {
         name: 'cognitive_confidence_average',
@@ -194,7 +194,7 @@ export class PrometheusMetricsExporter {
         type: 'gauge',
         value: metrics.thoughts_per_minute,
       },
-      
+
       // Quality metrics
       {
         name: 'cognitive_revision_rate',
@@ -214,7 +214,7 @@ export class PrometheusMetricsExporter {
         type: 'gauge',
         value: metrics.effectiveness_score,
       },
-      
+
       // Load metrics
       {
         name: 'cognitive_load_current',
@@ -234,7 +234,7 @@ export class PrometheusMetricsExporter {
         type: 'gauge',
         value: metrics.processing_latency_ms,
       },
-      
+
       // Pattern metrics
       {
         name: 'cognitive_patterns_total',
@@ -248,7 +248,7 @@ export class PrometheusMetricsExporter {
         type: 'gauge',
         value: metrics.pattern_effectiveness,
       },
-      
+
       // Alert metrics
       {
         name: 'cognitive_alerts_total',
@@ -283,7 +283,7 @@ export class PrometheusMetricsExporter {
    */
   private formatPrometheusMetrics(metrics: PrometheusMetric[]): string {
     const lines: string[] = [];
-    
+
     // Add header comment
     lines.push('# Sentient AGI Cognitive Analytics Metrics');
     lines.push(`# Generated at: ${new Date().toISOString()}`);
@@ -292,10 +292,10 @@ export class PrometheusMetricsExporter {
     for (const metric of metrics) {
       // Add HELP line
       lines.push(`# HELP ${metric.name} ${metric.help}`);
-      
+
       // Add TYPE line
       lines.push(`# TYPE ${metric.name} ${metric.type}`);
-      
+
       // Add metric line
       let metricLine = metric.name;
       if (metric.labels && Object.keys(metric.labels).length > 0) {
@@ -304,12 +304,12 @@ export class PrometheusMetricsExporter {
           .join(',');
         metricLine += `{${labelPairs}}`;
       }
-      
+
       metricLine += ` ${metric.value}`;
       if (metric.timestamp) {
         metricLine += ` ${metric.timestamp}`;
       }
-      
+
       lines.push(metricLine);
       lines.push('');
     }
@@ -329,7 +329,10 @@ export class PrometheusMetricsExporter {
           const latest = realtime[0];
           return {
             thoughts_per_minute: latest.thoughts_per_window * 12, // 5-minute windows * 12 = hourly rate
-            cognitive_load: Math.min(latest.high_complexity_count / Math.max(latest.thoughts_per_window, 1), 1),
+            cognitive_load: Math.min(
+              latest.high_complexity_count / Math.max(latest.thoughts_per_window, 1),
+              1
+            ),
             processing_latency: 0, // Would need to be measured separately
           };
         }
@@ -366,9 +369,7 @@ export class PrometheusMetricsExporter {
     try {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       const sessions = await this.memoryStore.getSessions(100);
-      return sessions.filter(s => 
-        !s.end_time || (s.end_time && s.end_time > oneHourAgo)
-      ).length;
+      return sessions.filter(s => !s.end_time || (s.end_time && s.end_time > oneHourAgo)).length;
     } catch (error) {
       return 0;
     }
@@ -376,7 +377,8 @@ export class PrometheusMetricsExporter {
 
   private async getAverageConfidence(): Promise<number> {
     try {
-      const query = 'SELECT AVG(confidence) as avg_confidence FROM stored_thoughts WHERE confidence IS NOT NULL';
+      const query =
+        'SELECT AVG(confidence) as avg_confidence FROM stored_thoughts WHERE confidence IS NOT NULL';
       const result = await (this.memoryStore as any).query(query);
       return parseFloat(result.rows[0]?.avg_confidence || '0');
     } catch (error) {
@@ -386,7 +388,8 @@ export class PrometheusMetricsExporter {
 
   private async getAverageComplexity(): Promise<number> {
     try {
-      const query = 'SELECT AVG(complexity) as avg_complexity FROM stored_thoughts WHERE complexity IS NOT NULL';
+      const query =
+        'SELECT AVG(complexity) as avg_complexity FROM stored_thoughts WHERE complexity IS NOT NULL';
       const result = await (this.memoryStore as any).query(query);
       return parseFloat(result.rows[0]?.avg_complexity || '0');
     } catch (error) {
@@ -428,7 +431,8 @@ export class PrometheusMetricsExporter {
 
   private async getAverageEffectiveness(): Promise<number> {
     try {
-      const query = 'SELECT AVG(effectiveness_score) as avg_effectiveness FROM stored_thoughts WHERE effectiveness_score IS NOT NULL';
+      const query =
+        'SELECT AVG(effectiveness_score) as avg_effectiveness FROM stored_thoughts WHERE effectiveness_score IS NOT NULL';
       const result = await (this.memoryStore as any).query(query);
       return parseFloat(result.rows[0]?.avg_effectiveness || '0');
     } catch (error) {
@@ -494,7 +498,10 @@ export class PrometheusMetricsExporter {
       if (typeof (this.memoryStore as any).analyzePatternEffectiveness === 'function') {
         const patterns = await (this.memoryStore as any).analyzePatternEffectiveness(7);
         if (patterns.length > 0) {
-          const totalEffectiveness = patterns.reduce((sum: number, p: any) => sum + (p.avg_effectiveness || 0), 0);
+          const totalEffectiveness = patterns.reduce(
+            (sum: number, p: any) => sum + (p.avg_effectiveness || 0),
+            0
+          );
           return totalEffectiveness / patterns.length;
         }
       }
@@ -562,18 +569,20 @@ export class PrometheusMetricsExporter {
   startMetricsServer(port = 9090, intervalMs = 15000): void {
     // This would start an HTTP server to serve metrics
     // For now, we'll just log metrics periodically
-    console.error(`🔧 Starting Prometheus metrics export on port ${port} (interval: ${intervalMs}ms)`);
-    
+    console.error(
+      `🔧 Starting Prometheus metrics export on port ${port} (interval: ${intervalMs}ms)`
+    );
+
     // Clear any existing interval
     if (this.metricsInterval) {
       clearInterval(this.metricsInterval);
     }
-    
+
     this.metricsInterval = setInterval(async () => {
       try {
         const metricsText = await this.exportMetrics();
         console.error(`📊 Prometheus metrics updated (${metricsText.split('\n').length} lines)`);
-        
+
         // In a real implementation, this would be served via HTTP
         // Example: Express.js endpoint that returns metricsText
       } catch (error) {

@@ -81,11 +81,13 @@ npm run db:clean    # Clean database data
 ### Core Tables
 
 **reasoning_sessions**
+
 - Session metadata and cognitive metrics
 - Success tracking and learning insights
 - TimescaleDB hypertable for time-series analytics
 
 **stored_thoughts**
+
 - Individual thoughts with branching/revision tracking
 - JSONB context storage for flexible metadata
 - Full-text search and similarity matching
@@ -100,19 +102,19 @@ npm run db:clean    # Clean database data
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MEMORY_STORE_TYPE` | Store type (memory\|postgresql) | memory |
-| `POSTGRES_HOST` | Database host | localhost |
-| `POSTGRES_PORT` | Database port | 5432 |
-| `POSTGRES_DB` | Database name | map_think_do |
-| `POSTGRES_USER` | Database user | mtd_user |
-| `POSTGRES_PASSWORD` | Database password | p4ssw0rd |
-| `POSTGRES_POOL_MAX` | Max connections | 20 |
-| `POSTGRES_POOL_MIN` | Min connections | 5 |
-| `POSTGRES_ENABLE_TIMESERIES` | Enable TimescaleDB | true |
-| `POSTGRES_SSL` | Enable SSL connections | false |
-| `POSTGRES_DEBUG` | Enable debug logging | false |
+| Variable                     | Description                     | Default      |
+| ---------------------------- | ------------------------------- | ------------ |
+| `MEMORY_STORE_TYPE`          | Store type (memory\|postgresql) | memory       |
+| `POSTGRES_HOST`              | Database host                   | localhost    |
+| `POSTGRES_PORT`              | Database port                   | 5432         |
+| `POSTGRES_DB`                | Database name                   | map_think_do |
+| `POSTGRES_USER`              | Database user                   | mtd_user     |
+| `POSTGRES_PASSWORD`          | Database password               | p4ssw0rd     |
+| `POSTGRES_POOL_MAX`          | Max connections                 | 20           |
+| `POSTGRES_POOL_MIN`          | Min connections                 | 5            |
+| `POSTGRES_ENABLE_TIMESERIES` | Enable TimescaleDB              | true         |
+| `POSTGRES_SSL`               | Enable SSL connections          | false        |
+| `POSTGRES_DEBUG`             | Enable debug logging            | false        |
 
 ## Troubleshooting
 
@@ -136,9 +138,9 @@ psql -h localhost -U mtd_user -d map_think_do -c "SELECT 1"
 SELECT count(*) FROM pg_stat_activity;
 
 -- Monitor query performance (requires pg_stat_statements)
-SELECT query, mean_time, calls 
-FROM pg_stat_statements 
-ORDER BY mean_time DESC 
+SELECT query, mean_time, calls
+FROM pg_stat_statements
+ORDER BY mean_time DESC
 LIMIT 10;
 ```
 

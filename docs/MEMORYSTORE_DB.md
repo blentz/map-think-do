@@ -54,12 +54,14 @@ node dist/test/memory/run-acceptance-tests.js
 The implementation uses two core tables:
 
 **reasoning_sessions**: Stores complete reasoning sessions
+
 - Session metadata (start/end times, objectives, domains)
 - Cognitive metrics (confidence levels, effectiveness scores)
 - Learning insights (lessons learned, successful strategies)
 - Array fields for tags and cognitive patterns
 
 **stored_thoughts**: Stores individual thoughts within sessions
+
 - Thought content and metadata
 - Branching and revision tracking
 - JSONB context storage for flexible metadata
@@ -68,6 +70,7 @@ The implementation uses two core tables:
 ### TimescaleDB Integration
 
 When TimescaleDB is available, tables are converted to hypertables for:
+
 - Efficient time-series data storage
 - Automatic partitioning by time
 - Optimized queries for temporal analytics
@@ -84,17 +87,17 @@ When TimescaleDB is available, tables are converted to hypertables for:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MEMORY_STORE_TYPE` | Store type (memory\|postgresql) | memory |
-| `POSTGRES_HOST` | Database host | localhost |
-| `POSTGRES_PORT` | Database port | 5432 |
-| `POSTGRES_DB` | Database name | map_think_do |
-| `POSTGRES_USER` | Database user | mtd_user |
-| `POSTGRES_PASSWORD` | Database password | p4ssw0rd |
-| `POSTGRES_POOL_MAX` | Max connections | 20 |
-| `POSTGRES_POOL_MIN` | Min connections | 5 |
-| `POSTGRES_ENABLE_TIMESERIES` | Enable TimescaleDB | true |
+| Variable                     | Description                     | Default      |
+| ---------------------------- | ------------------------------- | ------------ |
+| `MEMORY_STORE_TYPE`          | Store type (memory\|postgresql) | memory       |
+| `POSTGRES_HOST`              | Database host                   | localhost    |
+| `POSTGRES_PORT`              | Database port                   | 5432         |
+| `POSTGRES_DB`                | Database name                   | map_think_do |
+| `POSTGRES_USER`              | Database user                   | mtd_user     |
+| `POSTGRES_PASSWORD`          | Database password               | p4ssw0rd     |
+| `POSTGRES_POOL_MAX`          | Max connections                 | 20           |
+| `POSTGRES_POOL_MIN`          | Min connections                 | 5            |
+| `POSTGRES_ENABLE_TIMESERIES` | Enable TimescaleDB              | true         |
 
 ### SSL Configuration
 
@@ -165,10 +168,7 @@ const results = await store.queryThoughts({
 });
 
 // Find similar thoughts
-const similar = await store.findSimilarThoughts(
-  'debugging systematic approach',
-  10
-);
+const similar = await store.findSimilarThoughts('debugging systematic approach', 10);
 
 // Get comprehensive statistics
 const stats = await store.getStats();
@@ -197,6 +197,7 @@ console.log(`Migrated ${stats.thoughts.migrated} thoughts`);
 ### Health Checks
 
 The PostgreSQL store includes built-in health monitoring:
+
 - Connection pool status monitoring
 - Automatic reconnection on failures
 - Query performance tracking
@@ -238,6 +239,7 @@ console.log(data);
 ### Common Issues
 
 **Connection Refused**
+
 ```bash
 # Check if PostgreSQL is running
 podman ps | grep postgresql
@@ -250,20 +252,22 @@ psql -h localhost -U mtd_user -d map_think_do -c "SELECT 1"
 ```
 
 **Schema Errors**
+
 ```bash
 # Reinitialize schema
 podman exec -it sentient-agi-postgresql psql -U mtd_user -d map_think_do -f /docker-entrypoint-initdb.d/02-schema.sql
 ```
 
 **Performance Issues**
+
 ```sql
 -- Check connection count
 SELECT count(*) FROM pg_stat_activity;
 
 -- Monitor query performance
-SELECT query, mean_time, calls 
-FROM pg_stat_statements 
-ORDER BY mean_time DESC 
+SELECT query, mean_time, calls
+FROM pg_stat_statements
+ORDER BY mean_time DESC
 LIMIT 10;
 ```
 
@@ -325,6 +329,7 @@ podman-compose --profile dev up -d
 ### High Availability
 
 For production systems, consider:
+
 - PostgreSQL streaming replication
 - Connection pooling with PgBouncer
 - Load balancing with HAProxy

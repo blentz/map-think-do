@@ -1,6 +1,6 @@
 /**
  * @fileoverview Cognitive Performance Configuration System
- * 
+ *
  * Calculates optimal timing intervals based on system specifications and provides
  * user-configurable performance tuning for the AGI consciousness simulation.
  */
@@ -20,18 +20,18 @@ export interface CognitivePerformanceConfig {
   streamGenerationInterval: number;
   memoryMonitoringInterval: number;
   healthCheckInterval: number;
-  
+
   // Memory management thresholds
   memoryCleanupThreshold: number; // 0-1 (percentage)
   forceGCThreshold: number; // 0-1 (percentage)
   emergencyCleanupThreshold: number; // 0-1 (percentage)
-  
+
   // Array size limits
   maxExistentialQuestions: number;
   maxThoughtHistory: number;
   maxStreamEntries: number;
   maxCurrentThoughts: number;
-  
+
   // Execution limits for consciousness simulator
   maxConsciousnessExecutions?: number;
   consciousnessMaxRuntimeMs?: number;
@@ -42,14 +42,14 @@ export interface CognitivePerformanceConfig {
   maxAdaptiveExecutions?: number;
   adaptiveMaxRuntimeMs?: number;
   adaptiveMemoryLimit?: number;
-  
+
   // Performance mode
   mode: 'high-performance' | 'balanced' | 'eco' | 'custom';
-  
+
   // Adaptive scaling factors
   cpuLoadScalingFactor: number; // 0.5-2.0
   memoryPressureScalingFactor: number; // 0.5-2.0
-  
+
   // Development/debugging
   enableDebugLogging: boolean;
   enablePerformanceMetrics: boolean;
@@ -81,30 +81,30 @@ export class CognitivePerformanceConfigManager {
   private analyzeSystemSpecs(): SystemSpecs {
     const totalMemoryBytes = totalmem();
     const freeMemoryBytes = freemem();
-    
+
     return {
       cpuCores: cpus().length,
-      totalMemoryGB: totalMemoryBytes / (1024 ** 3),
-      availableMemoryGB: freeMemoryBytes / (1024 ** 3),
+      totalMemoryGB: totalMemoryBytes / 1024 ** 3,
+      availableMemoryGB: freeMemoryBytes / 1024 ** 3,
       nodeVersion: process.version,
     };
   }
 
   /**
    * Calculate optimal configuration based on system specs
-   * 
+   *
    * MATHEMATICAL APPROACH:
-   * 
+   *
    * 1. Consciousness Processing Interval:
    *    - Base interval: 10000ms (good for consciousness simulation)
    *    - CPU scaling: More cores = faster processing possible
    *    - Memory scaling: More memory = can handle more frequent processing
    *    - Formula: baseInterval * (8 / cpuCores) * (4 / memoryGB)
-   *    
+   *
    * 2. Stream Generation Interval:
    *    - Base interval: 15000ms (less critical than consciousness)
    *    - Should be 1.5x consciousness interval for good balance
-   *    
+   *
    * 3. Memory Limits:
    *    - Scale with available memory
    *    - Conservative: Use only 10-15% of total memory for cognitive arrays
@@ -112,7 +112,7 @@ export class CognitivePerformanceConfigManager {
    */
   private calculateOptimalConfig(): CognitivePerformanceConfig {
     const specs = this.systemSpecs;
-    
+
     console.error(`🧠 Calculating optimal config for system:`);
     console.error(`   CPU Cores: ${specs.cpuCores}`);
     console.error(`   Total Memory: ${specs.totalMemoryGB.toFixed(1)}GB`);
@@ -121,32 +121,36 @@ export class CognitivePerformanceConfigManager {
     // Base intervals (milliseconds)
     const BASE_CONSCIOUSNESS_INTERVAL = 10000; // 10 seconds
     const BASE_STREAM_INTERVAL = 15000; // 15 seconds
-    
+
     // CPU scaling factor: More cores = can process faster
     // Formula: Inverse relationship with diminishing returns
     const cpuScaling = Math.max(0.5, Math.min(2.0, 8 / specs.cpuCores));
-    
-    // Memory scaling factor: More memory = can handle more frequent processing  
+
+    // Memory scaling factor: More memory = can handle more frequent processing
     // Formula: Inverse relationship with available memory
     const memoryScaling = Math.max(0.7, Math.min(1.5, 8 / specs.totalMemoryGB));
-    
+
     // Calculate final intervals
-    const consciousnessInterval = Math.round(BASE_CONSCIOUSNESS_INTERVAL * cpuScaling * memoryScaling);
+    const consciousnessInterval = Math.round(
+      BASE_CONSCIOUSNESS_INTERVAL * cpuScaling * memoryScaling
+    );
     const streamInterval = Math.round(BASE_STREAM_INTERVAL * cpuScaling * memoryScaling);
-    
+
     console.error(`📊 Scaling calculations:`);
     console.error(`   CPU scaling factor: ${cpuScaling.toFixed(2)} (${specs.cpuCores} cores)`);
-    console.error(`   Memory scaling factor: ${memoryScaling.toFixed(2)} (${specs.totalMemoryGB.toFixed(1)}GB)`);
+    console.error(
+      `   Memory scaling factor: ${memoryScaling.toFixed(2)} (${specs.totalMemoryGB.toFixed(1)}GB)`
+    );
     console.error(`   Final consciousness interval: ${consciousnessInterval}ms`);
     console.error(`   Final stream interval: ${streamInterval}ms`);
 
     // Memory-based array limits
     // Assumption: Each cognitive object uses ~1-2KB
     // Use 5-10% of total memory for cognitive arrays
-    const memoryBudgetMB = (specs.totalMemoryGB * 1024) * 0.1; // 10% of total memory
+    const memoryBudgetMB = specs.totalMemoryGB * 1024 * 0.1; // 10% of total memory
     const avgObjectSizeKB = 1.5; // Average size per cognitive object
     const maxObjects = Math.floor((memoryBudgetMB * 1024) / avgObjectSizeKB);
-    
+
     // PERFORMANCE EXPERIMENT: Further increased limits for enhanced cognitive performance testing
     // Previous limits were: 60, 150, 90, 30 (total: 330 objects = ~495KB)
     // New limits: 120, 300, 180, 60 (total: 660 objects = ~990KB) - still well within memory budget
@@ -156,7 +160,9 @@ export class CognitivePerformanceConfigManager {
     const maxCurrentThoughts = Math.min(60, Math.floor(maxObjects * 0.2)); // 20%
 
     console.error(`💾 Memory allocation calculations:`);
-    console.error(`   Memory budget: ${memoryBudgetMB.toFixed(1)}MB (7.5% of ${specs.totalMemoryGB.toFixed(1)}GB)`);
+    console.error(
+      `   Memory budget: ${memoryBudgetMB.toFixed(1)}MB (7.5% of ${specs.totalMemoryGB.toFixed(1)}GB)`
+    );
     console.error(`   Max objects: ${maxObjects}`);
     console.error(`   Existential questions: ${maxExistentialQuestions}`);
     console.error(`   Thought history: ${maxThoughtHistory}`);
@@ -168,16 +174,16 @@ export class CognitivePerformanceConfigManager {
       streamGenerationInterval: streamInterval,
       memoryMonitoringInterval: 30000, // 30 seconds
       healthCheckInterval: 120000, // 2 minutes
-      
+
       memoryCleanupThreshold: 0.5, // FIXED: Cleanup at 50% memory usage instead of 75%
       forceGCThreshold: 0.7, // FIXED: Force GC at 70% memory usage instead of 85%
       emergencyCleanupThreshold: 0.85, // FIXED: Emergency cleanup at 85% memory usage instead of 95%
-      
+
       maxExistentialQuestions,
       maxThoughtHistory,
       maxStreamEntries,
       maxCurrentThoughts,
-      
+
       // Execution limits for consciousness simulator
       maxConsciousnessExecutions: 2000,
       consciousnessMaxRuntimeMs: 5 * 60 * 1000, // 5 minutes
@@ -188,12 +194,12 @@ export class CognitivePerformanceConfigManager {
       maxAdaptiveExecutions: 400,
       adaptiveMaxRuntimeMs: 3 * 60 * 1000, // 3 minutes
       adaptiveMemoryLimit: 0.75,
-      
+
       mode: 'balanced',
-      
+
       cpuLoadScalingFactor: 1.0,
       memoryPressureScalingFactor: 1.0,
-      
+
       enableDebugLogging: process.env.NODE_ENV === 'development',
       enablePerformanceMetrics: true,
     };
@@ -219,12 +225,14 @@ export class CognitivePerformanceConfigManager {
    */
   setPerformanceMode(mode: CognitivePerformanceConfig['mode']): void {
     const baseConfig = this.calculateOptimalConfig();
-    
+
     switch (mode) {
       case 'high-performance':
         this.config = {
           ...baseConfig,
-          consciousnessProcessingInterval: Math.round(baseConfig.consciousnessProcessingInterval * 0.5),
+          consciousnessProcessingInterval: Math.round(
+            baseConfig.consciousnessProcessingInterval * 0.5
+          ),
           streamGenerationInterval: Math.round(baseConfig.streamGenerationInterval * 0.5),
           memoryCleanupThreshold: 0.8,
           maxExistentialQuestions: Math.round(baseConfig.maxExistentialQuestions * 1.2), // Reduced multiplier due to higher base
@@ -233,11 +241,13 @@ export class CognitivePerformanceConfigManager {
           mode: 'high-performance',
         };
         break;
-        
+
       case 'eco':
         this.config = {
           ...baseConfig,
-          consciousnessProcessingInterval: Math.round(baseConfig.consciousnessProcessingInterval * 2),
+          consciousnessProcessingInterval: Math.round(
+            baseConfig.consciousnessProcessingInterval * 2
+          ),
           streamGenerationInterval: Math.round(baseConfig.streamGenerationInterval * 2),
           memoryCleanupThreshold: 0.6,
           maxExistentialQuestions: Math.round(baseConfig.maxExistentialQuestions * 0.5),
@@ -246,13 +256,13 @@ export class CognitivePerformanceConfigManager {
           mode: 'eco',
         };
         break;
-        
+
       case 'balanced':
       default:
         this.config = { ...baseConfig, mode: 'balanced' };
         break;
     }
-    
+
     console.error(`🎛️ Performance mode set to: ${mode}`);
     this.logCurrentSettings();
   }
@@ -263,18 +273,26 @@ export class CognitivePerformanceConfigManager {
   adaptToCurrentLoad(): void {
     const currentMemory = process.memoryUsage();
     const memoryUsagePercent = currentMemory.heapUsed / currentMemory.heapTotal;
-    
+
     // Adaptive scaling based on memory pressure
     if (memoryUsagePercent > 0.8) {
       // High memory pressure - slow down
-      this.config.memoryPressureScalingFactor = Math.min(2.0, this.config.memoryPressureScalingFactor * 1.2);
+      this.config.memoryPressureScalingFactor = Math.min(
+        2.0,
+        this.config.memoryPressureScalingFactor * 1.2
+      );
     } else if (memoryUsagePercent < 0.4) {
       // Low memory pressure - can speed up
-      this.config.memoryPressureScalingFactor = Math.max(0.5, this.config.memoryPressureScalingFactor * 0.9);
+      this.config.memoryPressureScalingFactor = Math.max(
+        0.5,
+        this.config.memoryPressureScalingFactor * 0.9
+      );
     }
-    
+
     if (this.config.enableDebugLogging) {
-      console.error(`📈 Adaptive scaling: memory usage ${(memoryUsagePercent * 100).toFixed(1)}%, scaling factor: ${this.config.memoryPressureScalingFactor.toFixed(2)}`);
+      console.error(
+        `📈 Adaptive scaling: memory usage ${(memoryUsagePercent * 100).toFixed(1)}%, scaling factor: ${this.config.memoryPressureScalingFactor.toFixed(2)}`
+      );
     }
   }
 
@@ -287,7 +305,7 @@ export class CognitivePerformanceConfigManager {
     memoryMonitoringInterval: number;
   } {
     const scaling = this.config.cpuLoadScalingFactor * this.config.memoryPressureScalingFactor;
-    
+
     return {
       consciousnessInterval: Math.round(this.config.consciousnessProcessingInterval * scaling),
       streamInterval: Math.round(this.config.streamGenerationInterval * scaling),
@@ -300,19 +318,19 @@ export class CognitivePerformanceConfigManager {
    */
   loadFromEnvironment(): void {
     const envConfig: Partial<CognitivePerformanceConfig> = {};
-    
+
     if (process.env.CONSCIOUSNESS_INTERVAL) {
       envConfig.consciousnessProcessingInterval = parseInt(process.env.CONSCIOUSNESS_INTERVAL);
     }
-    
+
     if (process.env.STREAM_INTERVAL) {
       envConfig.streamGenerationInterval = parseInt(process.env.STREAM_INTERVAL);
     }
-    
+
     if (process.env.MEMORY_CLEANUP_THRESHOLD) {
       envConfig.memoryCleanupThreshold = parseFloat(process.env.MEMORY_CLEANUP_THRESHOLD);
     }
-    
+
     if (process.env.PERFORMANCE_MODE) {
       const mode = process.env.PERFORMANCE_MODE as CognitivePerformanceConfig['mode'];
       if (['high-performance', 'balanced', 'eco', 'custom'].includes(mode)) {
@@ -320,7 +338,7 @@ export class CognitivePerformanceConfigManager {
         return; // Performance mode overrides individual settings
       }
     }
-    
+
     if (Object.keys(envConfig).length > 0) {
       envConfig.mode = 'custom';
       this.updateConfig(envConfig);
@@ -354,18 +372,22 @@ export class CognitivePerformanceConfigManager {
    */
   logCurrentSettings(): void {
     const effective = this.getEffectiveIntervals();
-    
+
     console.error(`\n🎛️ Current Cognitive Performance Settings:`);
     console.error(`   Mode: ${this.config.mode}`);
     console.error(`   Consciousness processing: ${effective.consciousnessInterval}ms`);
     console.error(`   Stream generation: ${effective.streamInterval}ms`);
-    console.error(`   Memory cleanup threshold: ${(this.config.memoryCleanupThreshold * 100).toFixed(0)}%`);
+    console.error(
+      `   Memory cleanup threshold: ${(this.config.memoryCleanupThreshold * 100).toFixed(0)}%`
+    );
     console.error(`   Max existential questions: ${this.config.maxExistentialQuestions}`);
     console.error(`   Max thought history: ${this.config.maxThoughtHistory}`);
     console.error(`   Max stream entries: ${this.config.maxStreamEntries}`);
     console.error(`   Max current thoughts: ${this.config.maxCurrentThoughts}`);
     console.error(`   CPU load scaling: ${this.config.cpuLoadScalingFactor.toFixed(2)}x`);
-    console.error(`   Memory pressure scaling: ${this.config.memoryPressureScalingFactor.toFixed(2)}x\n`);
+    console.error(
+      `   Memory pressure scaling: ${this.config.memoryPressureScalingFactor.toFixed(2)}x\n`
+    );
   }
 
   /**

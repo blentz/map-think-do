@@ -1,6 +1,6 @@
 /**
  * @fileoverview Prompt Intelligence Plugin for AGI-like Learning
- * 
+ *
  * This plugin integrates stored prompt patterns with the cognitive orchestrator
  * to enable pattern learning, cognitive priming, and adaptive reasoning based
  * on historical prompt success patterns. Achieves true AGI-like learning from experience.
@@ -64,7 +64,7 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
       'Leverages stored prompt patterns for AGI-like learning and cognitive enhancement',
       '1.0.0'
     );
-    
+
     // Initialize prompt intelligence components
     this.promptClassifier = new PromptClassifier();
     this.intentExtractor = new IntentExtractor();
@@ -83,14 +83,14 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
     // Always activate for prompt pattern learning - this is core to AGI
     const currentThought = context.current_thought || '';
     const thoughtNumber = context.thought_history.length + 1;
-    
+
     // Higher activation for early thoughts (need more guidance)
     const earlyThoughtBonus = thoughtNumber <= 3 ? 0.3 : 0;
-    
+
     // Higher activation for complex prompts
     const complexity = await this.assessPromptComplexity(currentThought);
     const complexityBonus = complexity > 5 ? 0.2 : 0;
-    
+
     // Base activation for pattern learning
     const baseActivation = 0.5;
     const activationScore = Math.min(1.0, baseActivation + earlyThoughtBonus + complexityBonus);
@@ -128,33 +128,36 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
       const [classification, intent, complexity] = await Promise.all([
         this.promptClassifier.classifyPrompt(currentThought),
         this.intentExtractor.extractIntent(currentThought),
-        this.complexityEstimator.estimateComplexity(currentThought)
+        this.complexityEstimator.estimateComplexity(currentThought),
       ]);
 
       insights.push({
         type: 'prompt_analysis',
         confidence: 0.9,
         description: `Current prompt classified as ${classification.type} with ${classification.confidence.toFixed(2)} confidence`,
-        data: { classification, intent, complexity }
+        data: { classification, intent, complexity },
       });
 
       // 2. Find similar successful prompts for pattern learning
-      const similarPrompts = await this.findSimilarSuccessfulPrompts(currentThought, classification.type);
-      
+      const similarPrompts = await this.findSimilarSuccessfulPrompts(
+        currentThought,
+        classification.type
+      );
+
       if (similarPrompts.length > 0) {
         const patternInsights = await this.analyzeSuccessPatterns(similarPrompts);
         insights.push({
           type: 'success_patterns',
           confidence: 0.8,
           description: `Found ${similarPrompts.length} similar successful prompts with patterns`,
-          data: patternInsights
+          data: patternInsights,
         });
 
         // 3. Generate cognitive priming recommendations
         const primingRecommendations = this.generateCognitivePriming(
-          classification, 
-          intent, 
-          complexity, 
+          classification,
+          intent,
+          complexity,
           patternInsights
         );
 
@@ -166,8 +169,8 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
             confidence: 0.8,
             expected_benefit: 'Cognitive priming from similar prompt patterns',
             priming_data: primingRecommendations,
-            similar_prompts_count: similarPrompts.length
-          }
+            similar_prompts_count: similarPrompts.length,
+          },
         });
 
         recommendations.push(
@@ -176,7 +179,11 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
       }
 
       // 4. Detect potential breakthrough opportunities
-      const breakthroughPotential = this.assessBreakthroughPotential(classification, intent, complexity);
+      const breakthroughPotential = this.assessBreakthroughPotential(
+        classification,
+        intent,
+        complexity
+      );
       if (breakthroughPotential.likelihood > 0.6) {
         interventions.push({
           type: 'meta_guidance',
@@ -185,25 +192,36 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
             plugin_id: this.id,
             confidence: breakthroughPotential.likelihood,
             expected_benefit: 'Breakthrough opportunity guidance',
-            breakthrough_indicators: breakthroughPotential.indicators
-          }
+            breakthrough_indicators: breakthroughPotential.indicators,
+          },
         });
 
-        recommendations.push('High breakthrough potential detected - apply creative and systematic thinking');
+        recommendations.push(
+          'High breakthrough potential detected - apply creative and systematic thinking'
+        );
       }
 
       // 5. Learning feedback for future pattern recognition
-      const learningInsights = this.generateLearningInsights(classification, intent, complexity, similarPrompts);
+      const learningInsights = this.generateLearningInsights(
+        classification,
+        intent,
+        complexity,
+        similarPrompts
+      );
       insights.push({
         type: 'pattern_learning',
         confidence: 0.7,
         description: 'Generated learning insights for future cognitive enhancement',
-        data: learningInsights
+        data: learningInsights,
       });
 
       // Combine all insights and interventions into a single comprehensive intervention
-      const combinedContent = this.combineInterventionContent(interventions, insights, recommendations);
-      
+      const combinedContent = this.combineInterventionContent(
+        interventions,
+        insights,
+        recommendations
+      );
+
       return {
         type: 'context_enhancement',
         content: combinedContent,
@@ -211,14 +229,24 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
           plugin_id: this.id,
           confidence: insights.length > 0 ? insights[0].confidence : 0.7,
           expected_benefit: 'AGI-like cognitive priming and pattern learning enhancement',
-          side_effects: ['increased processing complexity', 'potential cognitive bias from historical patterns'],
+          side_effects: [
+            'increased processing complexity',
+            'potential cognitive bias from historical patterns',
+          ],
         },
         follow_up_needed: true,
         next_check_after: 2,
-        success_metrics: ['improved reasoning quality', 'better pattern recognition', 'enhanced cognitive priming'],
-        failure_indicators: ['pattern over-reliance', 'reduced flexibility', 'cognitive bias amplification'],
+        success_metrics: [
+          'improved reasoning quality',
+          'better pattern recognition',
+          'enhanced cognitive priming',
+        ],
+        failure_indicators: [
+          'pattern over-reliance',
+          'reduced flexibility',
+          'cognitive bias amplification',
+        ],
       };
-
     } catch (error) {
       console.error(`Error in ${this.id} intervention:`, error);
       return this.createMinimalIntervention(`Error during prompt intelligence analysis: ${error}`);
@@ -241,7 +269,7 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
    * Find similar successful prompts for pattern learning
    */
   private async findSimilarSuccessfulPrompts(
-    currentPrompt: string, 
+    currentPrompt: string,
     promptType: string
   ): Promise<StoredPrompt[]> {
     try {
@@ -249,7 +277,7 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
       const recentPrompts = await this.memoryStore!.queryPrompts({
         prompt_type: promptType,
         processing_success: true,
-        limit: 50
+        limit: 50,
       });
 
       // Use similarity detector to find most relevant prompts
@@ -260,9 +288,7 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
         0.4
       );
 
-      return recentPrompts.filter(p => 
-        similarPrompts.some(s => s.prompt_id === p.id)
-      );
+      return recentPrompts.filter(p => similarPrompts.some(s => s.prompt_id === p.id));
     } catch (error) {
       console.error('Error finding similar prompts:', error);
       return [];
@@ -275,28 +301,34 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
   private async analyzeSuccessPatterns(prompts: StoredPrompt[]): Promise<PromptPatternInsight> {
     const successfulPrompts = prompts.filter(p => p.processing_success === true);
     const successRate = successfulPrompts.length / prompts.length;
-    
-    const avgComplexity = prompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / prompts.length;
-    
+
+    const avgComplexity =
+      prompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / prompts.length;
+
     // Extract common strategies from successful prompts
     const strategies = new Set<string>();
     const failures = new Set<string>();
     let totalCognitiveLoad = 0;
-    
+
     for (const prompt of prompts) {
       if (prompt.processing_success) {
         // Extract successful strategies from objectives and requirements
         prompt.extracted_intent?.objectives?.forEach((obj: string) => {
-          if (obj.includes('step') || obj.includes('systematic')) strategies.add('systematic_approach');
-          if (obj.includes('creative') || obj.includes('innovative')) strategies.add('creative_thinking');
-          if (obj.includes('analyze') || obj.includes('examine')) strategies.add('analytical_thinking');
+          if (obj.includes('step') || obj.includes('systematic'))
+            strategies.add('systematic_approach');
+          if (obj.includes('creative') || obj.includes('innovative'))
+            strategies.add('creative_thinking');
+          if (obj.includes('analyze') || obj.includes('examine'))
+            strategies.add('analytical_thinking');
         });
       } else {
         // Extract failure modes
-        if (prompt.complexity_estimate && prompt.complexity_estimate > 7) failures.add('high_complexity');
-        if ((prompt.extracted_intent?.constraints?.length || 0) > 3) failures.add('over_constrained');
+        if (prompt.complexity_estimate && prompt.complexity_estimate > 7)
+          failures.add('high_complexity');
+        if ((prompt.extracted_intent?.constraints?.length || 0) > 3)
+          failures.add('over_constrained');
       }
-      
+
       totalCognitiveLoad += prompt.estimated_cognitive_load || 0;
     }
 
@@ -307,7 +339,7 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
       common_strategies: Array.from(strategies),
       failure_modes: Array.from(failures),
       cognitive_load_impact: totalCognitiveLoad / prompts.length,
-      breakthrough_indicators: ['systematic_approach', 'creative_synthesis', 'pattern_recognition']
+      breakthrough_indicators: ['systematic_approach', 'creative_synthesis', 'pattern_recognition'],
     };
   }
 
@@ -333,8 +365,10 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
     if (complexity.complexity > 6) focusAreas.push('complexity_management');
     if (intent.constraints.length > 0) focusAreas.push('constraint_satisfaction');
     if (intent.objectives.length > 2) focusAreas.push('multi_objective_optimization');
-    if (patterns.common_strategies.includes('creative_thinking')) focusAreas.push('creative_synthesis');
-    if (patterns.common_strategies.includes('systematic_approach')) focusAreas.push('systematic_analysis');
+    if (patterns.common_strategies.includes('creative_thinking'))
+      focusAreas.push('creative_synthesis');
+    if (patterns.common_strategies.includes('systematic_approach'))
+      focusAreas.push('systematic_analysis');
 
     // Predict challenges based on pattern analysis
     const expectedChallenges = [...patterns.failure_modes];
@@ -350,15 +384,19 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
         analytical_thinking: Math.min(1, complexity.complexity / 10),
         creative_thinking: patterns.common_strategies.includes('creative_thinking') ? 0.8 : 0.3,
         systematic_approach: patterns.common_strategies.includes('systematic_approach') ? 0.9 : 0.5,
-        pattern_recognition: patterns.success_rate
-      }
+        pattern_recognition: patterns.success_rate,
+      },
     };
   }
 
   /**
    * Assess breakthrough potential based on prompt characteristics
    */
-  private assessBreakthroughPotential(classification: any, intent: any, complexity: any): {
+  private assessBreakthroughPotential(
+    classification: any,
+    intent: any,
+    complexity: any
+  ): {
     likelihood: number;
     indicators: string[];
     guidance: string[];
@@ -414,18 +452,21 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
         type: classification.type,
         confidence: classification.confidence,
         complexity_level: complexity.complexity,
-        intent_clarity: intent.extraction_confidence
+        intent_clarity: intent.extraction_confidence,
       },
       historical_context: {
         similar_prompts_count: similarPrompts.length,
-        average_success_rate: similarPrompts.filter(p => p.processing_success).length / Math.max(similarPrompts.length, 1),
-        pattern_strength: similarPrompts.length > 5 ? 'strong' : similarPrompts.length > 2 ? 'moderate' : 'weak'
+        average_success_rate:
+          similarPrompts.filter(p => p.processing_success).length /
+          Math.max(similarPrompts.length, 1),
+        pattern_strength:
+          similarPrompts.length > 5 ? 'strong' : similarPrompts.length > 2 ? 'moderate' : 'weak',
       },
       learning_opportunities: {
         pattern_reinforcement: similarPrompts.length > 0,
         novel_exploration: similarPrompts.length === 0,
-        complexity_calibration: Math.abs(complexity.complexity - 5) > 2
-      }
+        complexity_calibration: Math.abs(complexity.complexity - 5) > 2,
+      },
     };
   }
 
@@ -434,9 +475,9 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
    */
   private formatCognitivePrimingAdvice(priming: CognitivePrimingRecommendation): string {
     let advice = `**🧠 Cognitive Priming Based on Pattern Analysis**\n\n`;
-    
+
     advice += `**Recommended Approach:** ${priming.reasoning_approach.replace(/_/g, ' ')}\n\n`;
-    
+
     if (priming.cognitive_focus_areas.length > 0) {
       advice += `**Focus Areas:**\n`;
       priming.cognitive_focus_areas.forEach(area => {
@@ -469,7 +510,7 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
   private formatBreakthroughGuidance(breakthrough: any): string {
     let guidance = `**🚀 Breakthrough Opportunity Detected!**\n\n`;
     guidance += `**Likelihood:** ${(breakthrough.likelihood * 100).toFixed(0)}%\n\n`;
-    
+
     if (breakthrough.indicators.length > 0) {
       guidance += `**Breakthrough Indicators:**\n`;
       breakthrough.indicators.forEach((indicator: string) => {
@@ -494,7 +535,11 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
   /**
    * Combine multiple intervention components into a single content string
    */
-  private combineInterventionContent(interventions: any[], insights: any[], recommendations: string[]): string {
+  private combineInterventionContent(
+    interventions: any[],
+    insights: any[],
+    recommendations: string[]
+  ): string {
     let content = '';
 
     if (interventions.length > 0) {
@@ -524,7 +569,9 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
       });
     }
 
-    return content || 'AGI prompt intelligence analysis completed with no specific recommendations.';
+    return (
+      content || 'AGI prompt intelligence analysis completed with no specific recommendations.'
+    );
   }
 
   private createMinimalIntervention(message: string): PluginIntervention {
@@ -549,19 +596,19 @@ export class PromptIntelligencePlugin extends CognitivePlugin {
     context: CognitiveContext
   ): Promise<void> {
     // Store feedback for pattern learning
-    console.error(`📝 Prompt Intelligence Plugin received feedback: outcome=${outcome}, impact=${impact_score}`);
+    console.error(
+      `📝 Prompt Intelligence Plugin received feedback: outcome=${outcome}, impact=${impact_score}`
+    );
   }
 
   /**
    * Adapt plugin behavior based on feedback (required by CognitivePlugin)
    */
-  async adapt(
-    performanceMetrics: {
-      success_rate: number;
-      average_confidence: number;
-      user_feedback_score: number;
-    }
-  ): Promise<void> {
+  async adapt(performanceMetrics: {
+    success_rate: number;
+    average_confidence: number;
+    user_feedback_score: number;
+  }): Promise<void> {
     // Adjust activation threshold based on performance
     if (performanceMetrics.success_rate > 0.8) {
       this.activationThreshold = Math.max(0.3, this.activationThreshold - 0.05);

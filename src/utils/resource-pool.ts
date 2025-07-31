@@ -20,7 +20,7 @@ export class ResourcePool<T> {
   }
 
   async acquire(): Promise<T> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const available = this.resources.find(r => !this.inUse.has(r));
       if (available) {
         this.inUse.add(available);
@@ -42,7 +42,7 @@ export class ResourcePool<T> {
 
   release(resource: T): void {
     this.inUse.delete(resource);
-    
+
     if (this.waiting.length > 0) {
       const waiter = this.waiting.shift()!;
       this.inUse.add(resource);
@@ -66,7 +66,7 @@ export class ResourcePool<T> {
       totalResources: this.resources.length,
       inUse: this.inUse.size,
       waiting: this.waiting.length,
-      available: this.resources.length - this.inUse.size
+      available: this.resources.length - this.inUse.size,
     };
   }
 }

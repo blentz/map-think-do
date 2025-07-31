@@ -1,6 +1,6 @@
 /**
  * @fileoverview Reasoning Improvement Tracker
- * 
+ *
  * Tracks and measures reasoning improvement by comparing prompt responses
  * across similar contexts and measuring quality improvements over time.
  */
@@ -23,7 +23,6 @@ export interface ReasoningComparison {
 }
 
 export class ReasoningImprovementTracker {
-  
   /**
    * Calculate reasoning improvement for a prompt by comparing it with similar previous prompts
    */
@@ -52,7 +51,7 @@ export class ReasoningImprovementTracker {
     const trendImprovement = this.calculateTrendImprovement(sortedPrompts, currentPrompt);
 
     // Weight recent comparison more heavily than trend
-    const weightedImprovement = (comparison.improvement_percentage * 0.7) + (trendImprovement * 0.3);
+    const weightedImprovement = comparison.improvement_percentage * 0.7 + trendImprovement * 0.3;
 
     return Math.max(-1, Math.min(1, weightedImprovement)); // Clamp to [-1, 1]
   }
@@ -66,23 +65,30 @@ export class ReasoningImprovementTracker {
 
     // Calculate overall improvement
     const improvements = [
-      (currentMetrics.clarity_score - previousMetrics.clarity_score) / previousMetrics.clarity_score,
-      (currentMetrics.logic_coherence - previousMetrics.logic_coherence) / previousMetrics.logic_coherence,
-      (currentMetrics.completeness_score - previousMetrics.completeness_score) / previousMetrics.completeness_score,
-      (currentMetrics.accuracy_score - previousMetrics.accuracy_score) / previousMetrics.accuracy_score,
-      (currentMetrics.creativity_score - previousMetrics.creativity_score) / previousMetrics.creativity_score
+      (currentMetrics.clarity_score - previousMetrics.clarity_score) /
+        previousMetrics.clarity_score,
+      (currentMetrics.logic_coherence - previousMetrics.logic_coherence) /
+        previousMetrics.logic_coherence,
+      (currentMetrics.completeness_score - previousMetrics.completeness_score) /
+        previousMetrics.completeness_score,
+      (currentMetrics.accuracy_score - previousMetrics.accuracy_score) /
+        previousMetrics.accuracy_score,
+      (currentMetrics.creativity_score - previousMetrics.creativity_score) /
+        previousMetrics.creativity_score,
     ].filter(imp => !isNaN(imp) && isFinite(imp));
 
-    const avgImprovement = improvements.length > 0 ? 
-      improvements.reduce((sum, imp) => sum + imp, 0) / improvements.length : 0;
+    const avgImprovement =
+      improvements.length > 0
+        ? improvements.reduce((sum, imp) => sum + imp, 0) / improvements.length
+        : 0;
 
     return {
       improvement_percentage: avgImprovement,
       metrics_comparison: {
         before: previousMetrics,
-        after: currentMetrics
+        after: currentMetrics,
       },
-      confidence: this.calculateConfidence(currentPrompt, previousPrompt)
+      confidence: this.calculateConfidence(currentPrompt, previousPrompt),
     };
   }
 
@@ -92,19 +98,19 @@ export class ReasoningImprovementTracker {
   private analyzePromptQuality(prompt: string): ReasoningMetrics {
     const words = prompt.split(/\s+/).filter(w => w.length > 0);
     const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    
+
     // Clarity score based on readability and structure
     const clarity_score = this.calculateClarityScore(prompt, words, sentences);
-    
+
     // Logic coherence based on logical connectors and flow
     const logic_coherence = this.calculateLogicCoherence(prompt);
-    
+
     // Completeness based on coverage of key elements
     const completeness_score = this.calculateCompletenessScore(prompt);
-    
+
     // Accuracy based on technical terms and precision
     const accuracy_score = this.calculateAccuracyScore(prompt);
-    
+
     // Creativity based on variety and novel approaches
     const creativity_score = this.calculateCreativityScore(prompt, words);
 
@@ -113,7 +119,7 @@ export class ReasoningImprovementTracker {
       logic_coherence,
       completeness_score,
       accuracy_score,
-      creativity_score
+      creativity_score,
     };
   }
 
@@ -130,7 +136,8 @@ export class ReasoningImprovementTracker {
     if (avgWordsPerSentence >= 8 && avgWordsPerSentence <= 25) score += 0.15;
 
     // Reward clear action words
-    const actionWords = /\b(implement|create|fix|analyze|optimize|design|build|test|debug|refactor)\b/gi;
+    const actionWords =
+      /\b(implement|create|fix|analyze|optimize|design|build|test|debug|refactor)\b/gi;
     const actionMatches = (prompt.match(actionWords) || []).length;
     score += Math.min(actionMatches * 0.05, 0.15);
 
@@ -141,12 +148,14 @@ export class ReasoningImprovementTracker {
     let score = 0.4; // Base score
 
     // Reward logical connectors
-    const logicalConnectors = /\b(because|therefore|however|although|while|since|if|then|so|thus|consequently)\b/gi;
+    const logicalConnectors =
+      /\b(because|therefore|however|although|while|since|if|then|so|thus|consequently)\b/gi;
     const connectorMatches = (prompt.match(logicalConnectors) || []).length;
     score += Math.min(connectorMatches * 0.1, 0.3);
 
     // Reward structured thinking
-    const structureIndicators = /\b(first|second|third|finally|also|additionally|furthermore|moreover|in conclusion)\b/gi;
+    const structureIndicators =
+      /\b(first|second|third|finally|also|additionally|furthermore|moreover|in conclusion)\b/gi;
     const structureMatches = (prompt.match(structureIndicators) || []).length;
     score += Math.min(structureMatches * 0.08, 0.2);
 
@@ -193,17 +202,20 @@ export class ReasoningImprovementTracker {
     let score = 0.4; // Base score
 
     // Reward technical terminology
-    const techTerms = /\b(API|database|algorithm|function|class|method|variable|array|object|interface|server|client|framework|library|package|module)\b/gi;
+    const techTerms =
+      /\b(API|database|algorithm|function|class|method|variable|array|object|interface|server|client|framework|library|package|module)\b/gi;
     const techMatches = (prompt.match(techTerms) || []).length;
     score += Math.min(techMatches * 0.03, 0.2);
 
     // Reward precise language
-    const preciseLanguage = /\b(specifically|exactly|precisely|particular|explicit|detailed|comprehensive)\b/gi;
+    const preciseLanguage =
+      /\b(specifically|exactly|precisely|particular|explicit|detailed|comprehensive)\b/gi;
     const preciseMatches = (prompt.match(preciseLanguage) || []).length;
     score += Math.min(preciseMatches * 0.05, 0.15);
 
     // Reward measurable criteria
-    const measurablePatterns = /\b(\d+\s*(ms|seconds?|minutes?|hours?|MB|GB|KB|bytes?|percent|%|times?))\b/gi;
+    const measurablePatterns =
+      /\b(\d+\s*(ms|seconds?|minutes?|hours?|MB|GB|KB|bytes?|percent|%|times?))\b/gi;
     const measurableMatches = (prompt.match(measurablePatterns) || []).length;
     score += Math.min(measurableMatches * 0.05, 0.15);
 
@@ -224,17 +236,20 @@ export class ReasoningImprovementTracker {
     score += vocabularyDiversity * 0.2;
 
     // Reward innovative approaches
-    const innovativeTerms = /\b(innovative|creative|novel|unique|original|alternative|different|new\s+approach|breakthrough|cutting-edge)\b/gi;
+    const innovativeTerms =
+      /\b(innovative|creative|novel|unique|original|alternative|different|new\s+approach|breakthrough|cutting-edge)\b/gi;
     const innovativeMatches = (prompt.match(innovativeTerms) || []).length;
     score += Math.min(innovativeMatches * 0.08, 0.2);
 
     // Reward multiple solution considerations
-    const alternativePatterns = /\b(alternatively|another\s+way|different\s+approach|consider|option|alternative)\b/gi;
+    const alternativePatterns =
+      /\b(alternatively|another\s+way|different\s+approach|consider|option|alternative)\b/gi;
     const alternativeMatches = (prompt.match(alternativePatterns) || []).length;
     score += Math.min(alternativeMatches * 0.06, 0.15);
 
     // Reward metaphors and analogies
-    const metaphorPatterns = /\b(like|similar\s+to|analogous|resembles|as\s+if|metaphor|analogy)\b/gi;
+    const metaphorPatterns =
+      /\b(like|similar\s+to|analogous|resembles|as\s+if|metaphor|analogy)\b/gi;
     const metaphorMatches = (prompt.match(metaphorPatterns) || []).length;
     score += Math.min(metaphorMatches * 0.05, 0.1);
 
@@ -250,15 +265,25 @@ export class ReasoningImprovementTracker {
     // Calculate quality scores for all prompts in chronological order
     const qualityScores = sortedPrompts.map(p => {
       const metrics = this.analyzePromptQuality(p.prompt);
-      return (metrics.clarity_score + metrics.logic_coherence + metrics.completeness_score + 
-              metrics.accuracy_score + metrics.creativity_score) / 5;
+      return (
+        (metrics.clarity_score +
+          metrics.logic_coherence +
+          metrics.completeness_score +
+          metrics.accuracy_score +
+          metrics.creativity_score) /
+        5
+      );
     });
 
     // Add current prompt score
     const currentMetrics = this.analyzePromptQuality(currentPrompt);
-    const currentScore = (currentMetrics.clarity_score + currentMetrics.logic_coherence + 
-                         currentMetrics.completeness_score + currentMetrics.accuracy_score + 
-                         currentMetrics.creativity_score) / 5;
+    const currentScore =
+      (currentMetrics.clarity_score +
+        currentMetrics.logic_coherence +
+        currentMetrics.completeness_score +
+        currentMetrics.accuracy_score +
+        currentMetrics.creativity_score) /
+      5;
     qualityScores.push(currentScore);
 
     // Calculate linear regression slope to determine trend
@@ -275,7 +300,7 @@ export class ReasoningImprovementTracker {
     }
 
     const slope = denominator !== 0 ? numerator / denominator : 0;
-    
+
     // Normalize slope to reasonable range
     return Math.max(-0.5, Math.min(0.5, slope * 5)); // Scale and clamp
   }
@@ -284,21 +309,22 @@ export class ReasoningImprovementTracker {
     // Base confidence on prompt length similarity and content overlap
     const currentWords = new Set(currentPrompt.toLowerCase().split(/\s+/));
     const previousWords = new Set(previousPrompt.toLowerCase().split(/\s+/));
-    
+
     const intersection = new Set([...currentWords].filter(w => previousWords.has(w)));
     const union = new Set([...currentWords, ...previousWords]);
-    
+
     const similarity = intersection.size / union.size;
-    
+
     // Higher similarity = higher confidence in comparison
-    const baseConfidence = 0.3 + (similarity * 0.5);
-    
+    const baseConfidence = 0.3 + similarity * 0.5;
+
     // Adjust based on prompt lengths (very different lengths = lower confidence)
-    const lengthRatio = Math.min(currentPrompt.length, previousPrompt.length) / 
-                       Math.max(currentPrompt.length, previousPrompt.length);
-    
+    const lengthRatio =
+      Math.min(currentPrompt.length, previousPrompt.length) /
+      Math.max(currentPrompt.length, previousPrompt.length);
+
     const lengthAdjustment = lengthRatio * 0.2;
-    
+
     return Math.min(baseConfidence + lengthAdjustment, 0.95);
   }
 
@@ -314,7 +340,7 @@ export class ReasoningImprovementTracker {
     }>
   ): Promise<Map<string, number>> {
     const improvements = new Map<string, number>();
-    
+
     // Group prompts by session for better comparison
     const promptsBySession = new Map<string, typeof prompts>();
     for (const prompt of prompts) {
@@ -333,15 +359,15 @@ export class ReasoningImprovementTracker {
       for (let i = 0; i < sortedPrompts.length; i++) {
         const currentPrompt = sortedPrompts[i];
         const previousPrompts = sortedPrompts.slice(0, i);
-        
+
         const improvement = await this.calculateReasoningImprovement(
           currentPrompt.prompt,
           previousPrompts.map(p => ({
             prompt: p.prompt,
-            created_at: p.created_at
+            created_at: p.created_at,
           }))
         );
-        
+
         improvements.set(currentPrompt.id, improvement);
       }
     }

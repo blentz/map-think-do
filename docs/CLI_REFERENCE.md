@@ -8,7 +8,7 @@ Complete reference for command-line tools and NPM scripts available in the Senti
 
 ```bash
 # Build and Development
-npm run build          # Compile TypeScript and make binaries executable  
+npm run build          # Compile TypeScript and make binaries executable
 npm run clean          # Remove dist directory
 npm run clean:build    # Clean and rebuild from scratch
 npm run dev            # Watch mode for development
@@ -48,7 +48,7 @@ npm run agi-demo       # Demonstrate AGI capabilities
 ```bash
 # Database Lifecycle
 npm run db:start       # Start PostgreSQL container
-npm run db:stop        # Stop PostgreSQL container  
+npm run db:stop        # Stop PostgreSQL container
 npm run db:restart     # Restart PostgreSQL container
 npm run db:status      # Check container status
 npm run db:logs        # View database logs
@@ -111,6 +111,7 @@ chmod +x ./scripts/cognitive-tuning.js
 ```
 
 **Output Example:**
+
 ```
 🎛️ Current Cognitive Performance Configuration:
 ============================================================
@@ -167,30 +168,30 @@ chmod +x ./scripts/cognitive-tuning.js
 ./scripts/cognitive-tuning.js set enableDebugLogging true
 ./scripts/cognitive-tuning.js set enablePerformanceMetrics false
 
-# Set floating point values  
+# Set floating point values
 ./scripts/cognitive-tuning.js set cpuLoadScalingFactor 1.2
 ./scripts/cognitive-tuning.js set memoryPressureScalingFactor 0.8
 ```
 
 **Available Configuration Keys:**
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `consciousnessProcessingInterval` | number | Consciousness cycle interval (ms) |
-| `streamGenerationInterval` | number | Stream generation interval (ms) |
-| `memoryMonitoringInterval` | number | Memory monitoring interval (ms) |
-| `healthCheckInterval` | number | Health check interval (ms) |
-| `memoryCleanupThreshold` | float | Memory cleanup threshold (0-1) |
-| `forceGCThreshold` | float | Force garbage collection threshold (0-1) |
-| `emergencyCleanupThreshold` | float | Emergency cleanup threshold (0-1) |
-| `maxExistentialQuestions` | number | Max existential questions |
-| `maxThoughtHistory` | number | Max thought history entries |
-| `maxStreamEntries` | number | Max stream of consciousness entries |
-| `maxCurrentThoughts` | number | Max current thoughts |
-| `cpuLoadScalingFactor` | float | CPU load scaling factor (0.5-2.0) |
-| `memoryPressureScalingFactor` | float | Memory pressure scaling factor (0.5-2.0) |
-| `enableDebugLogging` | boolean | Enable debug logging |
-| `enablePerformanceMetrics` | boolean | Enable performance metrics |
+| Key                               | Type    | Description                              |
+| --------------------------------- | ------- | ---------------------------------------- |
+| `consciousnessProcessingInterval` | number  | Consciousness cycle interval (ms)        |
+| `streamGenerationInterval`        | number  | Stream generation interval (ms)          |
+| `memoryMonitoringInterval`        | number  | Memory monitoring interval (ms)          |
+| `healthCheckInterval`             | number  | Health check interval (ms)               |
+| `memoryCleanupThreshold`          | float   | Memory cleanup threshold (0-1)           |
+| `forceGCThreshold`                | float   | Force garbage collection threshold (0-1) |
+| `emergencyCleanupThreshold`       | float   | Emergency cleanup threshold (0-1)        |
+| `maxExistentialQuestions`         | number  | Max existential questions                |
+| `maxThoughtHistory`               | number  | Max thought history entries              |
+| `maxStreamEntries`                | number  | Max stream of consciousness entries      |
+| `maxCurrentThoughts`              | number  | Max current thoughts                     |
+| `cpuLoadScalingFactor`            | float   | CPU load scaling factor (0.5-2.0)        |
+| `memoryPressureScalingFactor`     | float   | Memory pressure scaling factor (0.5-2.0) |
+| `enableDebugLogging`              | boolean | Enable debug logging                     |
+| `enablePerformanceMetrics`        | boolean | Enable performance metrics               |
 
 #### Reset Configuration
 
@@ -207,6 +208,7 @@ chmod +x ./scripts/cognitive-tuning.js
 ```
 
 **Output Example:**
+
 ```
 🌍 Environment Variables (copy to your .env file):
 ============================================================
@@ -225,6 +227,7 @@ DEBUG_TIMERS=false
 ```
 
 **Output Example:**
+
 ```
 🏃 Running Performance Benchmark...
 ============================================================
@@ -238,6 +241,7 @@ Expected Performance:
 ### Configuration File Location
 
 The CLI tool stores configuration in:
+
 ```
 ~/.config/sentient-agi/cognitive-performance.json
 ```
@@ -287,7 +291,7 @@ chmod +x ./scripts/db.sh
 ### Database Reporting
 
 ```bash
-# Generate comprehensive database report  
+# Generate comprehensive database report
 node generate-database-report.js
 
 # Run acceptance tests
@@ -307,7 +311,7 @@ Create custom performance profiles for different scenarios:
 ./scripts/cognitive-tuning.js set enableDebugLogging true
 ./scripts/cognitive-tuning.js set enablePerformanceMetrics true
 
-# Production profile  
+# Production profile
 ./scripts/cognitive-tuning.js set consciousnessProcessingInterval 8000
 ./scripts/cognitive-tuning.js set memoryCleanupThreshold 0.6
 ./scripts/cognitive-tuning.js set enableDebugLogging false
@@ -356,6 +360,7 @@ npm run db:stop
 The system supports these environment variables:
 
 ### Core Configuration
+
 ```bash
 MEMORY_STORE_TYPE=postgresql        # Enable PostgreSQL memory store
 NODE_ENV=production                 # Set environment mode
@@ -363,6 +368,7 @@ DEBUG_TIMERS=true                   # Enable timer debugging
 ```
 
 ### PostgreSQL Configuration
+
 ```bash
 POSTGRES_HOST=localhost             # Database host
 POSTGRES_PORT=5432                  # Database port
@@ -377,6 +383,7 @@ POSTGRES_DEBUG=false               # Enable PostgreSQL debug logging
 ```
 
 ### Performance Configuration
+
 ```bash
 CONSCIOUSNESS_INTERVAL=5000         # Consciousness processing interval (ms)
 STREAM_INTERVAL=7500               # Stream generation interval (ms)

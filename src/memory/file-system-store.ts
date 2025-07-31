@@ -264,11 +264,13 @@ export class FileSystemStore extends MemoryStore {
     throw new Error('FileSystemStore prompt methods not implemented yet');
   }
 
-  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
-    pattern_type: string;
-    success_rate: number;
-    common_attributes: Record<string, any>;
-  }>> {
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<
+    Array<{
+      pattern_type: string;
+      success_rate: number;
+      common_attributes: Record<string, any>;
+    }>
+  > {
     throw new Error('FileSystemStore prompt methods not implemented yet');
   }
 
@@ -282,7 +284,7 @@ export class FileSystemStore extends MemoryStore {
   }
 
   async updatePromptPerformance(
-    promptId: string, 
+    promptId: string,
     performance: {
       processing_success: boolean;
       reasoning_improvement?: number;

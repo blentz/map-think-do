@@ -63,12 +63,14 @@ The Sentient AGI Reasoning Server includes comprehensive logging capabilities th
 ### Logging Behavior
 
 **Debug Mode (debug: true)**:
+
 - Raw content from user inputs, thoughts, and cognitive processes is logged in plain text
 - All cognitive operations, memory updates, and reasoning steps are fully logged
 - Sensitive information (API keys, passwords, personal data) may appear in logs
 - Log files are stored in the `logs/` directory with timestamps
 
 **Production Mode (debug: false - Default)**:
+
 - Sensitive content is automatically redacted using pattern matching
 - Content is hashed (SHA-256, truncated) for tracking without exposing data
 - Log entries are marked with `[REDACTED]` indicators
@@ -77,6 +79,7 @@ The Sentient AGI Reasoning Server includes comprehensive logging capabilities th
 ### Sensitive Content Detection
 
 The logging system automatically detects and redacts:
+
 - API keys and authentication tokens (20+ character strings)
 - Email addresses and phone numbers
 - Social Security Numbers and credit card patterns
@@ -96,6 +99,7 @@ The logging system automatically detects and redacts:
 ### Enabling/Disabling Debug Mode
 
 Debug mode can be controlled via:
+
 - Configuration: `debug: false` (recommended for production)
 - Environment: Set appropriate logging levels for your deployment
 - Runtime: Debug mode affects all logging throughout the cognitive system

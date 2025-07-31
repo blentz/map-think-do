@@ -41,6 +41,7 @@ The system calculates optimal configuration values based on your system specific
 ### System Analysis
 
 The performance manager automatically detects:
+
 - **CPU Cores**: Available processing units
 - **Total Memory**: System RAM capacity
 - **Available Memory**: Currently free memory
@@ -48,22 +49,27 @@ The performance manager automatically detects:
 ### Scaling Calculations
 
 **CPU Scaling Formula:**
+
 ```
 cpuScaling = Math.max(0.5, Math.min(2.0, 8 / cpuCores))
 ```
+
 - 8 cores or more: Scale factor ≤ 1.0 (faster processing)
 - Fewer than 8 cores: Scale factor > 1.0 (slower processing)
 - Clamped between 0.5x and 2.0x for stability
 
 **Memory Scaling Formula:**
+
 ```
 memoryScaling = Math.max(0.7, Math.min(1.5, 8 / totalMemoryGB))
 ```
+
 - 8GB or more: Scale factor ≤ 1.0 (more frequent processing)
 - Less than 8GB: Scale factor > 1.0 (less frequent processing)
 - Clamped between 0.7x and 1.5x for stability
 
 **Final Interval Calculation:**
+
 ```
 consciousnessInterval = 10000ms * cpuScaling * memoryScaling
 streamInterval = 15000ms * cpuScaling * memoryScaling
@@ -72,6 +78,7 @@ streamInterval = 15000ms * cpuScaling * memoryScaling
 ### Memory Budget Calculation
 
 **Cognitive Memory Allocation:**
+
 ```
 memoryBudget = (totalMemoryGB * 1024MB) * 0.075  // 7.5% of total memory
 avgObjectSize = 1.5KB  // Average size per cognitive object
@@ -79,6 +86,7 @@ maxObjects = memoryBudget / avgObjectSize
 ```
 
 **Array Distribution:**
+
 - Existential Questions: 10% of maxObjects (max 500)
 - Thought History: 40% of maxObjects (max 2000)
 - Stream Entries: 30% of maxObjects (max 1000)
@@ -100,7 +108,7 @@ Max Objects: 2345MB / 1.5KB = 1,609,387 objects
 
 Array Limits:
 - Existential Questions: 500 (10%)
-- Thought History: 2000 (40%) 
+- Thought History: 2000 (40%)
 - Stream Entries: 1000 (30%)
 - Current Thoughts: 200 (20%)
 ```
@@ -132,18 +140,21 @@ Memory Budget: 8GB * 0.075 = 600MB
 ## Performance Modes
 
 ### High-Performance Mode
+
 - **Intervals**: 50% faster than calculated optimal
 - **Memory**: 50% larger array limits
 - **Cleanup Threshold**: 80% (aggressive)
 - **Use Case**: Maximum AGI capability, high-end systems
 
 ### Balanced Mode (Default)
+
 - **Intervals**: Mathematically calculated optimal values
 - **Memory**: Standard array limits based on system specs
 - **Cleanup Threshold**: 75% (standard)
 - **Use Case**: Best balance of performance and stability
 
 ### Eco Mode
+
 - **Intervals**: 50% slower than calculated optimal
 - **Memory**: 50% smaller array limits
 - **Cleanup Threshold**: 60% (conservative)
@@ -211,11 +222,13 @@ npm run tune:help         # Show help
 The system includes runtime adaptive scaling that automatically adjusts based on current system load:
 
 ### Memory Pressure Adaptation
+
 - **High pressure (>80% heap usage)**: Increase scaling factor (slower processing)
 - **Low pressure (<40% heap usage)**: Decrease scaling factor (faster processing)
 - **Scaling factor range**: 0.5x to 2.0x
 
 ### Automatic Cleanup Triggers
+
 - **75% memory usage**: Standard cleanup
 - **85% memory usage**: Force garbage collection
 - **95% memory usage**: Emergency cleanup (aggressive array trimming)
@@ -223,6 +236,7 @@ The system includes runtime adaptive scaling that automatically adjusts based on
 ## Configuration File
 
 The system stores configuration in:
+
 ```
 ~/.config/sentient-agi/cognitive-performance.json
 ```
@@ -272,6 +286,7 @@ export DEBUG_TIMERS=true
 ### Performance Metrics
 
 The system logs real-time performance metrics:
+
 - Consciousness cycles per minute
 - Stream entries per minute
 - Memory usage and cleanup events
@@ -298,6 +313,7 @@ npm run tune:benchmark
 ```
 
 Output includes:
+
 - Expected consciousness cycles per minute
 - Expected stream entries per minute
 - Memory budget allocation
@@ -308,6 +324,7 @@ Output includes:
 ### Performance Issues
 
 **Symptoms**: High CPU usage, slow responses
+
 ```bash
 # Check if intervals are too aggressive
 npm run tune:benchmark
@@ -320,6 +337,7 @@ npm run tune:eco
 ```
 
 **Symptoms**: Memory leaks, OOM errors
+
 ```bash
 # Check memory thresholds
 npm run tune:show
@@ -344,6 +362,7 @@ rm ~/.config/sentient-agi/cognitive-performance.json
 ## Production Recommendations
 
 ### High-Traffic Systems
+
 ```bash
 # Use eco mode for stability
 npm run tune:eco
@@ -354,6 +373,7 @@ npm run tune:eco
 ```
 
 ### Development Systems
+
 ```bash
 # Enable debug logging
 ./scripts/cognitive-tuning.js set enableDebugLogging true
@@ -363,6 +383,7 @@ npm run tune:balanced
 ```
 
 ### Resource-Constrained Systems
+
 ```bash
 # Use eco mode
 npm run tune:eco

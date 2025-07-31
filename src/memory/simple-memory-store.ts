@@ -414,13 +414,17 @@ export class SimpleMemoryStore extends MemoryStore {
     }
   }
 
-  async analyzeSuccessPatterns(promptIds: string[]): Promise<Array<{
-    pattern_type: string;
-    success_rate: number;
-    common_attributes: Record<string, any>;
-  }>> {
-    const prompts = promptIds.map(id => this.prompts.get(id)).filter(p => p !== undefined) as StoredPrompt[];
-    
+  async analyzeSuccessPatterns(promptIds: string[]): Promise<
+    Array<{
+      pattern_type: string;
+      success_rate: number;
+      common_attributes: Record<string, any>;
+    }>
+  > {
+    const prompts = promptIds
+      .map(id => this.prompts.get(id))
+      .filter(p => p !== undefined) as StoredPrompt[];
+
     if (prompts.length === 0) {
       return [];
     }
@@ -428,15 +432,18 @@ export class SimpleMemoryStore extends MemoryStore {
     const successfulPrompts = prompts.filter(p => p.processing_success === true);
     const successRate = successfulPrompts.length / prompts.length;
 
-    return [{
-      pattern_type: 'general',
-      success_rate: successRate,
-      common_attributes: {
-        average_complexity: prompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / prompts.length,
-        most_common_domain: this.getMostCommonDomain(prompts),
-        total_analyzed: prompts.length
-      }
-    }];
+    return [
+      {
+        pattern_type: 'general',
+        success_rate: successRate,
+        common_attributes: {
+          average_complexity:
+            prompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / prompts.length,
+          most_common_domain: this.getMostCommonDomain(prompts),
+          total_analyzed: prompts.length,
+        },
+      },
+    ];
   }
 
   async calculatePerformanceMetrics(): Promise<{
@@ -446,18 +453,18 @@ export class SimpleMemoryStore extends MemoryStore {
     reasoning_improvement_average: number;
   }> {
     const prompts = Array.from(this.prompts.values());
-    
+
     // Simple mock metrics for in-memory store
     return {
       classification_accuracy: 0.85,
-      intent_extraction_precision: 0.80,
-      similarity_detection_recall: 0.90,
-      reasoning_improvement_average: 0.15
+      intent_extraction_precision: 0.8,
+      similarity_detection_recall: 0.9,
+      reasoning_improvement_average: 0.15,
     };
   }
 
   async updatePromptPerformance(
-    promptId: string, 
+    promptId: string,
     performance: {
       processing_success: boolean;
       reasoning_improvement?: number;
@@ -473,7 +480,7 @@ export class SimpleMemoryStore extends MemoryStore {
         reasoning_improvement: performance.reasoning_improvement,
         persona_selected: performance.persona_selected,
         cognitive_priming_effectiveness: performance.cognitive_priming_effectiveness,
-        updated_at: new Date()
+        updated_at: new Date(),
       });
     }
   }
@@ -502,8 +509,7 @@ export class SimpleMemoryStore extends MemoryStore {
 
     if (domainCounts.size === 0) return 'unknown';
 
-    return Array.from(domainCounts.entries())
-      .sort((a, b) => b[1] - a[1])[0][0];
+    return Array.from(domainCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
   }
 
   private getMostCommonDomains(thoughts: StoredThought[]): string[] {

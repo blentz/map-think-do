@@ -138,7 +138,7 @@ export class SecureLogger {
    */
   private addToHistory(logEntry: SecureLogEntry): void {
     this.logHistory.push(logEntry);
-    
+
     // Enforce maximum history size
     if (this.logHistory.length > this.MAX_LOG_HISTORY) {
       this.logHistory.splice(0, this.logHistory.length - this.MAX_LOG_HISTORY);
@@ -180,7 +180,6 @@ export class SecureLogger {
   private hashContent(content: string): string {
     return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
   }
-
 
   /**
    * Output log entry to console with appropriate formatting

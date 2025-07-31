@@ -289,7 +289,7 @@ export class StateService implements Disposable {
       console.error('⚠️ State Service already disposed, skipping...');
       return;
     }
-    
+
     this.disposed = true;
     console.error('🧹 Disposing State Service...');
 
@@ -302,7 +302,9 @@ export class StateService implements Disposable {
         if (adapter && typeof adapter.dispose === 'function') {
           try {
             await adapter.dispose();
-            console.error(`💾 ${name.charAt(0).toUpperCase() + name.slice(1)} state adapter disposed`);
+            console.error(
+              `💾 ${name.charAt(0).toUpperCase() + name.slice(1)} state adapter disposed`
+            );
           } catch (error) {
             console.error(`⚠️ Error disposing ${name} adapter:`, error);
           }
@@ -320,7 +322,7 @@ export class StateService implements Disposable {
       // Clear references
       this.adapters = {};
       this.initialized = false;
-      
+
       console.error('✅ State Service disposed');
     } catch (error) {
       console.error('❌ Error during State Service disposal:', error);

@@ -365,7 +365,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       if (this.cognitiveState.thought_count % 10 === 0) {
         this.enforceMemoryLimits();
       }
-      
+
       // Check session history size more frequently
       if (this.cognitiveState.thought_count % 5 === 0) {
         this.checkSessionHistorySize();
@@ -411,7 +411,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
       // 🚨 MEMORY LEAK FIX: Clean up large objects before returning
       await this.cleanupProcessingMemory(interventions, insights);
-      
+
       return {
         interventions,
         insights,
@@ -465,7 +465,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           intervention.content = intervention.content.substring(0, 1000) + '...';
         }
       });
-      
+
       // Clean up insight data
       insights.forEach(insight => {
         if (insight.implications) {
@@ -475,25 +475,25 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           insight.evidence.splice(10); // Keep only first 10 evidence items
         }
       });
-      
+
       // Trim cognitive state history arrays
       if (this.cognitiveState.confidence_trajectory.length > 50) {
-        this.cognitiveState.confidence_trajectory = this.cognitiveState.confidence_trajectory.slice(-50); // Keep last 50
+        this.cognitiveState.confidence_trajectory =
+          this.cognitiveState.confidence_trajectory.slice(-50); // Keep last 50
       }
-      
+
       // Force garbage collection if available
       if (global.gc && this.memoryGrowthAlerts > 2) {
         global.gc();
         this.memoryGrowthAlerts = 0;
       }
-      
+
       console.error('🧹 Cognitive memory cleanup completed', {
         interventions: interventions.length,
         insights: insights.length,
         thoughtHistory: this.thoughtOutputHistory.size,
-        confidencePoints: this.cognitiveState.confidence_trajectory.length
+        confidencePoints: this.cognitiveState.confidence_trajectory.length,
       });
-      
     } catch (error) {
       console.error('⚠️ Cognitive memory cleanup error:', error);
     }
@@ -1494,7 +1494,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   private checkSessionHistorySize(): void {
     const currentSize = this.sessionHistory.size;
     const threshold = Math.floor(this.MAX_SESSION_HISTORY * this.SESSION_CLEANUP_THRESHOLD);
-    
+
     if (currentSize >= threshold) {
       this.cleanupSessionHistory();
     }
@@ -1517,10 +1517,12 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Remove oldest 30% to create headroom
     const removeCount = Math.floor(currentSize * 0.3);
     const toRemove = sortedSessions.slice(0, removeCount);
-    
+
     toRemove.forEach(([id]) => this.sessionHistory.delete(id));
-    
-    console.error(`🧹 Session history cleanup: removed ${removeCount} old sessions, ${this.sessionHistory.size} remaining`);
+
+    console.error(
+      `🧹 Session history cleanup: removed ${removeCount} old sessions, ${this.sessionHistory.size} remaining`
+    );
   }
 
   /**
@@ -1534,7 +1536,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         if (this.sessionHistory.size >= this.MAX_SESSION_HISTORY) {
           this.cleanupSessionHistory();
         }
-        
+
         this.sessionHistory.set(sessionId, session);
       },
       2000, // 2 second timeout for session operations
@@ -1576,30 +1578,36 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     const rssInMB = memUsage.rss / 1024 / 1024;
     const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
     const externalMB = memUsage.external / 1024 / 1024;
-    
+
     // Track memory growth
     const growthMB = rssInMB - this.lastRSSMB;
-    if (growthMB > 50) { // 50MB rapid growth
+    if (growthMB > 50) {
+      // 50MB rapid growth
       this.memoryGrowthAlerts++;
-      console.warn(`🔍 Rapid native memory growth: +${growthMB.toFixed(1)}MB (RSS: ${rssInMB.toFixed(1)}MB)`);
+      console.warn(
+        `🔍 Rapid native memory growth: +${growthMB.toFixed(1)}MB (RSS: ${rssInMB.toFixed(1)}MB)`
+      );
     }
     this.lastRSSMB = rssInMB;
-    
+
     if (rssInMB > this.EMERGENCY_MEMORY_LIMIT_MB) {
-      console.error(`🚨 EMERGENCY: Native memory critical: ${rssInMB.toFixed(1)}MB - forcing cleanup`);
+      console.error(
+        `🚨 EMERGENCY: Native memory critical: ${rssInMB.toFixed(1)}MB - forcing cleanup`
+      );
       return true;
     }
-    
+
     if (rssInMB > this.NATIVE_MEMORY_LIMIT_MB) {
       console.error(`🚨 Native memory pressure: ${rssInMB.toFixed(1)}MB - initiating cleanup`);
       return true;
     }
-    
+
     // Check for concerning patterns
-    if (externalMB > 100) { // External native memory over 100MB
+    if (externalMB > 100) {
+      // External native memory over 100MB
       console.warn(`⚠️ High external memory usage: ${externalMB.toFixed(1)}MB`);
     }
-    
+
     return false;
   }
 
@@ -1608,19 +1616,19 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   private async emergencyMemoryCleanup(): Promise<void> {
     console.error('🚨 EMERGENCY MEMORY CLEANUP INITIATED');
-    
+
     try {
       // 1. Clear all circular buffers aggressively
       this.interventionHistory.clear();
       this.insightHistory.clear();
       this.thoughtOutputHistory.clear();
-      
+
       // 2. Clear session history completely
       this.sessionHistory.clear();
-      
+
       // 3. Reset cognitive state arrays
       this.cognitiveState.confidence_trajectory.length = 0;
-      
+
       // 4. Force garbage collection multiple times
       if (global.gc) {
         for (let i = 0; i < 3; i++) {
@@ -1628,24 +1636,23 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-      
+
       // 5. Reset plugin states to free native resources
       if (this.pluginManager) {
         try {
-          if (typeof (this.pluginManager as any).emergencyCleanup === "function") {
+          if (typeof (this.pluginManager as any).emergencyCleanup === 'function') {
             await (this.pluginManager as any).emergencyCleanup();
           }
         } catch (error) {
-          console.warn("⚠️ Plugin emergency cleanup not available, continuing");
+          console.warn('⚠️ Plugin emergency cleanup not available, continuing');
         }
       }
-      
+
       // 6. Reset memory growth tracking
       this.memoryGrowthAlerts = 0;
       this.lastRSSMB = process.memoryUsage().rss / 1024 / 1024;
-      
+
       console.error('🚨 Emergency cleanup completed - memory should be released');
-      
     } catch (error) {
       console.error('💥 Emergency cleanup failed:', error);
       // Last resort - suggest process restart
@@ -1658,17 +1665,19 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   private startMemoryMonitoring(): void {
     this.lastRSSMB = process.memoryUsage().rss / 1024 / 1024;
-    
+
     this.memoryMonitorInterval = setInterval(() => {
       this.checkNativeMemoryPressure();
-      
+
       // Auto-restart prevention
       if (this.cognitiveState.thought_count % 1000 === 0 && this.cognitiveState.thought_count > 0) {
         const memUsage = process.memoryUsage();
         const rssInMB = memUsage.rss / 1024 / 1024;
-        
-        console.error(`🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`);
-        
+
+        console.error(
+          `🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`
+        );
+
         if (rssInMB > 800) {
           console.error('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
           process.exit(0); // Let process manager restart
@@ -2045,47 +2054,81 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   /**
    * Adjust cognitive state based on prompt type classification
    */
-  private adjustCognitiveStateForPromptType(classification: { type: string; confidence: number }): void {
+  private adjustCognitiveStateForPromptType(classification: {
+    type: string;
+    confidence: number;
+  }): void {
     const adjustmentStrength = Math.min(classification.confidence, 0.8); // Cap at 80%
 
     switch (classification.type) {
       case 'debugging':
-        this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.3 * adjustmentStrength), 1.0);
-        this.cognitiveState.engagement_level = Math.min(this.cognitiveState.engagement_level + (0.2 * adjustmentStrength), 1.0);
+        this.cognitiveState.analytical_depth = Math.min(
+          this.cognitiveState.analytical_depth + 0.3 * adjustmentStrength,
+          1.0
+        );
+        this.cognitiveState.engagement_level = Math.min(
+          this.cognitiveState.engagement_level + 0.2 * adjustmentStrength,
+          1.0
+        );
         break;
 
       case 'architecture':
-        this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.4 * adjustmentStrength), 1.0);
-        this.cognitiveState.metacognitive_awareness = Math.min(this.cognitiveState.metacognitive_awareness + (0.3 * adjustmentStrength), 1.0);
+        this.cognitiveState.analytical_depth = Math.min(
+          this.cognitiveState.analytical_depth + 0.4 * adjustmentStrength,
+          1.0
+        );
+        this.cognitiveState.metacognitive_awareness = Math.min(
+          this.cognitiveState.metacognitive_awareness + 0.3 * adjustmentStrength,
+          1.0
+        );
         break;
 
       case 'feature-request':
-        this.cognitiveState.creative_pressure = Math.min(this.cognitiveState.creative_pressure + (0.3 * adjustmentStrength), 1.0);
-        this.cognitiveState.insight_potential = Math.min(this.cognitiveState.insight_potential + (0.2 * adjustmentStrength), 1.0);
+        this.cognitiveState.creative_pressure = Math.min(
+          this.cognitiveState.creative_pressure + 0.3 * adjustmentStrength,
+          1.0
+        );
+        this.cognitiveState.insight_potential = Math.min(
+          this.cognitiveState.insight_potential + 0.2 * adjustmentStrength,
+          1.0
+        );
         break;
 
       case 'optimization':
-        this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.4 * adjustmentStrength), 1.0);
-        this.cognitiveState.engagement_level = Math.min(this.cognitiveState.engagement_level + (0.2 * adjustmentStrength), 1.0);
+        this.cognitiveState.analytical_depth = Math.min(
+          this.cognitiveState.analytical_depth + 0.4 * adjustmentStrength,
+          1.0
+        );
+        this.cognitiveState.engagement_level = Math.min(
+          this.cognitiveState.engagement_level + 0.2 * adjustmentStrength,
+          1.0
+        );
         break;
 
       case 'analysis':
-        this.cognitiveState.metacognitive_awareness = Math.min(this.cognitiveState.metacognitive_awareness + (0.3 * adjustmentStrength), 1.0);
+        this.cognitiveState.metacognitive_awareness = Math.min(
+          this.cognitiveState.metacognitive_awareness + 0.3 * adjustmentStrength,
+          1.0
+        );
         this.cognitiveState.pattern_recognition_active = true; // Enable pattern recognition for analysis tasks
         break;
     }
 
-    console.error(`🎯 Cognitive state adjusted for ${classification.type} (confidence: ${classification.confidence})`);
+    console.error(
+      `🎯 Cognitive state adjusted for ${classification.type} (confidence: ${classification.confidence})`
+    );
   }
 
   /**
    * Prime cognitive state from patterns in similar successful prompts
    */
-  private async primeFromSimilarPrompts(similarPrompts: Array<{
-    prompt_id: string;
-    similarity_score: number;
-    similarity_type: string;
-  }>): Promise<void> {
+  private async primeFromSimilarPrompts(
+    similarPrompts: Array<{
+      prompt_id: string;
+      similarity_score: number;
+      similarity_type: string;
+    }>
+  ): Promise<void> {
     if (!this.memoryStore) return;
 
     try {
@@ -2096,7 +2139,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       if (successPatterns.length > 0) {
         // Apply pattern-based cognitive priming
         for (const pattern of successPatterns) {
-          if (pattern.success_rate > 0.7) { // Only use patterns with >70% success rate
+          if (pattern.success_rate > 0.7) {
+            // Only use patterns with >70% success rate
             this.applyCognitivePrimingFromPattern(pattern, similarPrompts.length);
           }
         }
@@ -2123,19 +2167,30 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
     // Boost confidence based on successful pattern
     this.cognitiveState.confidence_trajectory.push(
-      Math.min((this.cognitiveState.confidence_trajectory.slice(-1)[0] || 0.5) + (0.1 * primingStrength), 1.0)
+      Math.min(
+        (this.cognitiveState.confidence_trajectory.slice(-1)[0] || 0.5) + 0.1 * primingStrength,
+        1.0
+      )
     );
 
     // Adjust reasoning strategy based on successful attributes
     if (pattern.common_attributes.avg_complexity > 7) {
-      this.cognitiveState.analytical_depth = Math.min(this.cognitiveState.analytical_depth + (0.2 * primingStrength), 1.0);
+      this.cognitiveState.analytical_depth = Math.min(
+        this.cognitiveState.analytical_depth + 0.2 * primingStrength,
+        1.0
+      );
     }
 
     if (pattern.common_attributes.prompt_type === 'debugging') {
-      this.cognitiveState.engagement_level = Math.min(this.cognitiveState.engagement_level + (0.15 * primingStrength), 1.0);
+      this.cognitiveState.engagement_level = Math.min(
+        this.cognitiveState.engagement_level + 0.15 * primingStrength,
+        1.0
+      );
     }
 
-    console.error(`⚡ Cognitive priming applied from pattern: ${pattern.pattern_type} (success rate: ${pattern.success_rate})`);
+    console.error(
+      `⚡ Cognitive priming applied from pattern: ${pattern.pattern_type} (success rate: ${pattern.success_rate})`
+    );
   }
 
   /**
@@ -2148,19 +2203,21 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Adjust cognitive load and depth based on complexity
     this.cognitiveState.current_complexity = complexity.complexity;
     this.cognitiveState.analytical_depth = Math.min(
-      this.cognitiveState.analytical_depth + (complexityRatio * 0.3 * adjustmentStrength),
+      this.cognitiveState.analytical_depth + complexityRatio * 0.3 * adjustmentStrength,
       1.0
     );
 
     // Higher complexity requires more metacognitive awareness
     if (complexity.complexity > 7) {
       this.cognitiveState.metacognitive_awareness = Math.min(
-        this.cognitiveState.metacognitive_awareness + (0.2 * adjustmentStrength),
+        this.cognitiveState.metacognitive_awareness + 0.2 * adjustmentStrength,
         1.0
       );
     }
 
-    console.error(`🎚️ Cognitive complexity adjusted to ${complexity.complexity} (confidence: ${complexity.confidence})`);
+    console.error(
+      `🎚️ Cognitive complexity adjusted to ${complexity.complexity} (confidence: ${complexity.confidence})`
+    );
   }
 
   /**
@@ -2174,7 +2231,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Boost solution orientation if clear objectives exist
     if (intent.objectives.length > 0) {
       this.cognitiveState.insight_potential = Math.min(
-        this.cognitiveState.insight_potential + (intent.objectives.length * 0.1),
+        this.cognitiveState.insight_potential + intent.objectives.length * 0.1,
         1.0
       );
     }
@@ -2182,7 +2239,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Increase analytical focus for complex constraints
     if (intent.constraints.length > 2) {
       this.cognitiveState.analytical_depth = Math.min(
-        this.cognitiveState.analytical_depth + (intent.constraints.length * 0.05),
+        this.cognitiveState.analytical_depth + intent.constraints.length * 0.05,
         1.0
       );
     }
@@ -2190,27 +2247,33 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Boost strategic thinking for multiple requirements
     if (intent.requirements.length > 1) {
       this.cognitiveState.analytical_depth = Math.min(
-        this.cognitiveState.analytical_depth + (intent.requirements.length * 0.08),
+        this.cognitiveState.analytical_depth + intent.requirements.length * 0.08,
         1.0
       );
     }
 
-    console.error(`🎯 Cognitive focus set: ${intent.objectives.length} objectives, ${intent.constraints.length} constraints, ${intent.requirements.length} requirements`);
+    console.error(
+      `🎯 Cognitive focus set: ${intent.objectives.length} objectives, ${intent.constraints.length} constraints, ${intent.requirements.length} requirements`
+    );
   }
 
   /**
    * Legacy method for backward compatibility
    */
-  async primeFromPromptHistory(
-    prompt: any,
-    successfulPatterns: any[]
-  ): Promise<void> {
+  async primeFromPromptHistory(prompt: any, successfulPatterns: any[]): Promise<void> {
     const promptContext = {
       promptId: prompt.id,
       similarPrompts: prompt.similar_prompts || [],
-      classification: prompt.prompt_type ? { type: prompt.prompt_type, confidence: prompt.classification_confidence || 0.5 } : undefined,
+      classification: prompt.prompt_type
+        ? { type: prompt.prompt_type, confidence: prompt.classification_confidence || 0.5 }
+        : undefined,
       intent: prompt.extracted_intent,
-      complexity: prompt.complexity_estimate ? { complexity: prompt.complexity_estimate, confidence: prompt.classification_confidence || 0.5 } : undefined
+      complexity: prompt.complexity_estimate
+        ? {
+            complexity: prompt.complexity_estimate,
+            confidence: prompt.classification_confidence || 0.5,
+          }
+        : undefined,
     };
 
     await this.primeFromPromptContext(promptContext);
@@ -2223,10 +2286,10 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   public async dispose(): Promise<void> {
     // Stop memory monitoring first
     this.stopMemoryMonitoring();
-    
+
     // Clean up mutex registry
     this.mutexRegistry.clear();
-    
+
     // Remove all listeners from this orchestrator
     this.removeAllListeners();
 
@@ -2262,7 +2325,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
     // Dispose dependency container
     await this.container.dispose();
-    
+
     // NOTE: Do not dispose globalResourceManager here as it would create a circular disposal loop.
     // The globalResourceManager should be disposed externally when the entire application shuts down.
   }
@@ -2282,7 +2345,7 @@ class CognitiveOrchestratorResource extends ManagedNativeResource {
   private orchestrator: CognitiveOrchestrator;
 
   constructor(orchestrator: CognitiveOrchestrator) {
-    super("cognitive_orchestrator", `orchestrator_${Date.now()}`);
+    super('cognitive_orchestrator', `orchestrator_${Date.now()}`);
     this.orchestrator = orchestrator;
   }
 
@@ -2295,7 +2358,7 @@ class CognitiveOrchestratorResource extends ManagedNativeResource {
 
   getMemoryUsage(): number {
     let estimatedUsage = 5 * 1024 * 1024; // 5MB base
-    
+
     try {
       const stats = this.orchestrator.getStateStats?.() || {};
       const historySize = (stats as any).historySize || 0;
@@ -2305,7 +2368,7 @@ class CognitiveOrchestratorResource extends ManagedNativeResource {
     } catch (error) {
       estimatedUsage += 10 * 1024 * 1024; // 10MB fallback
     }
-    
+
     return estimatedUsage;
   }
 }
