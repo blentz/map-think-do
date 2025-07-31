@@ -293,7 +293,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     }
 
     this.pendingOperations.add(operation);
-    
+
     const cleanupOperation = operation.finally(() => {
       this.pendingOperations.delete(operation);
     });
@@ -310,11 +310,11 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     }
 
     console.log(`⏳ Waiting for ${this.pendingOperations.size} pending operations to complete...`);
-    
+
     try {
       await Promise.race([
         Promise.allSettled([...this.pendingOperations]),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout waiting for operations')), timeoutMs)
         )
       ]);
@@ -406,7 +406,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           return this.trackAsyncOperation(
             this.updateSessionEmbeddings(thought.session_id).catch(error => {
               if (this.isInitialized && !this.isShuttingDown) {
-                console.warn(`Failed to update session embeddings for ${thought.session_id}:`, error);
+                console.warn(
+                  `Failed to update session embeddings for ${thought.session_id}:`,
+                  error
+                );
               }
             })
           );
@@ -489,12 +492,11 @@ export class PostgreSQLMemoryStore extends MemoryStore {
 
     // Generate session objective embedding asynchronously but tracked
     this.trackAsyncOperation(
-      this.generateAndStoreSessionObjectiveEmbedding(session.id, session.objective)
-        .catch(error => {
-          if (this.isInitialized && !this.isShuttingDown) {
-            console.warn(`Failed to generate session objective embedding for ${session.id}:`, error);
-          }
-        })
+      this.generateAndStoreSessionObjectiveEmbedding(session.id, session.objective).catch(error => {
+        if (this.isInitialized && !this.isShuttingDown) {
+          console.warn(`Failed to generate session objective embedding for ${session.id}:`, error);
+        }
+      })
     );
   }
 
@@ -1492,12 +1494,17 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Store embedding for a prompt (integration point for sentence transformers)
    */
-  async storePromptEmbedding(promptId: string, embedding: number[], model = 'all-MiniLM-L6-v2'): Promise<void> {
+  async storePromptEmbedding(
+    promptId: string,
+    embedding: number[],
+    model = 'all-MiniLM-L6-v2'
+  ): Promise<void> {
     try {
-      await this.query(
-        'SELECT upsert_prompt_embedding($1, $2, $3)',
-        [promptId, `[${embedding.join(',')}]`, model]
-      );
+      await this.query('SELECT upsert_prompt_embedding($1, $2, $3)', [
+        promptId,
+        `[${embedding.join(',')}]`,
+        model,
+      ]);
     } catch (error) {
       console.warn('Prompt embedding storage not available:', error);
     }
@@ -1638,7 +1645,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     try {
       const embeddingService = getEmbeddingService();
       const result = await embeddingService.generateEmbedding(promptText);
-      
+
       // Store in proper prompt embeddings table
       await this.storePromptEmbedding(promptId, result.embedding, result.model);
       console.error(`✅ Generated embedding for prompt ${promptId} (${result.processingTime}ms)`);
@@ -1668,7 +1675,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       );
     } catch (error) {
       if (this.isInitialized && !this.isShuttingDown) {
-        console.warn(`Failed to generate/store session objective embedding for ${sessionId}:`, error);
+        console.warn(
+          `Failed to generate/store session objective embedding for ${sessionId}:`,
+          error
+        );
       }
     }
   }

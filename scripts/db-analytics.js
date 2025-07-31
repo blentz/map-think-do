@@ -7,8 +7,8 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { PostgreSQLMemoryStore } from '../src/memory/postgresql-memory-store.js';
-import { PostgreSQLConfigs } from '../src/memory/postgresql-config.js';
+import { PostgreSQLMemoryStore } from '../dist/src/memory/postgresql-memory-store.js';
+import { PostgreSQLConfigs } from '../dist/src/memory/postgresql-config.js';
 
 // CLI Configuration
 const ANALYTICS_DIR = './analytics-reports';

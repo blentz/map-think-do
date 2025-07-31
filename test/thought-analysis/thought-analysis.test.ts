@@ -118,7 +118,9 @@ class ThoughtAnalysisTestRunner {
       throw new Error('Overall score out of range');
     }
 
-    console.log(`✅ Basic analysis test passed (${processingTime}ms, score: ${result.tier_scores.overall_score.toFixed(3)})`);
+    console.log(
+      `✅ Basic analysis test passed (${processingTime}ms, score: ${result.tier_scores.overall_score.toFixed(3)})`
+    );
   }
 
   /**
@@ -172,15 +174,32 @@ class ThoughtAnalysisTestRunner {
     const result = await this.analyzer.analyzeThoughtChain(context);
 
     // Validate Tier 1 metrics
-    this.assertRange(result.metrics.parameter_adherence, 0.8, 1.0, 'Parameter adherence should be high');
-    this.assertRange(result.metrics.sequential_integrity, 0.8, 1.0, 'Sequential integrity should be high');
-    this.assertRange(result.tier_scores.tier1_score, 0.8, 1.0, 'Tier 1 score should reflect technical quality');
+    this.assertRange(
+      result.metrics.parameter_adherence,
+      0.8,
+      1.0,
+      'Parameter adherence should be high'
+    );
+    this.assertRange(
+      result.metrics.sequential_integrity,
+      0.8,
+      1.0,
+      'Sequential integrity should be high'
+    );
+    this.assertRange(
+      result.tier_scores.tier1_score,
+      0.8,
+      1.0,
+      'Tier 1 score should reflect technical quality'
+    );
 
-    console.log(`✅ Tier 1 metrics test passed (score: ${result.tier_scores.tier1_score.toFixed(3)})`);
+    console.log(
+      `✅ Tier 1 metrics test passed (score: ${result.tier_scores.tier1_score.toFixed(3)})`
+    );
   }
 
   /**
-   * Test Tier 2 metrics (cognitive quality) 
+   * Test Tier 2 metrics (cognitive quality)
    */
   async testTier2Metrics(): Promise<void> {
     console.log('📊 Testing Tier 2 metrics (cognitive quality)...');
@@ -191,53 +210,83 @@ class ThoughtAnalysisTestRunner {
       {
         id: `thought_1_${Date.now()}`,
         session_id: sessionId,
-        thought: 'I need to analyze this problem systematically. First, I will examine the core requirements.',
+        thought:
+          'I need to analyze this problem systematically. First, I will examine the core requirements.',
         thought_number: 1,
         total_thoughts: 3,
         next_thought_needed: true,
         timestamp: new Date(Date.now() - 2000),
         complexity: 4.0,
-        context: {}
+        context: {},
       },
       {
         id: `thought_2_${Date.now()}`,
         session_id: sessionId,
-        thought: 'Building on my previous analysis, I realize that this problem requires a more sophisticated approach. Therefore, I will implement a multi-layered solution that considers both technical and user experience factors.',
+        thought:
+          'Building on my previous analysis, I realize that this problem requires a more sophisticated approach. Therefore, I will implement a multi-layered solution that considers both technical and user experience factors.',
         thought_number: 2,
         total_thoughts: 3,
         next_thought_needed: true,
         timestamp: new Date(Date.now() - 1000),
         complexity: 6.5,
-        context: {}
+        context: {},
       },
       {
         id: `thought_3_${Date.now()}`,
         session_id: sessionId,
-        thought: 'Reflecting on my reasoning process, I can see that my approach has evolved from simple to complex. This metacognitive awareness helps me recognize that the creative synthesis of technical and UX considerations represents a novel approach to this type of problem.',
+        thought:
+          'Reflecting on my reasoning process, I can see that my approach has evolved from simple to complex. This metacognitive awareness helps me recognize that the creative synthesis of technical and UX considerations represents a novel approach to this type of problem.',
         thought_number: 3,
         total_thoughts: 3,
         next_thought_needed: false,
         timestamp: new Date(),
         complexity: 8.0,
-        context: {}
-      }
+        context: {},
+      },
     ];
 
     const context: ThoughtChainContext = {
       session_id: sessionId,
-      thoughts
+      thoughts,
     };
 
     const result = await this.analyzer.analyzeThoughtChain(context);
 
     // Validate Tier 2 metrics
-    this.assertRange(result.metrics.logical_coherence, 0.7, 1.0, 'Logical coherence should be high for well-reasoned thoughts');
-    this.assertRange(result.metrics.depth_progression, 0.6, 1.0, 'Depth progression should be high for increasing complexity');
-    this.assertRange(result.metrics.metacognitive_awareness, 0.6, 1.0, 'Metacognitive awareness should be detected');
-    this.assertRange(result.metrics.creative_synthesis, 0.5, 1.0, 'Creative synthesis should be detected');
-    this.assertRange(result.tier_scores.tier2_score, 0.6, 1.0, 'Tier 2 score should reflect cognitive quality');
+    this.assertRange(
+      result.metrics.logical_coherence,
+      0.7,
+      1.0,
+      'Logical coherence should be high for well-reasoned thoughts'
+    );
+    this.assertRange(
+      result.metrics.depth_progression,
+      0.6,
+      1.0,
+      'Depth progression should be high for increasing complexity'
+    );
+    this.assertRange(
+      result.metrics.metacognitive_awareness,
+      0.6,
+      1.0,
+      'Metacognitive awareness should be detected'
+    );
+    this.assertRange(
+      result.metrics.creative_synthesis,
+      0.5,
+      1.0,
+      'Creative synthesis should be detected'
+    );
+    this.assertRange(
+      result.tier_scores.tier2_score,
+      0.6,
+      1.0,
+      'Tier 2 score should reflect cognitive quality'
+    );
 
-    console.log(`✅ Tier 2 metrics test passed (score: ${result.tier_scores.tier2_score.toFixed(3)})`);
+    console.log(
+      `✅ Tier 2 metrics test passed (score: ${result.tier_scores.tier2_score.toFixed(3)})`
+    );
   }
 
   /**
@@ -263,7 +312,8 @@ class ThoughtAnalysisTestRunner {
       {
         id: `thought_2_${Date.now()}`,
         session_id: sessionId,
-        thought: 'This approach approach approach is working well. I can see the same patterns emerging as in my previous successful solutions.',
+        thought:
+          'This approach approach approach is working well. I can see the same patterns emerging as in my previous successful solutions.',
         thought_number: 2,
         total_thoughts: 3,
         next_thought_needed: true,
@@ -274,7 +324,8 @@ class ThoughtAnalysisTestRunner {
       {
         id: `thought_3_${Date.now()}`,
         session_id: sessionId,
-        thought: 'I have successfully avoided the mistake I made last time by using this improved approach approach methodology.',
+        thought:
+          'I have successfully avoided the mistake I made last time by using this improved approach approach methodology.',
         thought_number: 3,
         total_thoughts: 3,
         next_thought_needed: false,
@@ -301,12 +352,34 @@ class ThoughtAnalysisTestRunner {
     const result = await this.analyzer.analyzeThoughtChain(context);
 
     // Validate Tier 3 metrics
-    this.assertRange(result.metrics.pattern_recognition, 0.3, 1.0, 'Pattern recognition should be detected');
-    this.assertRange(result.metrics.cross_session_transfer, 0.4, 1.0, 'Cross-session transfer should be detected');
-    this.assertRange(result.metrics.failure_mode_avoidance, 0.5, 1.0, 'Failure mode avoidance should be detected');
-    this.assertRange(result.tier_scores.tier3_score, 0.4, 1.0, 'Tier 3 score should reflect learning effectiveness');
+    this.assertRange(
+      result.metrics.pattern_recognition,
+      0.3,
+      1.0,
+      'Pattern recognition should be detected'
+    );
+    this.assertRange(
+      result.metrics.cross_session_transfer,
+      0.4,
+      1.0,
+      'Cross-session transfer should be detected'
+    );
+    this.assertRange(
+      result.metrics.failure_mode_avoidance,
+      0.5,
+      1.0,
+      'Failure mode avoidance should be detected'
+    );
+    this.assertRange(
+      result.tier_scores.tier3_score,
+      0.4,
+      1.0,
+      'Tier 3 score should reflect learning effectiveness'
+    );
 
-    console.log(`✅ Tier 3 metrics test passed (score: ${result.tier_scores.tier3_score.toFixed(3)})`);
+    console.log(
+      `✅ Tier 3 metrics test passed (score: ${result.tier_scores.tier3_score.toFixed(3)})`
+    );
   }
 
   /**
@@ -423,7 +496,9 @@ class ThoughtAnalysisTestRunner {
    */
   private assertRange(value: number, min: number, max: number, message: string): void {
     if (value < min || value > max) {
-      throw new Error(`Assertion failed: ${message} (value ${value} not in range [${min}, ${max}])`);
+      throw new Error(
+        `Assertion failed: ${message} (value ${value} not in range [${min}, ${max}])`
+      );
     }
   }
 }
@@ -433,13 +508,13 @@ class ThoughtAnalysisTestRunner {
  */
 function parseArguments(): string | undefined {
   const args = process.argv.slice(2);
-  
+
   for (const arg of args) {
     if (arg === '--tier1') return 'tier1';
-    if (arg === '--tier2') return 'tier2'; 
+    if (arg === '--tier2') return 'tier2';
     if (arg === '--tier3') return 'tier3';
   }
-  
+
   return undefined;
 }
 

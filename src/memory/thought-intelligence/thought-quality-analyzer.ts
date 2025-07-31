@@ -356,7 +356,7 @@ export class ThoughtQualityAnalyzer {
 
     // Analyze patterns within the current session
     const patterns = this.detectThoughtPatterns(context.thoughts);
-    
+
     // Enhanced scoring based on pattern detection and utilization
     const patternUtilization = this.scorePatternUtilization(context.thoughts, patterns);
     patternScore += patternUtilization * 0.3;
@@ -364,7 +364,8 @@ export class ThoughtQualityAnalyzer {
     // Look for explicit pattern recognition language
     let explicitPatternRecognition = 0;
     for (const thought of context.thoughts) {
-      const patternLanguage = /\b(pattern|patterns|recurring|repeated|same.*as|similar.*to|consistent|systematic|approach.*approach|method.*method)\b/gi;
+      const patternLanguage =
+        /\b(pattern|patterns|recurring|repeated|same.*as|similar.*to|consistent|systematic|approach.*approach|method.*method)\b/gi;
       const matches = (thought.thought.match(patternLanguage) || []).length;
       explicitPatternRecognition += matches;
     }
@@ -377,7 +378,8 @@ export class ThoughtQualityAnalyzer {
     // Check for learning from previous experiences
     let learningFromPrevious = 0;
     for (const thought of context.thoughts) {
-      const learningLanguage = /\b(learned from|previous.*problems|previous.*solutions|previous.*successful|from my.*experience|same.*patterns)\b/gi;
+      const learningLanguage =
+        /\b(learned from|previous.*problems|previous.*solutions|previous.*successful|from my.*experience|same.*patterns)\b/gi;
       const matches = (thought.thought.match(learningLanguage) || []).length;
       learningFromPrevious += matches;
     }
@@ -468,13 +470,15 @@ export class ThoughtQualityAnalyzer {
 
     // Enhanced logical connectors detection
     const basicConnectors = /\b(and|but|however|therefore|because|since|if|then|so|thus)\b/gi;
-    const advancedConnectors = /\b(furthermore|moreover|consequently|nevertheless|specifically|particularly|essentially|ultimately|alternatively|simultaneously|additionally)\b/gi;
-    const analysisWords = /\b(analyze|consider|examine|evaluate|recognize|realize|understand|implement|approach|solution|problem|factor)\b/gi;
-    
+    const advancedConnectors =
+      /\b(furthermore|moreover|consequently|nevertheless|specifically|particularly|essentially|ultimately|alternatively|simultaneously|additionally)\b/gi;
+    const analysisWords =
+      /\b(analyze|consider|examine|evaluate|recognize|realize|understand|implement|approach|solution|problem|factor)\b/gi;
+
     const basicConnectorCount = (thought.match(basicConnectors) || []).length;
     const advancedConnectorCount = (thought.match(advancedConnectors) || []).length;
     const analysisWordCount = (thought.match(analysisWords) || []).length;
-    
+
     coherence += Math.min(basicConnectorCount * 0.06, 0.18);
     coherence += Math.min(advancedConnectorCount * 0.08, 0.16);
     coherence += Math.min(analysisWordCount * 0.04, 0.12);
@@ -487,18 +491,23 @@ export class ThoughtQualityAnalyzer {
     }
 
     // Enhanced coherence patterns
-    const coherencePatterns = /\b(first|second|third|initially|then|next|finally|in conclusion|as a result|this leads to|building on|reflecting on)\b/gi;
+    const coherencePatterns =
+      /\b(first|second|third|initially|then|next|finally|in conclusion|as a result|this leads to|building on|reflecting on)\b/gi;
     const patternCount = (thought.match(coherencePatterns) || []).length;
     coherence += Math.min(patternCount * 0.08, 0.16);
 
     // Improved topic consistency - reward focused reasoning
     const meaningfulWords = thought.toLowerCase().match(/\b\w{4,}\b/g) || [];
     if (meaningfulWords.length > 0) {
-      const avgWordLength = meaningfulWords.reduce((sum, word) => sum + word.length, 0) / meaningfulWords.length;
+      const avgWordLength =
+        meaningfulWords.reduce((sum, word) => sum + word.length, 0) / meaningfulWords.length;
       if (avgWordLength > 5.5) coherence += 0.1; // Sophisticated vocabulary
-      
+
       // Look for conceptual consistency rather than penalizing diversity
-      const conceptualWords = thought.match(/\b(approach|method|strategy|solution|analysis|implementation|consideration|evaluation|recognition|synthesis)\b/gi) || [];
+      const conceptualWords =
+        thought.match(
+          /\b(approach|method|strategy|solution|analysis|implementation|consideration|evaluation|recognition|synthesis)\b/gi
+        ) || [];
       coherence += Math.min(conceptualWords.length * 0.03, 0.09);
     }
 
@@ -517,17 +526,20 @@ export class ThoughtQualityAnalyzer {
     flowScore += progression * 0.2;
 
     // Check for explicit references to previous thought
-    const references = /\b(building on|based on|following|previous|earlier|above|as mentioned|this|that|these|those|my previous|from this|therefore|consequently|as a result)\b/gi;
+    const references =
+      /\b(building on|based on|following|previous|earlier|above|as mentioned|this|that|these|those|my previous|from this|therefore|consequently|as a result)\b/gi;
     const referenceCount = (currentThought.match(references) || []).length;
     flowScore += Math.min(referenceCount * 0.08, 0.16);
 
     // Check for logical development patterns
-    const developmentPatterns = /\b(realize|understand|recognize|conclude|deduce|infer|extend|expand|elaborate|refine|improve|enhance)\b/gi;
+    const developmentPatterns =
+      /\b(realize|understand|recognize|conclude|deduce|infer|extend|expand|elaborate|refine|improve|enhance)\b/gi;
     const developmentCount = (currentThought.match(developmentPatterns) || []).length;
     flowScore += Math.min(developmentCount * 0.06, 0.12);
 
     // Check for causal relationships
-    const causalPatterns = /\b(because|since|due to|leads to|results in|causes|enables|requires|depends on)\b/gi;
+    const causalPatterns =
+      /\b(because|since|due to|leads to|results in|causes|enables|requires|depends on)\b/gi;
     const causalCount = (currentThought.match(causalPatterns) || []).length;
     flowScore += Math.min(causalCount * 0.05, 0.1);
 
@@ -559,17 +571,20 @@ export class ThoughtQualityAnalyzer {
     let metacognition = 0.3; // Improved base score
 
     // Explicit metacognitive language (highest value)
-    const explicitMetacognitive = /\b(metacognitive|metacognition|reasoning process|thinking process|cognitive process|self-reflection|self-awareness|awareness of|conscious of)\b/gi;
+    const explicitMetacognitive =
+      /\b(metacognitive|metacognition|reasoning process|thinking process|cognitive process|self-reflection|self-awareness|awareness of|conscious of)\b/gi;
     const explicitMatches = (thought.match(explicitMetacognitive) || []).length;
     metacognition += Math.min(explicitMatches * 0.25, 0.5);
 
     // Enhanced self-reference indicators
-    const selfRef = /\b(I think|I believe|I realize|I understand|I can see|I recognize|my approach|my analysis|my reasoning|my method|my strategy)\b/gi;
+    const selfRef =
+      /\b(I think|I believe|I realize|I understand|I can see|I recognize|my approach|my analysis|my reasoning|my method|my strategy)\b/gi;
     const selfMatches = (thought.match(selfRef) || []).length;
     metacognition += Math.min(selfMatches * 0.08, 0.24);
 
     // Advanced reflection indicators
-    const advancedReflection = /\b(reflecting on|reflecting about|looking back|reconsidering|reevaluating|stepping back|examining my|analyzing my|reviewing my)\b/gi;
+    const advancedReflection =
+      /\b(reflecting on|reflecting about|looking back|reconsidering|reevaluating|stepping back|examining my|analyzing my|reviewing my)\b/gi;
     const basicReflection = /\b(reflect|consider|evaluate|assess|review|reconsider)\b/gi;
     const advancedMatches = (thought.match(advancedReflection) || []).length;
     const basicMatches = (thought.match(basicReflection) || []).length;
@@ -577,12 +592,14 @@ export class ThoughtQualityAnalyzer {
     metacognition += Math.min(basicMatches * 0.06, 0.18);
 
     // Process awareness indicators
-    const processAwareness = /\b(approach has evolved|thinking has changed|process has|my understanding|learning from|building on my|evolved from|progressed from)\b/gi;
+    const processAwareness =
+      /\b(approach has evolved|thinking has changed|process has|my understanding|learning from|building on my|evolved from|progressed from)\b/gi;
     const processMatches = (thought.match(processAwareness) || []).length;
     metacognition += Math.min(processMatches * 0.12, 0.24);
 
     // Quality judgment and evaluation
-    const qualityJudgment = /\b(helps me|allows me to|enables me to|this understanding|this realization|this awareness|this insight)\b/gi;
+    const qualityJudgment =
+      /\b(helps me|allows me to|enables me to|this understanding|this realization|this awareness|this insight)\b/gi;
     const qualityMatches = (thought.match(qualityJudgment) || []).length;
     metacognition += Math.min(qualityMatches * 0.08, 0.16);
 
@@ -598,37 +615,44 @@ export class ThoughtQualityAnalyzer {
     let creativity = 0.3; // Improved base score
 
     // Explicit creative synthesis language (highest value)
-    const explicitCreative = /\b(creative synthesis|synthesis of|creative combination|novel synthesis|innovative synthesis|creative integration|synthesis represents|creative approach)\b/gi;
+    const explicitCreative =
+      /\b(creative synthesis|synthesis of|creative combination|novel synthesis|innovative synthesis|creative integration|synthesis represents|creative approach)\b/gi;
     const explicitMatches = (thought.match(explicitCreative) || []).length;
     creativity += Math.min(explicitMatches * 0.3, 0.6);
 
     // Enhanced novel approach indicators
-    const novelty = /\b(innovative|creative|novel|unique|original|alternative|new approach|novel approach|groundbreaking|pioneering|inventive|ingenious)\b/gi;
+    const novelty =
+      /\b(innovative|creative|novel|unique|original|alternative|new approach|novel approach|groundbreaking|pioneering|inventive|ingenious)\b/gi;
     const noveltyMatches = (thought.match(novelty) || []).length;
     creativity += Math.min(noveltyMatches * 0.12, 0.36);
 
     // Cross-domain synthesis indicators
-    const crossDomain = /\b(combines|combining|integrates|integrating|merges|merging|blends|blending|unites|uniting|connects|connecting|bridges|bridging)\b/gi;
+    const crossDomain =
+      /\b(combines|combining|integrates|integrating|merges|merging|blends|blending|unites|uniting|connects|connecting|bridges|bridging)\b/gi;
     const crossDomainMatches = (thought.match(crossDomain) || []).length;
     creativity += Math.min(crossDomainMatches * 0.1, 0.2);
 
     // Domain-specific creative terms
-    const domainCreative = /\b(technical and.*considerations|UX.*considerations|multi-layered|sophisticated approach|multifaceted|interdisciplinary|holistic)\b/gi;
+    const domainCreative =
+      /\b(technical and.*considerations|UX.*considerations|multi-layered|sophisticated approach|multifaceted|interdisciplinary|holistic)\b/gi;
     const domainMatches = (thought.match(domainCreative) || []).length;
     creativity += Math.min(domainMatches * 0.15, 0.3);
 
     // Enhanced metaphors and analogies
-    const metaphors = /\b(like|similar to|analogous|resembles|as if|metaphor|metaphorically|symbolically)\b/gi;
+    const metaphors =
+      /\b(like|similar to|analogous|resembles|as if|metaphor|metaphorically|symbolically)\b/gi;
     const metaphorMatches = (thought.match(metaphors) || []).length;
     creativity += Math.min(metaphorMatches * 0.08, 0.16);
 
     // Multiple perspectives and alternatives
-    const perspectives = /\b(alternatively|another way|different approach|various approaches|multiple ways|diverse methods|range of options)\b/gi;
+    const perspectives =
+      /\b(alternatively|another way|different approach|various approaches|multiple ways|diverse methods|range of options)\b/gi;
     const perspectiveMatches = (thought.match(perspectives) || []).length;
     creativity += Math.min(perspectiveMatches * 0.08, 0.16);
 
     // Innovation and breakthrough language
-    const breakthrough = /\b(breakthrough|revolutionary|transformative|paradigm|paradigm shift|game-changing|cutting-edge)\b/gi;
+    const breakthrough =
+      /\b(breakthrough|revolutionary|transformative|paradigm|paradigm shift|game-changing|cutting-edge)\b/gi;
     const breakthroughMatches = (thought.match(breakthrough) || []).length;
     creativity += Math.min(breakthroughMatches * 0.1, 0.2);
 
@@ -691,7 +715,8 @@ export class ThoughtQualityAnalyzer {
         // Look for explicit transfer language
         let transferLanguage = 0;
         for (const thought of currentThoughts) {
-          const transferIndicators = /\b(apply.*from|learned from|based on previous|from similar|previous.*problems|previous.*solutions|same.*approach|similar.*approach)\b/gi;
+          const transferIndicators =
+            /\b(apply.*from|learned from|based on previous|from similar|previous.*problems|previous.*solutions|same.*approach|similar.*approach)\b/gi;
           const matches = (thought.thought.match(transferIndicators) || []).length;
           transferLanguage += matches;
         }
@@ -721,22 +746,26 @@ export class ThoughtQualityAnalyzer {
     let improvementLanguage = 0;
     for (const thought of context.thoughts) {
       // Explicit avoidance language (highest value)
-      const avoidanceLanguage = /\b(avoid.*mistake|avoided.*error|successfully avoided|prevent.*failure|learned from.*mistake|won't repeat|improved.*approach)\b/gi;
+      const avoidanceLanguage =
+        /\b(avoid.*mistake|avoided.*error|successfully avoided|prevent.*failure|learned from.*mistake|won't repeat|improved.*approach)\b/gi;
       const avoidanceMatches = (thought.thought.match(avoidanceLanguage) || []).length;
       improvementLanguage += avoidanceMatches * 3; // High weight for explicit avoidance
 
       // General improvement language
-      const learningIndicators = /\b(learn|improve|correct|fix|avoid|prevent|better|enhanced|refined|optimized)\b/gi;
+      const learningIndicators =
+        /\b(learn|improve|correct|fix|avoid|prevent|better|enhanced|refined|optimized)\b/gi;
       const learningMatches = (thought.thought.match(learningIndicators) || []).length;
       improvementLanguage += learningMatches;
 
       // Past experience references
-      const pastExperience = /\b(last time|previously|before|earlier|past.*experience|from.*experience|learned.*from)\b/gi;
+      const pastExperience =
+        /\b(last time|previously|before|earlier|past.*experience|from.*experience|learned.*from)\b/gi;
       const pastMatches = (thought.thought.match(pastExperience) || []).length;
       improvementLanguage += pastMatches * 2; // Medium weight for past experience
-      
+
       // Success indicators (suggests avoiding previous failures)
-      const successIndicators = /\b(successfully|effective|working well|better result|improved.*outcome)\b/gi;
+      const successIndicators =
+        /\b(successfully|effective|working well|better result|improved.*outcome)\b/gi;
       const successMatches = (thought.thought.match(successIndicators) || []).length;
       improvementLanguage += successMatches;
     }
@@ -746,7 +775,8 @@ export class ThoughtQualityAnalyzer {
     // Check for methodological improvements
     let methodologyImprovement = 0;
     for (const thought of context.thoughts) {
-      const methodologyLanguage = /\b(improved.*method|better.*approach|refined.*strategy|enhanced.*technique|more.*effective)\b/gi;
+      const methodologyLanguage =
+        /\b(improved.*method|better.*approach|refined.*strategy|enhanced.*technique|more.*effective)\b/gi;
       const matches = (thought.thought.match(methodologyLanguage) || []).length;
       methodologyImprovement += matches;
     }
@@ -755,7 +785,8 @@ export class ThoughtQualityAnalyzer {
     // Bonus for explicit contrast with previous approaches
     let contrastLanguage = 0;
     for (const thought of context.thoughts) {
-      const contrastIndicators = /\b(instead of|rather than|unlike.*before|different.*from|better than.*previous)\b/gi;
+      const contrastIndicators =
+        /\b(instead of|rather than|unlike.*before|different.*from|better than.*previous)\b/gi;
       const matches = (thought.thought.match(contrastIndicators) || []).length;
       contrastLanguage += matches;
     }
@@ -815,25 +846,30 @@ export class ThoughtQualityAnalyzer {
 
   private calculateConceptualSimilarity(text1: string, text2: string): number {
     // Focus on meaningful concepts rather than all words
-    const conceptPattern = /\b(problem|solution|approach|method|strategy|analysis|implementation|consideration|evaluation|recognition|synthesis|requirement|factor|aspect|element|component|system|process|technique|principle|framework)\b/gi;
-    
+    const conceptPattern =
+      /\b(problem|solution|approach|method|strategy|analysis|implementation|consideration|evaluation|recognition|synthesis|requirement|factor|aspect|element|component|system|process|technique|principle|framework)\b/gi;
+
     const concepts1 = new Set((text1.match(conceptPattern) || []).map(c => c.toLowerCase()));
     const concepts2 = new Set((text2.match(conceptPattern) || []).map(c => c.toLowerCase()));
-    
+
     if (concepts1.size === 0 && concepts2.size === 0) {
       // Fall back to meaningful word similarity if no concepts found
-      const meaningfulWords1 = new Set((text1.match(/\b\w{5,}\b/g) || []).map(w => w.toLowerCase()));
-      const meaningfulWords2 = new Set((text2.match(/\b\w{5,}\b/g) || []).map(w => w.toLowerCase()));
-      
+      const meaningfulWords1 = new Set(
+        (text1.match(/\b\w{5,}\b/g) || []).map(w => w.toLowerCase())
+      );
+      const meaningfulWords2 = new Set(
+        (text2.match(/\b\w{5,}\b/g) || []).map(w => w.toLowerCase())
+      );
+
       const intersection = new Set([...meaningfulWords1].filter(w => meaningfulWords2.has(w)));
       const union = new Set([...meaningfulWords1, ...meaningfulWords2]);
-      
+
       return union.size > 0 ? intersection.size / union.size : 0;
     }
-    
+
     const intersection = new Set([...concepts1].filter(c => concepts2.has(c)));
     const union = new Set([...concepts1, ...concepts2]);
-    
+
     return union.size > 0 ? intersection.size / union.size : 0;
   }
 
@@ -848,18 +884,19 @@ export class ThoughtQualityAnalyzer {
 
   private analyzeWordRepetition(thoughts: StoredThought[]): number {
     let repetitionScore = 0;
-    
+
     for (const thought of thoughts) {
       const words = thought.thought.toLowerCase().split(/\s+/);
       const wordCounts: { [key: string]: number } = {};
-      
+
       // Count word occurrences
       for (const word of words) {
-        if (word.length > 3) { // Only count meaningful words
+        if (word.length > 3) {
+          // Only count meaningful words
           wordCounts[word] = (wordCounts[word] || 0) + 1;
         }
       }
-      
+
       // Score based on repeated words within the same thought
       for (const [word, count] of Object.entries(wordCounts)) {
         if (count > 1) {
@@ -868,33 +905,43 @@ export class ThoughtQualityAnalyzer {
         }
       }
     }
-    
+
     // Also check for repeated words across different thoughts
-    const allWords = thoughts.map(t => t.thought.toLowerCase()).join(' ').split(/\s+/);
+    const allWords = thoughts
+      .map(t => t.thought.toLowerCase())
+      .join(' ')
+      .split(/\s+/);
     const globalWordCounts: { [key: string]: number } = {};
-    
+
     for (const word of allWords) {
-      if (word.length > 4) { // Only count longer words for cross-thought patterns
+      if (word.length > 4) {
+        // Only count longer words for cross-thought patterns
         globalWordCounts[word] = (globalWordCounts[word] || 0) + 1;
       }
     }
-    
+
     for (const [word, count] of Object.entries(globalWordCounts)) {
       if (count > 1) {
         repetitionScore += Math.min((count - 1) * 0.1, 0.3);
       }
     }
-    
+
     return Math.min(repetitionScore, 1.0);
   }
 
   private findCommonMeaningfulWords(text1: string, text2: string): string[] {
-    const words1 = text1.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-    const words2 = text2.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-    
+    const words1 = text1
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 4);
+    const words2 = text2
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 4);
+
     const set1 = new Set(words1);
     const set2 = new Set(words2);
-    
+
     return [...set1].filter(word => set2.has(word));
   }
 

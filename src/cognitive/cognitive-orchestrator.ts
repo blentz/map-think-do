@@ -1589,7 +1589,6 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       setTimeout(() => {
         process.exit(1); // Force exit with error code
       }, 1000);
-      return true;
     }
 
     // Track memory growth
@@ -1710,19 +1709,15 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
             `🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`
           );
 
+          if (rssInMB > this.ABSOLUTE_MEMORY_LIMIT_MB) {
+            console.error(`🚨 MEMORY MONITOR SAFETY: ${rssInMB.toFixed(1)}MB > ${this.ABSOLUTE_MEMORY_LIMIT_MB}MB - FORCE EXIT`);
+            process.exit(1);
+          }
+
           if (rssInMB > 800) {
             console.error('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
             process.exit(0); // Let process manager restart
           }
-        }
-        
-        // 🚨 Additional safety check - if memory monitor itself fails
-        const memUsage = process.memoryUsage();
-        const rssInMB = memUsage.rss / 1024 / 1024;
-        
-        if (rssInMB > this.ABSOLUTE_MEMORY_LIMIT_MB) {
-          console.error(`🚨 MEMORY MONITOR SAFETY: ${rssInMB.toFixed(1)}MB > ${this.ABSOLUTE_MEMORY_LIMIT_MB}MB - FORCE EXIT`);
-          process.exit(1);
         }
         
       } catch (error) {
