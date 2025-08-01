@@ -14,6 +14,9 @@ import {
   MemoryQuery,
   PromptQuery,
   MemoryStats,
+  Project,
+  ProjectQuery,
+  MemoryUtils,
 } from './memory-store.js';
 
 /**
@@ -23,6 +26,7 @@ export class SimpleMemoryStore extends MemoryStore {
   private thoughts: Map<string, StoredThought> = new Map();
   private sessions: Map<string, ReasoningSession> = new Map();
   private prompts: Map<string, StoredPrompt> = new Map();
+  private projects: Map<string, Project> = new Map();
 
   async initialize(): Promise<void> {
     // No initialization needed for in-memory store
@@ -177,21 +181,7 @@ export class SimpleMemoryStore extends MemoryStore {
   }
 
   async findSimilarThoughts(thought: string, limit?: number): Promise<StoredThought[]> {
-    // Simple similarity based on word overlap
-    const inputWords = thought.toLowerCase().split(/\s+/);
-    const thoughts = Array.from(this.thoughts.values());
-
-    const similarities = thoughts.map(t => {
-      const thoughtWords = t.thought.toLowerCase().split(/\s+/);
-      const overlap = inputWords.filter(word => thoughtWords.includes(word)).length;
-      const similarity = overlap / Math.max(inputWords.length, thoughtWords.length);
-      return { thought: t, similarity };
-    });
-
-    similarities.sort((a, b) => b.similarity - a.similarity);
-    const results = similarities.map(s => s.thought);
-
-    return limit ? results.slice(0, limit) : results;
+    throw new Error('Semantic similarity search not supported in SimpleMemoryStore');
   }
 
   async updateThought(id: string, updates: Partial<StoredThought>): Promise<void> {
@@ -390,21 +380,7 @@ export class SimpleMemoryStore extends MemoryStore {
   }
 
   async findSimilarPrompts(prompt: string, limit?: number): Promise<StoredPrompt[]> {
-    // Simple similarity based on word overlap
-    const inputWords = prompt.toLowerCase().split(/\s+/);
-    const prompts = Array.from(this.prompts.values());
-
-    const similarities = prompts.map(p => {
-      const promptWords = p.original_prompt.toLowerCase().split(/\s+/);
-      const overlap = inputWords.filter(word => promptWords.includes(word)).length;
-      const similarity = overlap / Math.max(inputWords.length, promptWords.length);
-      return { prompt: p, similarity };
-    });
-
-    similarities.sort((a, b) => b.similarity - a.similarity);
-    const results = similarities.map(s => s.prompt);
-
-    return limit ? results.slice(0, limit) : results;
+    throw new Error('Semantic similarity search not supported in SimpleMemoryStore');
   }
 
   async updatePrompt(id: string, updates: Partial<StoredPrompt>): Promise<void> {
@@ -485,6 +461,28 @@ export class SimpleMemoryStore extends MemoryStore {
     }
   }
 
+  async findSimilarPatterns(): Promise<Array<{
+    pattern_name: string;
+    similarity_score: number;
+    pattern_frequency: number;
+    created_at: Date;
+  }>> {
+    throw new Error('Pattern embeddings not supported in SimpleMemoryStore');
+  }
+
+  async getPatterns(): Promise<Array<{
+    pattern_name: string;
+    pattern_frequency: number;
+    created_at: Date;
+    has_embedding: boolean;
+  }>> {
+    throw new Error('Pattern embeddings not supported in SimpleMemoryStore');
+  }
+
+  async updatePatternEmbeddings(): Promise<number> {
+    throw new Error('Pattern embeddings not supported in SimpleMemoryStore');
+  }
+
   async close(): Promise<void> {
     this.thoughts.clear();
     this.sessions.clear();
@@ -556,6 +554,195 @@ export class SimpleMemoryStore extends MemoryStore {
       size += JSON.stringify(session).length * 2;
     }
 
+    for (const project of this.projects.values()) {
+      size += JSON.stringify(project).length * 2;
+    }
+
     return size;
   }
+
+  // Project management methods - in-memory implementations
+  async createProject(project: Omit<Project, 'id'>): Promise<Project> {
+    const id = MemoryUtils.generateProjectId();
+    const newProject: Project = {
+      ...project,
+      id,
+    };
+    this.projects.set(id, newProject);
+    return newProject;
+  }
+
+  async getProject(projectId: string): Promise<Project | null> {
+    return this.projects.get(projectId) || null;
+  }
+
+  async findProjectByPath(directoryPath: string): Promise<Project | null> {
+    for (const project of this.projects.values()) {
+      if (project.directory_path === directoryPath) {
+        return project;
+      }
+    }
+    return null;
+  }
+
+  async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
+    const project = this.projects.get(projectId);
+    if (project) {
+      const updatedProject = { ...project, ...updates, updated_at: new Date() };
+      this.projects.set(projectId, updatedProject);
+    }
+  }
+
+  async queryProjects(query: ProjectQuery = {}): Promise<Project[]> {
+    let results = Array.from(this.projects.values());
+
+    // Apply filters
+    if (query.directory_path) {
+      results = results.filter(p => p.directory_path === query.directory_path);
+    }
+    if (query.project_name) {
+      results = results.filter(p => p.project_name.toLowerCase().includes(query.project_name!.toLowerCase()));
+    }
+    if (query.project_type) {
+      results = results.filter(p => p.project_type === query.project_type);
+    }
+    if (query.is_active !== undefined) {
+      results = results.filter(p => p.is_active === query.is_active);
+    }
+    if (query.is_archived !== undefined) {
+      results = results.filter(p => p.is_archived === query.is_archived);
+    }
+    if (query.technology_stack && query.technology_stack.length > 0) {
+      results = results.filter(p => 
+        query.technology_stack!.every(tech => p.technology_stack?.includes(tech))
+      );
+    }
+
+    // Apply sorting
+    const sortBy = query.sort_by || 'last_activity_at';
+    const sortOrder = query.sort_order || 'desc';
+    
+    results.sort((a, b) => {
+      const aVal = a[sortBy as keyof Project];
+      const bVal = b[sortBy as keyof Project];
+      
+      // Handle undefined values
+      if (aVal === undefined && bVal === undefined) return 0;
+      if (aVal === undefined) return sortOrder === 'asc' ? -1 : 1;
+      if (bVal === undefined) return sortOrder === 'asc' ? 1 : -1;
+      
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    // Apply pagination
+    if (query.offset) {
+      results = results.slice(query.offset);
+    }
+    if (query.limit) {
+      results = results.slice(0, query.limit);
+    }
+
+    return results;
+  }
+
+  async getProjectAnalytics(projectId: string): Promise<{
+    totalSessions: number;
+    totalThoughts: number;
+    totalPrompts: number;
+    averageSessionLength: number;
+    successRate: number;
+    mostUsedTechnologies: Array<{ tech: string; usage: number }>;
+    recentActivity: Array<{ date: string; sessions: number; thoughts: number }>;
+  }> {
+    const projectSessions = Array.from(this.sessions.values()).filter(s => s.project_id === projectId);
+    const projectThoughts = Array.from(this.thoughts.values()).filter(t => t.project_id === projectId);
+    const projectPrompts = Array.from(this.prompts.values()).filter(p => p.project_id === projectId);
+    
+    const totalSessions = projectSessions.length;
+    const totalThoughts = projectThoughts.length;
+    const totalPrompts = projectPrompts.length;
+    
+    const averageSessionLength = totalSessions > 0 
+      ? projectSessions.reduce((sum, s) => sum + s.total_thoughts, 0) / totalSessions
+      : 0;
+    
+    const successfulSessions = projectSessions.filter(s => s.goal_achieved).length;
+    const successRate = totalSessions > 0 ? successfulSessions / totalSessions : 0;
+    
+    const project = await this.getProject(projectId);
+    const mostUsedTechnologies = project?.technology_stack?.map(tech => ({ tech, usage: 1 })) || [];
+    
+    return {
+      totalSessions,
+      totalThoughts,
+      totalPrompts,
+      averageSessionLength,
+      successRate,
+      mostUsedTechnologies,
+      recentActivity: [] // Simplified for in-memory store
+    };
+  }
+
+  async getCrossProjectPatterns(limit = 10): Promise<Array<{
+    pattern: string;
+    projects: string[];
+    frequency: number;
+    successRate: number;
+  }>> {
+    const patternsByProject = new Map<string, Set<string>>();
+    const patternStats = new Map<string, { frequency: number; successCount: number; totalCount: number }>();
+    
+    // Collect patterns by project
+    for (const thought of this.thoughts.values()) {
+      if (thought.project_id && thought.patterns_detected) {
+        const projectName = this.projects.get(thought.project_id)?.project_name || thought.project_id;
+        
+        for (const pattern of thought.patterns_detected) {
+          if (!patternsByProject.has(pattern)) {
+            patternsByProject.set(pattern, new Set());
+          }
+          patternsByProject.get(pattern)!.add(projectName);
+          
+          if (!patternStats.has(pattern)) {
+            patternStats.set(pattern, { frequency: 0, successCount: 0, totalCount: 0 });
+          }
+          
+          const stats = patternStats.get(pattern)!;
+          stats.frequency++;
+          stats.totalCount++;
+          if (thought.success) {
+            stats.successCount++;
+          }
+        }
+      }
+    }
+    
+    // Filter patterns that appear in multiple projects
+    const crossProjectPatterns = Array.from(patternsByProject.entries())
+      .filter(([_, projects]) => projects.size > 1)
+      .map(([pattern, projectsSet]) => {
+        const stats = patternStats.get(pattern)!;
+        return {
+          pattern,
+          projects: Array.from(projectsSet),
+          frequency: stats.frequency,
+          successRate: stats.totalCount > 0 ? stats.successCount / stats.totalCount : 0
+        };
+      })
+      .sort((a, b) => b.frequency - a.frequency)
+      .slice(0, limit);
+    
+    return crossProjectPatterns;
+  }
+
+  async findSimilarPromptsHybrid(prompt: string, limit = 5, projectId?: string): Promise<StoredPrompt[]> {
+    throw new Error('Hybrid similarity search not supported in SimpleMemoryStore');
+  }
+
+  async findSimilarThoughtsHybrid(thought: string, limit = 5, projectId?: string): Promise<StoredThought[]> {
+    throw new Error('Hybrid similarity search not supported in SimpleMemoryStore');
+  }
+
 }

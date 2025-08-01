@@ -15,6 +15,10 @@ import {
   PluginActivation,
   PluginIntervention,
 } from '../plugin-system.js';
+import {
+  ProjectCognitiveContext,
+  TechnologyCognitiveStrategy
+} from '../project-cognitive-context.js';
 
 /**
  * Cognitive persona definition
@@ -558,40 +562,61 @@ export class PersonaPlugin extends CognitivePlugin {
   }
 
   /**
-   * Calculate individual persona relevance score
+   * Calculate individual persona relevance score with project awareness
    */
   private calculatePersonaScore(persona: CognitivePersona, context: CognitiveContext): number {
     let score = 0;
+    const projectContext = context as ProjectCognitiveContext;
 
-    // Domain matching
+    // 🎯 PROJECT-AWARE PERSONA WEIGHTING (NEW)
+    // This is the key enhancement: use technology strategy to influence persona selection
+    if (projectContext.technologyStrategy && projectContext.project) {
+      const techStrategy = projectContext.technologyStrategy;
+      const personaWeight = this.getTechnologyBasedPersonaWeight(persona.id, techStrategy);
+      
+      // Technology-based persona preference (40% weight - most important factor)
+      score += personaWeight * 0.4;
+      
+      // Log technology-aware persona adjustment
+      if (personaWeight > 0.7) {
+        console.error(`🎭 High tech affinity: ${persona.name} (${personaWeight.toFixed(2)}) for ${projectContext.project.technology_stack?.join(', ')}`);
+      }
+    }
+
+    // Domain matching (reduced weight from 0.3 to 0.2 to make room for tech strategy)
     if (context.domain) {
       const domainMatch = persona.preferred_domains.some(domain =>
         context.domain!.toLowerCase().includes(domain.toLowerCase())
       );
-      if (domainMatch) score += 0.3;
+      if (domainMatch) score += 0.2;
     }
 
-    // Trigger word matching
+    // Trigger word matching (reduced weight from 0.4 to 0.25)
     if (context.current_thought) {
       const thoughtLower = context.current_thought.toLowerCase();
       const triggerMatches = persona.activation_triggers.filter(trigger =>
         thoughtLower.includes(trigger.toLowerCase())
       ).length;
-      score += (triggerMatches / persona.activation_triggers.length) * 0.4;
+      score += (triggerMatches / persona.activation_triggers.length) * 0.25;
     }
 
-    // Complexity preference matching
+    // Complexity preference matching (reduced weight)
     const complexityMatch = this.calculateComplexityMatch(persona, context.complexity);
-    score += complexityMatch * 0.2;
+    score += complexityMatch * 0.1;
 
-    // Historical performance
+    // Historical performance (reduced weight)
     const performance = this.personaPerformance.get(persona.id) || 0.5;
-    score += (performance - 0.5) * 0.1; // Adjust based on past performance
-
-    // Context-specific factors
-    score += this.calculateContextSpecificScore(persona, context);
+    score += (performance - 0.5) * 0.05;
 
     return Math.max(0, Math.min(1, score));
+  }
+
+  /**
+   * Get technology-based persona weight from strategy
+   */
+  private getTechnologyBasedPersonaWeight(personaId: string, strategy: TechnologyCognitiveStrategy): number {
+    const personaKey = personaId as keyof typeof strategy.preferredPersonas;
+    return strategy.preferredPersonas[personaKey] || 0.5; // Default to neutral if persona not found
   }
 
   /**
@@ -725,11 +750,56 @@ export class PersonaPlugin extends CognitivePlugin {
     selectedPersonas: Array<{ persona: CognitivePersona; score: number }>,
     context: CognitiveContext
   ): Promise<string> {
-    if (selectedPersonas.length === 1) {
-      return this.generateSinglePersonaIntervention(selectedPersonas[0].persona, context);
-    } else {
-      return this.generateMultiPersonaIntervention(selectedPersonas, context);
+    const projectContext = context as ProjectCognitiveContext;
+    
+    // Add project-aware context header if available
+    let projectContextHeader = '';
+    if (projectContext.project) {
+      projectContextHeader = this.generateProjectContextHeader(projectContext);
     }
+    
+    if (selectedPersonas.length === 1) {
+      return projectContextHeader + this.generateSinglePersonaIntervention(selectedPersonas[0].persona, context);
+    } else {
+      return projectContextHeader + this.generateMultiPersonaIntervention(selectedPersonas, context);
+    }
+  }
+
+  /**
+   * Generate project context header for persona interventions
+   */
+  private generateProjectContextHeader(projectContext: ProjectCognitiveContext): string {
+    if (!projectContext.project) return '';
+    
+    const project = projectContext.project;
+    let header = `📁 **Project Context: ${project.name}**\n`;
+    
+    if (project.technology_stack && project.technology_stack.length > 0) {
+      header += `🏷️ *Tech Stack: ${project.technology_stack.join(', ')}*\n`;
+    }
+    
+    if (project.project_type) {
+      header += `🏗️ *Project Type: ${project.project_type}*\n`;
+    }
+    
+    if (project.lifecycle_phase) {
+      header += `🔄 *Phase: ${project.lifecycle_phase}*\n`;
+    }
+    
+    // Add technology-specific cognitive insights
+    if (projectContext.technologyStrategy) {
+      const strategy = projectContext.technologyStrategy;
+      const topPersonas = Object.entries(strategy.preferredPersonas)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3)
+        .map(([persona, weight]) => `${persona}(${(weight * 100).toFixed(0)}%)`)
+        .join(', ');
+      
+      header += `⚙️ *Optimal personas for this tech stack: ${topPersonas}*\n`;
+    }
+    
+    header += '\n---\n\n';
+    return header;
   }
 
   /**

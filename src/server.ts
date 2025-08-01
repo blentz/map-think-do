@@ -65,6 +65,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z, ZodError } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { PromptManager } from './prompts/manager.js';
+import { PromptValueManager } from './prompts/valueManager.js';
 import { configManager, type CodeReasoningConfig } from './utils/config-manager.js';
 import {
   CONFIG_DIR,
@@ -84,6 +85,9 @@ import {
   MemoryQuery,
   PromptQuery,
   MemoryStats,
+  Project,
+  ProjectQuery,
+  MemoryUtils,
 } from './memory/memory-store.js';
 import { PostgreSQLMemoryStore } from './memory/postgresql-memory-store.js';
 import { PostgreSQLConfigs } from './memory/postgresql-config.js';
@@ -93,6 +97,8 @@ import { SimilarityDetector } from './memory/prompt-intelligence/similarity-dete
 import { ComplexityEstimator } from './memory/prompt-intelligence/complexity-estimator.js';
 import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
 import { TimerManager } from './utils/timer-manager.js';
+import * as path from 'path';
+import * as fs from 'fs';
 
 /* -------------------------------------------------------------------------- */
 /*                               CONFIGURATION                                */
@@ -349,6 +355,7 @@ export class CodeReasoningServer {
   private readonly intentExtractor: IntentExtractor;
   private readonly similarityDetector: SimilarityDetector;
   private readonly complexityEstimator: ComplexityEstimator;
+  private readonly promptValueManager: PromptValueManager;
 
   // Session tracking for persistence
   private currentSession: Partial<ReasoningSession> | null = null;
@@ -378,6 +385,7 @@ export class CodeReasoningServer {
     this.intentExtractor = new IntentExtractor();
     this.similarityDetector = new SimilarityDetector();
     this.complexityEstimator = new ComplexityEstimator();
+    this.promptValueManager = new PromptValueManager(CONFIG_DIR);
 
     // Cognitive orchestrator will be initialized via initialize() method
 
@@ -490,7 +498,8 @@ export class CodeReasoningServer {
    */
   private async updateAndStoreSession(
     data: ValidatedThoughtData,
-    cognitiveResult: any
+    cognitiveResult: any,
+    projectId?: string
   ): Promise<void> {
     if (!this.currentSession) {
       console.error('Warning: Session not initialized, creating new session');
@@ -509,6 +518,12 @@ export class CodeReasoningServer {
     this.currentSession!.objective = this.inferObjective(data);
     this.currentSession!.domain = this.inferDomain(data);
     this.currentSession!.total_thoughts = data.total_thoughts;
+    
+    // Update project association if available
+    if (projectId && !this.currentSession!.project_id) {
+      this.currentSession!.project_id = projectId;
+      console.error(`📁 Session linked to project: ${projectId}`);
+    }
     this.currentSession!.revision_count = this.thoughtHistory.filter(t => t.is_revision).length;
     this.currentSession!.branch_count = this.branches.size;
 
@@ -904,7 +919,7 @@ export class CodeReasoningServer {
   /**
    * Capture and analyze the original prompt using AGI-like intelligence
    */
-  private async captureAndAnalyzePrompt(thoughtData: ValidatedThoughtData): Promise<string | null> {
+  private async captureAndAnalyzePrompt(thoughtData: ValidatedThoughtData, projectId?: string): Promise<string | null> {
     try {
       // Use the thought content as a proxy for the original prompt
       // In a more advanced implementation, this would capture the actual user prompt
@@ -935,6 +950,7 @@ export class CodeReasoningServer {
       const storedPrompt: StoredPrompt = {
         id: this.generatePromptId(),
         session_id: this.currentSessionId,
+        project_id: projectId || undefined, // Link to the resolved project
         original_prompt: promptText,
         prompt_type: classification.type,
         classification_confidence: classification.confidence,
@@ -1047,11 +1063,31 @@ export class CodeReasoningServer {
         );
       }
 
+      // 📁 PROJECT RESOLUTION: Extract project context from working directory (first)
+      console.error('📁 Resolving project context from working directory...');
+      const projectId = await this.resolveProjectFromWorkingDirectory();
+      let project: Project | undefined;
+      
+      if (projectId) {
+        console.error(`✅ Project context resolved: ${projectId}`);
+        // Fetch the full project object for cognitive integration
+        try {
+          project = await (this.memoryStore as any).getProject?.(projectId) || undefined;
+          if (project) {
+            console.error(`📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`);
+          }
+        } catch (error) {
+          console.error('⚠️ Failed to fetch project details:', error);
+        }
+      } else {
+        console.error('ℹ️ No project context available (working_directory not set)');
+      }
+
       // 🧠 AGI MAGIC: Prompt intelligence and cognitive orchestration
       console.error('🧠 Capturing and analyzing prompt with AGI intelligence...');
 
-      // Capture and analyze the prompt before cognitive processing
-      const promptId = await this.captureAndAnalyzePrompt(data);
+      // Capture and analyze the prompt with project context
+      const promptId = await this.captureAndAnalyzePrompt(data, projectId);
 
       console.error(
         '🧠 Engaging cognitive orchestrator for AGI-level processing with prompt context...'
@@ -1095,7 +1131,7 @@ export class CodeReasoningServer {
         }
       }
 
-      // Use enhanced cognitive processing with prompt context priming
+      // Use enhanced cognitive processing with prompt context priming and project awareness
       const cognitiveResult = promptContext
         ? await this.cognitiveOrchestrator.processThoughtWithPromptContext(
             data,
@@ -1110,7 +1146,8 @@ export class CodeReasoningServer {
               revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
               branch_count: this.branches.size,
             },
-            promptContext
+            promptContext,
+            project // Pass project context for cognitive awareness
           )
         : await this.cognitiveOrchestrator.processThought(data, {
             id: this.currentSessionId,
@@ -1122,7 +1159,7 @@ export class CodeReasoningServer {
             total_thoughts: data.total_thoughts,
             revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
             branch_count: this.branches.size,
-          });
+          }, project); // Pass project context for cognitive awareness
 
       // Store thought in memory with cognitive enrichment and prompt linkage
       const storedThought: StoredThought = {
@@ -1139,6 +1176,7 @@ export class CodeReasoningServer {
         timestamp: new Date(),
         session_id: this.currentSessionId,
         prompt_id: promptId || undefined, // Link to the analyzed prompt
+        project_id: projectId || undefined, // Link to the resolved project
         confidence:
           cognitiveResult.cognitiveState.confidence_trajectory[
             cognitiveResult.cognitiveState.confidence_trajectory.length - 1
@@ -1156,7 +1194,7 @@ export class CodeReasoningServer {
       };
 
       // Update and store session information FIRST (to satisfy foreign key constraints)
-      await this.updateAndStoreSession(data, cognitiveResult);
+      await this.updateAndStoreSession(data, cognitiveResult, projectId);
 
       // Then store the thought (which references the session)
       await this.memoryStore.storeThought(storedThought);
@@ -1263,6 +1301,379 @@ export class CodeReasoningServer {
    */
   private generateThoughtId(): string {
     return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                            PROJECT RESOLUTION                             */
+  /* -------------------------------------------------------------------------- */
+
+  /**
+   * Resolve project from working directory with comprehensive metadata extraction
+   */
+  private async resolveProjectFromWorkingDirectory(): Promise<string | undefined> {
+    try {
+      const storedValues = this.promptValueManager.getStoredValues('');
+      const workingDirectory = storedValues.working_directory;
+      
+      if (workingDirectory && typeof workingDirectory === 'string') {
+        // Validate path for security
+        const pathValidation = MemoryUtils.validateProjectPath(workingDirectory);
+        if (!pathValidation.valid) {
+          console.error(`⚠️ Invalid project path: ${pathValidation.error}`);
+          return undefined;
+        }
+
+        const normalizedPath = path.resolve(workingDirectory);
+        console.error(`🔍 Resolving project from: ${normalizedPath}`);
+        
+        // Find or create project record
+        const projectId = await this.findOrCreateProject(normalizedPath);
+        console.error(`📁 Project resolved: ${projectId}`);
+        return projectId;
+      }
+    } catch (error) {
+      console.error('❌ Error resolving project context:', error);
+    }
+    return undefined;
+  }
+
+  /**
+   * Find existing project or create new one with metadata extraction
+   */
+  private async findOrCreateProject(directoryPath: string): Promise<string> {
+    // Check if project already exists
+    const existingProject = await (this.memoryStore as any).findProjectByPath?.(directoryPath);
+    if (existingProject) {
+      // Update last activity
+      await (this.memoryStore as any).updateProject?.(existingProject.id, {
+        last_activity_at: new Date()
+      });
+      console.error(`✅ Found existing project: ${existingProject.project_name} (${existingProject.id})`);
+      return existingProject.id;
+    }
+    
+    // Create new project with metadata extraction
+    console.error(`📝 Creating new project for: ${directoryPath}`);
+    const projectMetadata = await this.extractProjectMetadata(directoryPath);
+    const project: Omit<Project, 'id'> = {
+      directory_path: directoryPath,
+      project_name: projectMetadata.name,
+      description: projectMetadata.description,
+      technology_stack: projectMetadata.technologyStack,
+      project_type: projectMetadata.projectType,
+      programming_languages: projectMetadata.programmingLanguages,
+      created_at: new Date(),
+      updated_at: new Date(),
+      last_activity_at: new Date(),
+      is_active: true,
+      is_archived: false,
+      cognitive_settings: {},
+      project_metadata: projectMetadata.customMetadata || {}
+    };
+    
+    const createdProject = await (this.memoryStore as any).createProject?.(project);
+    if (createdProject) {
+      console.error(`🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`);
+      console.error(`🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`);
+      console.error(`🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`);
+      return createdProject.id;
+    }
+    
+    throw new Error('Failed to create project');
+  }
+
+  /**
+   * Extract comprehensive project metadata from directory structure and files
+   */
+  private async extractProjectMetadata(directoryPath: string): Promise<{
+    name: string;
+    description?: string;
+    technologyStack: string[];
+    projectType?: string;
+    programmingLanguages: string[];
+    customMetadata?: Record<string, any>;
+  }> {
+    const projectName = MemoryUtils.extractProjectName(directoryPath);
+    const technologyStack: string[] = [];
+    const programmingLanguages: string[] = [];
+    let description: string | undefined;
+    let projectType: string | undefined;
+    const customMetadata: Record<string, any> = {};
+    
+    try {
+      console.error(`🔍 Analyzing project structure: ${directoryPath}`);
+
+      // Check for package.json (Node.js project)
+      const packageJsonPath = path.join(directoryPath, 'package.json');
+      if (await this.fileExists(packageJsonPath)) {
+        console.error('📦 Found package.json - Node.js project detected');
+        const packageJson = JSON.parse(await this.readFileContent(packageJsonPath));
+        description = packageJson.description;
+        technologyStack.push('nodejs');
+        programmingLanguages.push('javascript');
+        
+        // Detect TypeScript
+        if (packageJson.devDependencies?.typescript || packageJson.dependencies?.typescript) {
+          technologyStack.push('typescript');
+          programmingLanguages.push('typescript');
+          console.error('📝 TypeScript detected');
+        }
+        
+        // Detect React
+        if (packageJson.dependencies?.react) {
+          technologyStack.push('react');
+          projectType = 'web-app';
+          console.error('⚛️ React detected');
+        }
+        
+        // Detect Next.js
+        if (packageJson.dependencies?.next) {
+          technologyStack.push('nextjs');
+          projectType = 'web-app';
+          console.error('🔺 Next.js detected');
+        }
+
+        // Detect Vue.js
+        if (packageJson.dependencies?.vue) {
+          technologyStack.push('vue');
+          projectType = 'web-app';
+          console.error('💚 Vue.js detected');
+        }
+
+        // Detect Express
+        if (packageJson.dependencies?.express) {
+          technologyStack.push('express');
+          if (!projectType) projectType = 'api';
+          console.error('🚀 Express detected');
+        }
+
+        // Detect NestJS
+        if (packageJson.dependencies?.['@nestjs/core']) {
+          technologyStack.push('nestjs');
+          projectType = 'api';
+          console.error('🐱 NestJS detected');
+        }
+        
+        customMetadata.packageJson = {
+          name: packageJson.name,
+          version: packageJson.version,
+          dependencies: Object.keys(packageJson.dependencies || {}),
+          devDependencies: Object.keys(packageJson.devDependencies || {})
+        };
+      }
+      
+      // Check for requirements.txt or pyproject.toml (Python project)
+      const requirementsPath = path.join(directoryPath, 'requirements.txt');
+      const pyprojectPath = path.join(directoryPath, 'pyproject.toml');
+      if (await this.fileExists(requirementsPath) || await this.fileExists(pyprojectPath)) {
+        console.error('🐍 Python project detected');
+        technologyStack.push('python');
+        programmingLanguages.push('python');
+        if (!projectType) projectType = 'api';
+
+        // Check for specific Python frameworks
+        if (await this.fileExists(requirementsPath)) {
+          const requirements = await this.readFileContent(requirementsPath);
+          if (requirements.includes('django')) {
+            technologyStack.push('django');
+            projectType = 'web-app';
+            console.error('🎸 Django detected');
+          }
+          if (requirements.includes('flask')) {
+            technologyStack.push('flask');
+            projectType = 'api';
+            console.error('🌶️ Flask detected');
+          }
+          if (requirements.includes('fastapi')) {
+            technologyStack.push('fastapi');
+            projectType = 'api';
+            console.error('⚡ FastAPI detected');
+          }
+        }
+      }
+      
+      // Check for Cargo.toml (Rust project)
+      const cargoPath = path.join(directoryPath, 'Cargo.toml');
+      if (await this.fileExists(cargoPath)) {
+        console.error('🦀 Rust project detected');
+        technologyStack.push('rust');
+        programmingLanguages.push('rust');
+        
+        try {
+          const cargoContent = await this.readFileContent(cargoPath);
+          if (cargoContent.includes('[dependencies]')) {
+            if (cargoContent.includes('actix') || cargoContent.includes('warp')) {
+              projectType = 'api';
+              console.error('🌐 Rust web framework detected');
+            }
+          }
+        } catch (error) {
+          console.error('⚠️ Error reading Cargo.toml:', error);
+        }
+      }
+      
+      // Check for go.mod (Go project)
+      const goModPath = path.join(directoryPath, 'go.mod');
+      if (await this.fileExists(goModPath)) {
+        console.error('🐹 Go project detected');
+        technologyStack.push('go');
+        programmingLanguages.push('go');
+        if (!projectType) projectType = 'api';
+        
+        try {
+          const goModContent = await this.readFileContent(goModPath);
+          if (goModContent.includes('gin-gonic') || goModContent.includes('gorilla')) {
+            console.error('🌐 Go web framework detected');
+          }
+        } catch (error) {
+          console.error('⚠️ Error reading go.mod:', error);
+        }
+      }
+
+      // Check for pom.xml (Java/Maven project)
+      const pomPath = path.join(directoryPath, 'pom.xml');
+      if (await this.fileExists(pomPath)) {
+        console.error('☕ Java/Maven project detected');
+        technologyStack.push('java', 'maven');
+        programmingLanguages.push('java');
+        if (!projectType) projectType = 'api';
+      }
+
+      // Check for build.gradle (Java/Gradle project)
+      const gradlePath = path.join(directoryPath, 'build.gradle');
+      if (await this.fileExists(gradlePath)) {
+        console.error('☕ Java/Gradle project detected');
+        technologyStack.push('java', 'gradle');
+        programmingLanguages.push('java');
+        if (!projectType) projectType = 'api';
+      }
+
+      // Check for Dockerfile (Docker containerization)
+      const dockerfilePath = path.join(directoryPath, 'Dockerfile');
+      if (await this.fileExists(dockerfilePath)) {
+        console.error('🐳 Docker detected');
+        technologyStack.push('docker');
+      }
+
+      // Check for docker-compose.yml
+      const dockerComposePath = path.join(directoryPath, 'docker-compose.yml');
+      if (await this.fileExists(dockerComposePath)) {
+        console.error('🐙 Docker Compose detected');
+        technologyStack.push('docker-compose');
+      }
+      
+      // Check for README files for description
+      if (!description) {
+        const readmeFiles = ['README.md', 'README.txt', 'README.rst'];
+        for (const readme of readmeFiles) {
+          const readmePath = path.join(directoryPath, readme);
+          if (await this.fileExists(readmePath)) {
+            try {
+              const content = await this.readFileContent(readmePath);
+              // Extract first meaningful paragraph as description
+              const lines = content.split('\n').filter(line => line.trim().length > 0);
+              for (const line of lines.slice(1, 5)) { // Skip title, check next few lines
+                if (line.length > 20 && line.length < 500 && !line.startsWith('#')) {
+                  description = line.replace(/^[#\-\*\s]*/, '').trim();
+                  console.error(`📚 Description extracted from ${readme}`);
+                  break;
+                }
+              }
+              if (description) break;
+            } catch (error) {
+              console.error(`⚠️ Error reading ${readme}:`, error);
+            }
+          }
+        }
+      }
+
+      // Detect additional technologies from file extensions
+      const commonFiles = await this.scanDirectoryForExtensions(directoryPath);
+      if (commonFiles.includes('.py') && !programmingLanguages.includes('python')) {
+        programmingLanguages.push('python');
+        console.error('🐍 Python files detected');
+      }
+      if (commonFiles.includes('.java') && !programmingLanguages.includes('java')) {
+        programmingLanguages.push('java');
+        console.error('☕ Java files detected');
+      }
+      if ((commonFiles.includes('.cpp') || commonFiles.includes('.cc')) && !programmingLanguages.includes('cpp')) {
+        programmingLanguages.push('cpp');
+        console.error('⚙️ C++ files detected');
+      }
+      if (commonFiles.includes('.c') && !programmingLanguages.includes('c')) {
+        programmingLanguages.push('c');
+        console.error('⚙️ C files detected');
+      }
+
+    } catch (error) {
+      console.error('❌ Error extracting project metadata:', error);
+    }
+    
+    const result = {
+      name: projectName,
+      description,
+      technologyStack: [...new Set(technologyStack)], // Remove duplicates
+      projectType,
+      programmingLanguages: [...new Set(programmingLanguages)], // Remove duplicates
+      customMetadata
+    };
+
+    console.error('📊 Project metadata extraction complete:', {
+      name: result.name,
+      type: result.projectType || 'unknown',
+      technologies: result.technologyStack.length,
+      languages: result.programmingLanguages.length,
+      hasDescription: !!result.description
+    });
+
+    return result;
+  }
+
+  /**
+   * Check if file exists asynchronously
+   */
+  private async fileExists(filePath: string): Promise<boolean> {
+    try {
+      await fs.promises.access(filePath, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Read file content safely
+   */
+  private async readFileContent(filePath: string): Promise<string> {
+    try {
+      return await fs.promises.readFile(filePath, 'utf8');
+    } catch (error) {
+      console.error(`⚠️ Error reading file ${filePath}:`, error);
+      return '';
+    }
+  }
+
+  /**
+   * Scan directory for common file extensions (non-recursive for performance)
+   */
+  private async scanDirectoryForExtensions(directoryPath: string): Promise<string[]> {
+    try {
+      const files = await fs.promises.readdir(directoryPath);
+      const extensions = new Set<string>();
+      
+      for (const file of files.slice(0, 100)) { // Limit to first 100 files for performance
+        const ext = path.extname(file).toLowerCase();
+        if (ext) {
+          extensions.add(ext);
+        }
+      }
+      
+      return Array.from(extensions);
+    } catch (error) {
+      console.error(`⚠️ Error scanning directory ${directoryPath}:`, error);
+      return [];
+    }
   }
 
   private inferObjective(data: ValidatedThoughtData): string {
@@ -1882,10 +2293,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 class InMemoryStore extends MemoryStore {
   private thoughts: Map<string, StoredThought> = new Map();
   private sessions: Map<string, ReasoningSession> = new Map();
+  private projects: Map<string, Project> = new Map();
+  private prompts: Map<string, StoredPrompt> = new Map();
 
   // Memory management constants
   private readonly MAX_THOUGHTS = 10000;
   private readonly MAX_SESSIONS = 1000;
+  private readonly MAX_PROMPTS = 5000;
   private readonly CLEANUP_THRESHOLD = 0.9; // Cleanup when 90% full
 
   async storeThought(thought: StoredThought): Promise<void> {
@@ -1907,6 +2321,28 @@ class InMemoryStore extends MemoryStore {
     for (let i = 0; i < thoughtsToRemove && i < sortedThoughts.length; i++) {
       this.thoughts.delete(sortedThoughts[i][0]);
     }
+  }
+
+  private performPromptCleanup(): void {
+    // Remove oldest prompts (LRU-style cleanup)
+    const promptsToRemove = Math.floor(this.MAX_PROMPTS * 0.2); // Remove 20%
+    const sortedPrompts = Array.from(this.prompts.entries()).sort(
+      (a, b) => a[1].received_at.getTime() - b[1].received_at.getTime()
+    );
+
+    for (let i = 0; i < promptsToRemove && i < sortedPrompts.length; i++) {
+      this.prompts.delete(sortedPrompts[i][0]);
+    }
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    return 'Unknown error occurred';
   }
 
   async storeSession(session: ReasoningSession): Promise<void> {
@@ -1967,10 +2403,7 @@ class InMemoryStore extends MemoryStore {
   }
 
   async findSimilarThoughts(thought: string, limit?: number): Promise<StoredThought[]> {
-    const results = Array.from(this.thoughts.values())
-      .filter(t => t.thought.toLowerCase().includes(thought.toLowerCase()))
-      .slice(0, limit || 10);
-    return results;
+    throw new Error('Semantic similarity search not supported in InMemoryStore');
   }
 
   async updateThought(id: string, updates: Partial<StoredThought>): Promise<void> {
@@ -2041,23 +2474,189 @@ class InMemoryStore extends MemoryStore {
   }
 
   async storePrompt(prompt: StoredPrompt): Promise<void> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      // Check if we need to cleanup old entries
+      if (this.prompts.size >= this.MAX_PROMPTS * this.CLEANUP_THRESHOLD) {
+        this.performPromptCleanup();
+      }
+
+      this.prompts.set(prompt.id, prompt);
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to store prompt in memory:', errorMessage);
+      throw new Error(`Prompt storage failed: ${errorMessage}`);
+    }
   }
 
   async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      let results: StoredPrompt[] = Array.from(this.prompts.values());
+
+      // Apply project-based filtering
+      if (query.project_id) {
+        results = results.filter(p => p.project_id === query.project_id);
+      }
+
+      if (query.project_ids && query.project_ids.length > 0) {
+        results = results.filter(p => p.project_id && query.project_ids!.includes(p.project_id));
+      }
+
+      if (query.project_scoped_only) {
+        results = results.filter(p => p.project_id !== undefined && p.project_id !== null);
+      }
+
+      if (query.project_active_only) {
+        results = results.filter(p => {
+          if (!p.project_id) return true; // Include legacy data without project
+          const project = this.projects.get(p.project_id);
+          return project ? project.is_active : false;
+        });
+      }
+
+      // Apply other filters
+      if (query.session_id) {
+        results = results.filter(p => p.session_id === query.session_id);
+      }
+
+      if (query.prompt_type) {
+        results = results.filter(p => p.prompt_type === query.prompt_type);
+      }
+
+      if (query.domain) {
+        results = results.filter(p => p.domain === query.domain);
+      }
+
+      if (query.complexity_range) {
+        results = results.filter(p => 
+          p.complexity_estimate !== undefined &&
+          p.complexity_estimate >= query.complexity_range![0] &&
+          p.complexity_estimate <= query.complexity_range![1]
+        );
+      }
+
+      if (query.date_range) {
+        results = results.filter(p => 
+          p.received_at >= query.date_range![0] &&
+          p.received_at <= query.date_range![1]
+        );
+      }
+
+      if (query.processing_success !== undefined) {
+        results = results.filter(p => p.processing_success === query.processing_success);
+      }
+
+      if (query.tags && query.tags.length > 0) {
+        results = results.filter(p => 
+          p.tags && query.tags!.every(tag => p.tags!.includes(tag))
+        );
+      }
+
+      if (query.similar_to) {
+        results = results.filter(p => 
+          p.original_prompt.toLowerCase().includes(query.similar_to!.toLowerCase())
+        );
+      }
+
+      // Apply sorting
+      const sortBy = query.sort_by || 'received_at';
+      const sortOrder = query.sort_order || 'desc';
+      
+      // Handle similarity-based sorting for similar_to queries
+      if (query.similar_to) {
+        const queryLower = query.similar_to.toLowerCase();
+        results.sort((a, b) => {
+          const similarityA = a.original_prompt.toLowerCase().includes(queryLower) ? 1 : 0;
+          const similarityB = b.original_prompt.toLowerCase().includes(queryLower) ? 1 : 0;
+          return sortOrder === 'desc' ? similarityB - similarityA : similarityA - similarityB;
+        });
+      } else {
+        results.sort((a, b) => {
+          let valueA: any, valueB: any;
+          
+          switch (sortBy) {
+            case 'received_at':
+              valueA = a.received_at.getTime();
+              valueB = b.received_at.getTime();
+              break;
+            case 'complexity_estimate':
+              valueA = a.complexity_estimate || 0;
+              valueB = b.complexity_estimate || 0;
+              break;
+            case 'processing_success':
+              valueA = a.processing_success ? 1 : 0;
+              valueB = b.processing_success ? 1 : 0;
+              break;
+            default:
+              valueA = a.received_at.getTime();
+              valueB = b.received_at.getTime();
+          }
+
+          if (sortOrder === 'desc') {
+            return valueB - valueA;
+          } else {
+            return valueA - valueB;
+          }
+        });
+      }
+
+      // Apply pagination
+      if (query.offset) {
+        results = results.slice(query.offset);
+      }
+
+      if (query.limit) {
+        results = results.slice(0, query.limit);
+      }
+
+      // Populate project data if requested
+      if (query.include_project) {
+        results = results.map(prompt => {
+          if (prompt.project_id) {
+            const project = this.projects.get(prompt.project_id);
+            if (project) {
+              return { ...prompt, project };
+            }
+          }
+          return prompt;
+        });
+      }
+
+      return results;
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to query prompts in memory:', errorMessage);
+      throw new Error(`Prompt query failed: ${errorMessage}`);
+    }
   }
 
   async getPrompt(id: string): Promise<StoredPrompt | null> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      return this.prompts.get(id) || null;
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to get prompt from memory:', errorMessage);
+      throw new Error(`Prompt retrieval failed: ${errorMessage}`);
+    }
   }
 
-  async findSimilarPrompts(prompt: string, limit?: number): Promise<StoredPrompt[]> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+  async findSimilarPrompts(prompt: string, limit: number = 5): Promise<StoredPrompt[]> {
+    throw new Error('Semantic similarity search not supported in InMemoryStore');
   }
 
   async updatePrompt(id: string, updates: Partial<StoredPrompt>): Promise<void> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      const existingPrompt = this.prompts.get(id);
+      if (!existingPrompt) {
+        throw new Error(`Prompt with id ${id} not found`);
+      }
+
+      const updatedPrompt = { ...existingPrompt, ...updates };
+      this.prompts.set(id, updatedPrompt);
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to update prompt in memory:', errorMessage);
+      throw new Error(`Prompt update failed: ${errorMessage}`);
+    }
   }
 
   async analyzeSuccessPatterns(promptIds: string[]): Promise<
@@ -2067,7 +2666,83 @@ class InMemoryStore extends MemoryStore {
       common_attributes: Record<string, any>;
     }>
   > {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      const patterns: Array<{
+        pattern_type: string;
+        success_rate: number;
+        common_attributes: Record<string, any>;
+      }> = [];
+
+      const prompts = promptIds
+        .map(id => this.prompts.get(id))
+        .filter((p): p is StoredPrompt => p !== undefined);
+
+      if (prompts.length === 0) {
+        return patterns;
+      }
+
+      // Analyze by domain
+      const domainGroups = new Map<string, StoredPrompt[]>();
+      prompts.forEach(prompt => {
+        if (prompt.domain) {
+          if (!domainGroups.has(prompt.domain)) {
+            domainGroups.set(prompt.domain, []);
+          }
+          domainGroups.get(prompt.domain)!.push(prompt);
+        }
+      });
+
+      domainGroups.forEach((domainPrompts, domain) => {
+        const successfulPrompts = domainPrompts.filter(p => p.processing_success === true);
+        const successRate = domainPrompts.length > 0 ? successfulPrompts.length / domainPrompts.length : 0;
+        
+        if (successRate > 0.5) { // Only include patterns with >50% success rate
+          patterns.push({
+            pattern_type: `domain_${domain}`,
+            success_rate: successRate,
+            common_attributes: {
+              domain,
+              total_prompts: domainPrompts.length,
+              avg_complexity: domainPrompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / domainPrompts.length
+            }
+          });
+        }
+      });
+
+      // Analyze by prompt type
+      const typeGroups = new Map<string, StoredPrompt[]>();
+      prompts.forEach(prompt => {
+        if (prompt.prompt_type) {
+          if (!typeGroups.has(prompt.prompt_type)) {
+            typeGroups.set(prompt.prompt_type, []);
+          }
+          typeGroups.get(prompt.prompt_type)!.push(prompt);
+        }
+      });
+
+      typeGroups.forEach((typePrompts, type) => {
+        const successfulPrompts = typePrompts.filter(p => p.processing_success === true);
+        const successRate = typePrompts.length > 0 ? successfulPrompts.length / typePrompts.length : 0;
+        
+        if (successRate > 0.5) {
+          patterns.push({
+            pattern_type: `prompt_type_${type}`,
+            success_rate: successRate,
+            common_attributes: {
+              prompt_type: type,
+              total_prompts: typePrompts.length,
+              avg_cognitive_load: typePrompts.reduce((sum, p) => sum + (p.estimated_cognitive_load || 0), 0) / typePrompts.length
+            }
+          });
+        }
+      });
+
+      return patterns.sort((a, b) => b.success_rate - a.success_rate);
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to analyze success patterns in memory:', errorMessage);
+      throw new Error(`Success pattern analysis failed: ${errorMessage}`);
+    }
   }
 
   async calculatePerformanceMetrics(): Promise<{
@@ -2076,7 +2751,50 @@ class InMemoryStore extends MemoryStore {
     similarity_detection_recall: number;
     reasoning_improvement_average: number;
   }> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      const allPrompts = Array.from(this.prompts.values());
+      
+      if (allPrompts.length === 0) {
+        return {
+          classification_accuracy: 0,
+          intent_extraction_precision: 0,
+          similarity_detection_recall: 0,
+          reasoning_improvement_average: 0
+        };
+      }
+
+      // Calculate classification accuracy (based on successful processing)
+      const processedPrompts = allPrompts.filter(p => p.processing_success !== undefined);
+      const successfulPrompts = processedPrompts.filter(p => p.processing_success === true);
+      const classificationAccuracy = processedPrompts.length > 0 ? 
+        successfulPrompts.length / processedPrompts.length : 0;
+
+      // Calculate intent extraction precision (based on extracted_intent presence)
+      const promptsWithIntent = allPrompts.filter(p => p.extracted_intent && Object.keys(p.extracted_intent).length > 0);
+      const intentExtractionPrecision = allPrompts.length > 0 ? 
+        promptsWithIntent.length / allPrompts.length : 0;
+
+      // Calculate similarity detection recall (simplified - based on similar_prompts data)
+      const promptsWithSimilarityData = allPrompts.filter(p => p.similar_prompts && p.similar_prompts.length > 0);
+      const similarityDetectionRecall = allPrompts.length > 0 ? 
+        promptsWithSimilarityData.length / allPrompts.length : 0;
+
+      // Calculate reasoning improvement average
+      const promptsWithImprovement = allPrompts.filter(p => p.reasoning_improvement !== undefined && p.reasoning_improvement !== null);
+      const reasoningImprovementAverage = promptsWithImprovement.length > 0 ? 
+        promptsWithImprovement.reduce((sum, p) => sum + (p.reasoning_improvement || 0), 0) / promptsWithImprovement.length : 0;
+
+      return {
+        classification_accuracy: classificationAccuracy,
+        intent_extraction_precision: intentExtractionPrecision,
+        similarity_detection_recall: similarityDetectionRecall,
+        reasoning_improvement_average: reasoningImprovementAverage
+      };
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to calculate performance metrics in memory:', errorMessage);
+      throw new Error(`Performance metrics calculation failed: ${errorMessage}`);
+    }
   }
 
   async updatePromptPerformance(
@@ -2088,11 +2806,137 @@ class InMemoryStore extends MemoryStore {
       cognitive_priming_effectiveness?: number;
     }
   ): Promise<void> {
-    throw new Error('InMemoryStore prompt methods not implemented yet');
+    try {
+      const existingPrompt = this.prompts.get(promptId);
+      if (!existingPrompt) {
+        throw new Error(`Prompt with id ${promptId} not found`);
+      }
+
+      const updatedPrompt: StoredPrompt = {
+        ...existingPrompt,
+        processing_success: performance.processing_success,
+        reasoning_improvement: performance.reasoning_improvement !== undefined ? 
+          performance.reasoning_improvement : existingPrompt.reasoning_improvement,
+        persona_selected: performance.persona_selected !== undefined ? 
+          performance.persona_selected : existingPrompt.persona_selected,
+        cognitive_priming_effectiveness: performance.cognitive_priming_effectiveness !== undefined ? 
+          performance.cognitive_priming_effectiveness : existingPrompt.cognitive_priming_effectiveness,
+        updated_at: new Date()
+      };
+
+      this.prompts.set(promptId, updatedPrompt);
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('❌ Failed to update prompt performance in memory:', errorMessage);
+      throw new Error(`Prompt performance update failed: ${errorMessage}`);
+    }
+  }
+
+  // Project management methods - simple in-memory implementations
+  async createProject(project: Omit<Project, 'id'>): Promise<Project> {
+    const id = MemoryUtils.generateProjectId();
+    const newProject: Project = { ...project, id };
+    this.projects.set(id, newProject);
+    return newProject;
+  }
+
+  async getProject(projectId: string): Promise<Project | null> {
+    return this.projects.get(projectId) || null;
+  }
+
+  async findProjectByPath(directoryPath: string): Promise<Project | null> {
+    for (const project of this.projects.values()) {
+      if (project.directory_path === directoryPath) {
+        return project;
+      }
+    }
+    return null;
+  }
+
+  async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
+    const project = this.projects.get(projectId);
+    if (project) {
+      const updatedProject = { ...project, ...updates, updated_at: new Date() };
+      this.projects.set(projectId, updatedProject);
+    }
+  }
+
+  async queryProjects(query: ProjectQuery = {}): Promise<Project[]> {
+    let results = Array.from(this.projects.values());
+    
+    // Apply basic filtering
+    if (query.directory_path) {
+      results = results.filter(p => p.directory_path === query.directory_path);
+    }
+    if (query.is_active !== undefined) {
+      results = results.filter(p => p.is_active === query.is_active);
+    }
+    
+    return results.slice(0, query.limit || 100);
+  }
+
+  async getProjectAnalytics(projectId: string): Promise<{
+    totalSessions: number;
+    totalThoughts: number;
+    totalPrompts: number;
+    averageSessionLength: number;
+    successRate: number;
+    mostUsedTechnologies: Array<{ tech: string; usage: number }>;
+    recentActivity: Array<{ date: string; sessions: number; thoughts: number }>;
+  }> {
+    return {
+      totalSessions: 0,
+      totalThoughts: 0,
+      totalPrompts: 0,
+      averageSessionLength: 0,
+      successRate: 0,
+      mostUsedTechnologies: [],
+      recentActivity: []
+    };
+  }
+
+  async getCrossProjectPatterns(limit = 10): Promise<Array<{
+    pattern: string;
+    projects: string[];
+    frequency: number;
+    successRate: number;
+  }>> {
+    return [];
+  }
+
+  async findSimilarPromptsHybrid(prompt: string, limit = 5, projectId?: string): Promise<StoredPrompt[]> {
+    return [];
+  }
+
+  async findSimilarThoughtsHybrid(thought: string, limit = 5, projectId?: string): Promise<StoredThought[]> {
+    return [];
+  }
+
+  async findSimilarPatterns(): Promise<Array<{
+    pattern_name: string;
+    similarity_score: number;
+    pattern_frequency: number;
+    created_at: Date;
+  }>> {
+    throw new Error('Pattern embeddings not supported in InMemoryStore');
+  }
+
+  async getPatterns(): Promise<Array<{
+    pattern_name: string;
+    pattern_frequency: number;
+    created_at: Date;
+    has_embedding: boolean;
+  }>> {
+    throw new Error('Pattern embeddings not supported in InMemoryStore');
+  }
+
+  async updatePatternEmbeddings(): Promise<number> {
+    throw new Error('Pattern embeddings not supported in InMemoryStore');
   }
 
   async close(): Promise<void> {
     this.thoughts.clear();
     this.sessions.clear();
+    this.projects.clear();
   }
 }

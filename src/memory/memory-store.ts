@@ -7,6 +7,37 @@
  */
 
 /**
+ * Project interface with comprehensive metadata for normalized project management
+ */
+export interface Project {
+  id: string; // UUID
+  directory_path: string;
+  project_name: string;
+  description?: string;
+  
+  // Technology metadata
+  technology_stack?: string[];
+  project_type?: string;
+  programming_languages?: string[];
+  
+  // Lifecycle information
+  created_at: Date;
+  updated_at: Date;
+  last_activity_at: Date;
+  is_active: boolean;
+  is_archived: boolean;
+  
+  // Cognitive and custom metadata
+  cognitive_settings?: Record<string, any>;
+  project_metadata?: Record<string, any>;
+  
+  // Analytics
+  total_sessions?: number;
+  total_thoughts?: number;
+  total_prompts?: number;
+}
+
+/**
  * Extended thought record with additional metadata for memory storage
  */
 export interface StoredThought {
@@ -28,6 +59,8 @@ export interface StoredThought {
   timestamp: Date;
   session_id: string;
   prompt_id?: string; // Link to originating prompt
+  project_id?: string; // UUID foreign key to projects
+  project?: Project; // Optional populated project data
   confidence?: number;
   domain?: string;
   objective?: string;
@@ -72,6 +105,8 @@ export interface StoredPrompt {
   original_prompt: string;
   prompt_type?: string;
   prompt_source?: 'mcp-tool' | 'api' | 'direct';
+  project_id?: string; // UUID foreign key to projects
+  project?: Project; // Optional populated project data
 
   // Temporal data
   received_at: Date;
@@ -121,9 +156,45 @@ export interface StoredPrompt {
 }
 
 /**
+ * Project analytics interface for comprehensive project insights
+ */
+export interface ProjectAnalytics {
+  totalSessions: number;
+  totalThoughts: number;
+  totalPrompts: number;
+  averageSessionLength: number;
+  successRate: number;
+  mostUsedTechnologies: Array<{ tech: string; usage: number }>;
+  recentActivity: Array<{ date: string; sessions: number; thoughts: number }>;
+  averageComplexity: number;
+  cognitiveRolesUsage: Array<{ role: string; frequency: number }>;
+  timeToResolution: number; // Average time to complete objectives
+  knowledgeDomains: Array<{ domain: string; expertise_level: number }>;
+}
+
+/**
+ * Cross-project pattern analysis for personal development insights
+ */
+export interface CrossProjectPattern {
+  pattern: string;
+  projects: string[];
+  frequency: number;
+  successRate: number;
+  averageComplexity: number;
+  recommendedStrategies: string[];
+  learningOpportunities: string[];
+}
+
+/**
  * Query parameters for retrieving stored prompts
  */
 export interface PromptQuery {
+  // Project-based filtering
+  project_id?: string; // Filter by specific project
+  project_ids?: string[]; // Filter by multiple projects
+  project_scoped_only?: boolean; // Restrict to project data only
+  include_project?: boolean; // Populate project data in results
+  project_active_only?: boolean; // Only active projects
   session_id?: string;
   prompt_type?: string;
   domain?: string;
@@ -142,6 +213,27 @@ export interface PromptQuery {
 }
 
 /**
+ * Project query interface for comprehensive project management operations
+ */
+export interface ProjectQuery {
+  directory_path?: string; // Find by directory path
+  project_name?: string; // Filter by name
+  project_type?: string; // Filter by type
+  technology_stack?: string[]; // Must include all specified technologies
+  programming_languages?: string[]; // Must include all specified languages
+  is_active?: boolean; // Filter by active status
+  is_archived?: boolean; // Filter by archived status
+  created_after?: Date; // Created after date
+  created_before?: Date; // Created before date
+  last_activity_after?: Date; // Activity after date
+  has_cognitive_settings?: boolean; // Has custom cognitive settings
+  limit?: number;
+  offset?: number;
+  sort_by?: 'created_at' | 'updated_at' | 'last_activity_at' | 'project_name';
+  sort_order?: 'asc' | 'desc';
+}
+
+/**
  * Reasoning session containing multiple related thoughts
  */
 export interface ReasoningSession {
@@ -150,6 +242,8 @@ export interface ReasoningSession {
   end_time?: Date;
   objective: string;
   domain?: string;
+  project_id?: string; // UUID foreign key to projects
+  project?: Project; // Optional populated project data
   initial_complexity?: number;
   final_complexity?: number;
 
@@ -177,6 +271,12 @@ export interface ReasoningSession {
  * Memory query parameters for retrieving relevant thoughts
  */
 export interface MemoryQuery {
+  // Project-based filtering
+  project_id?: string; // Filter by specific project
+  project_ids?: string[]; // Filter by multiple projects
+  project_scoped_only?: boolean; // Restrict to project data only
+  include_project?: boolean; // Populate project data in results
+  project_active_only?: boolean; // Only active projects
   // Content-based queries
   text_similarity?: string;
   domain?: string;
@@ -298,6 +398,89 @@ export abstract class MemoryStore {
   abstract findSimilarThoughts(thought: string, limit?: number): Promise<StoredThought[]>;
 
   /**
+   * Find similar patterns using semantic similarity
+   */
+  abstract findSimilarPatterns(pattern: string, limit?: number, similarityThreshold?: number): Promise<Array<{
+    pattern_name: string;
+    similarity_score: number;
+    pattern_frequency: number;
+    created_at: Date;
+  }>>;
+
+  /**
+   * Get all stored patterns with their frequencies
+   */
+  abstract getPatterns(limit?: number, minFrequency?: number): Promise<Array<{
+    pattern_name: string;
+    pattern_frequency: number;
+    created_at: Date;
+    has_embedding: boolean;
+  }>>;
+
+  /**
+   * Update pattern embeddings based on frequency thresholds
+   */
+  abstract updatePatternEmbeddings(): Promise<number>;
+
+  /**
+   * Create a new project
+   */
+  abstract createProject(project: Omit<Project, 'id'>): Promise<Project>;
+
+  /**
+   * Get a project by ID
+   */
+  abstract getProject(projectId: string): Promise<Project | null>;
+
+  /**
+   * Find a project by directory path
+   */
+  abstract findProjectByPath(directoryPath: string): Promise<Project | null>;
+
+  /**
+   * Update a project
+   */
+  abstract updateProject(projectId: string, updates: Partial<Project>): Promise<void>;
+
+  /**
+   * Query projects based on criteria
+   */
+  abstract queryProjects(query: ProjectQuery): Promise<Project[]>;
+
+  /**
+   * Get project analytics for single-user insights
+   */
+  abstract getProjectAnalytics(projectId: string): Promise<{
+    totalSessions: number;
+    totalThoughts: number;
+    totalPrompts: number;
+    averageSessionLength: number;
+    successRate: number;
+    mostUsedTechnologies: Array<{ tech: string; usage: number }>;
+    recentActivity: Array<{ date: string; sessions: number; thoughts: number }>;
+  }>;
+
+  /**
+   * Get cross-project patterns for personal learning insights
+   */
+  abstract getCrossProjectPatterns(limit?: number): Promise<Array<{
+    pattern: string;
+    projects: string[];
+    frequency: number;
+    successRate: number;
+  }>>;
+
+  /**
+   * Find similar prompts with hybrid project-aware search
+   */
+  abstract findSimilarPromptsHybrid(prompt: string, limit?: number, projectId?: string): Promise<StoredPrompt[]>;
+
+  /**
+   * Find similar thoughts with hybrid project-aware search
+   */
+  abstract findSimilarThoughtsHybrid(thought: string, limit?: number, projectId?: string): Promise<StoredThought[]>;
+
+  /**
    * Update thought metadata (e.g., after receiving feedback)
    */
   abstract updateThought(id: string, updates: Partial<StoredThought>): Promise<void>;
@@ -378,6 +561,30 @@ export abstract class MemoryStore {
 }
 
 /**
+ * Enhanced memory statistics with project-aware analytics
+ */
+export interface EnhancedMemoryStats extends MemoryStats {
+  // Project-specific statistics
+  total_projects: number;
+  active_projects: number;
+  archived_projects: number;
+  
+  // Project activity patterns
+  most_active_projects: Array<{ project_name: string; activity_score: number }>;
+  project_success_rates: Array<{ project_name: string; success_rate: number }>;
+  technology_usage_patterns: Array<{ technology: string; project_count: number; success_rate: number }>;
+  
+  // Cross-project learning insights
+  knowledge_transfer_opportunities: Array<{ from_project: string; to_project: string; similarity_score: number }>;
+  emerging_patterns: Array<{ pattern: string; growth_rate: number; projects_affected: string[] }>;
+  
+  // Project lifecycle analytics
+  average_project_duration: number;
+  project_complexity_trends: Array<{ time_period: string; average_complexity: number }>;
+  cognitive_evolution: Array<{ skill_area: string; improvement_rate: number }>;
+}
+
+/**
  * Memory configuration options
  */
 export interface MemoryConfig {
@@ -399,6 +606,14 @@ export interface MemoryConfig {
   // Privacy settings
   anonymizeData?: boolean;
   encryptSensitiveData?: boolean;
+  
+  // Project-specific settings
+  enableProjectIntelligence?: boolean;
+  crossProjectLearning?: boolean;
+  projectMetadataExtraction?: boolean;
+  automaticProjectDetection?: boolean;
+  projectCachingEnabled?: boolean;
+  projectAnalyticsEnabled?: boolean;
 
   // Backup settings
   autoBackup?: boolean;
@@ -603,6 +818,101 @@ export class MemoryUtils {
   }
 
   /**
+   * Generate a unique project ID
+   */
+  static generateProjectId(): string {
+    return `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Validate project directory path for security
+   */
+  static validateProjectPath(directoryPath: string): { valid: boolean; error?: string } {
+    if (!directoryPath || directoryPath.trim().length === 0) {
+      return { valid: false, error: 'Directory path cannot be empty' };
+    }
+
+    // Check for path traversal attempts
+    if (directoryPath.includes('..') || directoryPath.includes('~')) {
+      return { valid: false, error: 'Path traversal not allowed' };
+    }
+
+    // Ensure path is absolute
+    if (!directoryPath.startsWith('/') && !directoryPath.match(/^[A-Za-z]:\\/)) {
+      return { valid: false, error: 'Path must be absolute' };
+    }
+
+    // Check path length
+    if (directoryPath.length > 1000) {
+      return { valid: false, error: 'Path too long' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Extract project name from directory path
+   */
+  static extractProjectName(directoryPath: string): string {
+    const parts = directoryPath.replace(/\\/g, '/').split('/');
+    return parts[parts.length - 1] || 'Unknown Project';
+  }
+
+  /**
+   * Calculate project similarity based on technology stacks
+   */
+  static calculateProjectSimilarity(project1: Project, project2: Project): number {
+    const tech1 = new Set(project1.technology_stack || []);
+    const tech2 = new Set(project2.technology_stack || []);
+    
+    if (tech1.size === 0 && tech2.size === 0) return 0;
+    if (tech1.size === 0 || tech2.size === 0) return 0;
+
+    const intersection = new Set([...tech1].filter(x => tech2.has(x)));
+    const union = new Set([...tech1, ...tech2]);
+    
+    return intersection.size / union.size;
+  }
+
+  /**
+   * Validate project configuration
+   */
+  static validateProject(project: Partial<Project>): string[] {
+    const errors: string[] = [];
+
+    if (!project.directory_path) {
+      errors.push('directory_path is required');
+    } else {
+      const pathValidation = this.validateProjectPath(project.directory_path);
+      if (!pathValidation.valid) {
+        errors.push(`Invalid directory path: ${pathValidation.error}`);
+      }
+    }
+
+    if (!project.project_name || project.project_name.trim().length === 0) {
+      errors.push('project_name is required');
+    }
+
+    if (project.project_name && project.project_name.length > 200) {
+      errors.push('project_name too long (max 200 characters)');
+    }
+
+    if (project.description && project.description.length > 2000) {
+      errors.push('description too long (max 2000 characters)');
+    }
+
+    if (project.technology_stack && project.technology_stack.length > 50) {
+      errors.push('too many technologies (max 50)');
+    }
+
+    if (project.programming_languages && project.programming_languages.length > 20) {
+      errors.push('too many programming languages (max 20)');
+    }
+
+    return errors;
+  }
+
+  /**
    * Validate memory configuration
    */
   static validateConfig(config: MemoryConfig): string[] {
@@ -625,6 +935,18 @@ export class MemoryUtils {
       (config.similarityThreshold < 0 || config.similarityThreshold > 1)
     ) {
       errors.push('similarityThreshold must be between 0 and 1');
+    }
+
+    if (config.enableProjectIntelligence !== undefined && typeof config.enableProjectIntelligence !== 'boolean') {
+      errors.push('enableProjectIntelligence must be boolean');
+    }
+
+    if (config.crossProjectLearning !== undefined && typeof config.crossProjectLearning !== 'boolean') {
+      errors.push('crossProjectLearning must be boolean');
+    }
+
+    if (config.projectCachingEnabled !== undefined && typeof config.projectCachingEnabled !== 'boolean') {
+      errors.push('projectCachingEnabled must be boolean');
     }
 
     return errors;

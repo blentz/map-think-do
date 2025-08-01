@@ -34,7 +34,13 @@ import { MetacognitivePlugin } from './plugins/metacognitive-plugin.js';
 import { PersonaPlugin } from './plugins/persona-plugin.js';
 import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js';
 import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
-import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
+import { MemoryStore, StoredThought, ReasoningSession, Project } from '../memory/memory-store.js';
+import {
+  ProjectCognitiveContext,
+  ProjectCognitiveContextFactory,
+  TechnologyCognitiveStrategy,
+  ProjectLifecyclePhase
+} from './project-cognitive-context.js';
 import { ValidatedThoughtData } from '../server.js';
 import { StateTracker, CognitiveState } from './state-tracker.js';
 import { InsightDetector, CognitiveInsight } from './insight-detector.js';
@@ -257,7 +263,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   async processThought(
     thoughtData: ValidatedThoughtData,
-    sessionContext?: Partial<ReasoningSession>
+    sessionContext?: Partial<ReasoningSession>,
+    project?: Project
   ): Promise<{
     interventions: PluginIntervention[];
     insights: CognitiveInsight[];
@@ -265,11 +272,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     recommendations: string[];
   }> {
     return this.generalBoundary.execute(
-      async () => this.processThoughtInternal(thoughtData, sessionContext),
+      async () => this.processThoughtInternal(thoughtData, sessionContext, project),
       {
         component: 'CognitiveOrchestrator',
         method: 'processThought',
-        input: { thoughtData, sessionContext },
+        input: { thoughtData, sessionContext, project: project ? { id: project.id, name: project.project_name } : undefined },
       },
       async (error, context) => {
         // Fallback: return minimal safe response
@@ -286,7 +293,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   private async processThoughtInternal(
     thoughtData: ValidatedThoughtData,
-    sessionContext?: Partial<ReasoningSession>
+    sessionContext?: Partial<ReasoningSession>,
+    project?: Project
   ): Promise<{
     interventions: PluginIntervention[];
     insights: CognitiveInsight[];
@@ -302,9 +310,9 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         { component: 'CognitiveOrchestrator', method: 'updateCognitiveState' }
       );
 
-      // Build cognitive context with error boundary
+      // Build cognitive context with error boundary and project awareness
       const context = await this.generalBoundary.execute(
-        () => this.buildCognitiveContext(thoughtData, sessionContext),
+        () => this.buildCognitiveContext(thoughtData, sessionContext, project),
         { component: 'CognitiveOrchestrator', method: 'buildCognitiveContext' }
       );
 
@@ -641,12 +649,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   }
 
   /**
-   * Build comprehensive cognitive context
+   * Build comprehensive cognitive context with project awareness
    */
   private async buildCognitiveContext(
     thoughtData: ValidatedThoughtData,
-    sessionContext?: Partial<ReasoningSession>
-  ): Promise<CognitiveContext> {
+    sessionContext?: Partial<ReasoningSession>,
+    project?: Project
+  ): Promise<ProjectCognitiveContext> {
     // Get thought history from memory or session
     const thoughtHistory = await this.getThoughtHistory();
 
@@ -665,7 +674,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Get available tools (this would be expanded based on actual system capabilities)
     const availableTools = ['code-reasoning', 'memory-store', 'pattern-recognition'];
 
-    const context: CognitiveContext = {
+    // Build base cognitive context
+    const baseContext: CognitiveContext = {
       current_thought: thoughtData.thought,
       thought_history: thoughtHistory,
       session: sessionContext || {},
@@ -688,7 +698,35 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       context_trace: this.thoughtOutputHistory.getRecent(5),
     };
 
-    return context;
+    // Enhance with project-aware cognitive context
+    try {
+      const enhancedContext = await ProjectCognitiveContextFactory.createContext(
+        baseContext,
+        project,
+        this.memoryStore
+      );
+      
+      // Log project context enhancement
+      if (project) {
+        console.error(`🧠 Enhanced cognitive context with project: ${project.project_name}`);
+        console.error(`🏷️ Technology stack: ${project.technology_stack?.join(', ') || 'Unknown'}`);
+        if (enhancedContext.technologyStrategy) {
+          console.error(`⚙️ Technology strategy applied with preferences:`, {
+            topPersonas: Object.entries(enhancedContext.technologyStrategy.preferredPersonas)
+              .sort(([,a], [,b]) => b - a)
+              .slice(0, 3)
+              .map(([persona, weight]) => `${persona}(${weight.toFixed(2)})`)
+              .join(', ')
+          });
+        }
+      }
+      
+      return enhancedContext;
+    } catch (error) {
+      console.error('⚠️ Failed to enhance cognitive context with project information:', error);
+      // Fallback to base context
+      return baseContext as ProjectCognitiveContext;
+    }
   }
 
   /**
@@ -2028,7 +2066,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         requirements: string[];
       };
       complexity?: { complexity: number; confidence: number };
-    }
+    },
+    project?: Project
   ): Promise<{
     interventions: PluginIntervention[];
     insights: CognitiveInsight[];
@@ -2040,8 +2079,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       await this.primeFromPromptContext(promptContext);
     }
 
-    // Process thought with enhanced context
-    return this.processThought(thoughtData, sessionContext);
+    // Process thought with enhanced context and project awareness
+    return this.processThought(thoughtData, sessionContext, project);
   }
 
   /**

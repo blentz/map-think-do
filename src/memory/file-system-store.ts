@@ -10,6 +10,8 @@ import {
   PromptQuery,
   MemoryStats,
   MemoryConfig,
+  Project,
+  ProjectQuery,
 } from './memory-store.js';
 
 /**
@@ -162,11 +164,7 @@ export class FileSystemStore extends MemoryStore {
   }
 
   async findSimilarThoughts(thought: string, limit?: number): Promise<StoredThought[]> {
-    const thoughts = await this.readAllThoughts();
-    const results = thoughts
-      .filter(t => t.thought.toLowerCase().includes(thought.toLowerCase()))
-      .slice(0, limit || 10);
-    return results;
+    throw new Error('Semantic similarity search not supported in FileSystemStore');
   }
 
   async updateThought(id: string, updates: Partial<StoredThought>): Promise<void> {
@@ -293,6 +291,78 @@ export class FileSystemStore extends MemoryStore {
     }
   ): Promise<void> {
     throw new Error('FileSystemStore prompt methods not implemented yet');
+  }
+
+  // Project management methods - not supported in FileSystemStore
+  async createProject(project: Omit<Project, 'id'>): Promise<Project> {
+    throw new Error('Project management not supported in FileSystemStore');
+  }
+
+  async getProject(projectId: string): Promise<Project | null> {
+    throw new Error('Project management not supported in FileSystemStore');
+  }
+
+  async findProjectByPath(directoryPath: string): Promise<Project | null> {
+    throw new Error('Project management not supported in FileSystemStore');
+  }
+
+  async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
+    throw new Error('Project management not supported in FileSystemStore');
+  }
+
+  async queryProjects(query: ProjectQuery): Promise<Project[]> {
+    throw new Error('Project management not supported in FileSystemStore');
+  }
+
+  async getProjectAnalytics(projectId: string): Promise<{
+    totalSessions: number;
+    totalThoughts: number;
+    totalPrompts: number;
+    averageSessionLength: number;
+    successRate: number;
+    mostUsedTechnologies: Array<{ tech: string; usage: number }>;
+    recentActivity: Array<{ date: string; sessions: number; thoughts: number }>;
+  }> {
+    throw new Error('Project analytics not supported in FileSystemStore');
+  }
+
+  async getCrossProjectPatterns(limit?: number): Promise<Array<{
+    pattern: string;
+    projects: string[];
+    frequency: number;
+    successRate: number;
+  }>> {
+    throw new Error('Cross-project patterns not supported in FileSystemStore');
+  }
+
+  async findSimilarPromptsHybrid(prompt: string, limit?: number, projectId?: string): Promise<StoredPrompt[]> {
+    throw new Error('Hybrid similarity search not supported in FileSystemStore');
+  }
+
+  async findSimilarThoughtsHybrid(thought: string, limit?: number, projectId?: string): Promise<StoredThought[]> {
+    throw new Error('Hybrid similarity search not supported in FileSystemStore'); 
+  }
+
+  async findSimilarPatterns(): Promise<Array<{
+    pattern_name: string;
+    similarity_score: number;
+    pattern_frequency: number;
+    created_at: Date;
+  }>> {
+    throw new Error('Pattern embeddings not supported in FileSystemStore');
+  }
+
+  async getPatterns(): Promise<Array<{
+    pattern_name: string;
+    pattern_frequency: number;
+    created_at: Date;
+    has_embedding: boolean;
+  }>> {
+    throw new Error('Pattern embeddings not supported in FileSystemStore');
+  }
+
+  async updatePatternEmbeddings(): Promise<number> {
+    throw new Error('Pattern embeddings not supported in FileSystemStore');
   }
 
   async close(): Promise<void> {
