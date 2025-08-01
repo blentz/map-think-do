@@ -882,6 +882,22 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       };
 
       await this.memoryStore!.storeThought(storedThought);
+
+      // Check if session is complete and trigger thought analysis
+      if (!thoughtData.next_thought_needed) {
+        // Trigger analysis asynchronously to avoid blocking
+        setImmediate(async () => {
+          try {
+            console.error(`🧠 Cognitive session completed, triggering thought analysis for session: ${this.cognitiveState.session_id}`);
+            await this.memoryStore!.analyzeAndStoreThoughtChain(this.cognitiveState.session_id);
+            console.error(`✅ Cognitive thought analysis completed for session: ${this.cognitiveState.session_id}`);
+          } catch (error) {
+            handleError('CognitiveOrchestrator', 'analyzeAndStoreThoughtChain', error, ErrorSeverity.WARNING, {
+              sessionId: this.cognitiveState.session_id,
+            });
+          }
+        });
+      }
     } catch (error) {
       handleError('CognitiveOrchestrator', 'updateMemory', error, ErrorSeverity.WARNING, {
         thoughtId: thoughtData.thought,

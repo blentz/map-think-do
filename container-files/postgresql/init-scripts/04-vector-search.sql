@@ -509,7 +509,7 @@ BEGIN
         FROM stored_thoughts 
         WHERE patterns_detected IS NOT NULL
         GROUP BY unnest(patterns_detected)
-        HAVING COUNT(*) >= 5  -- Only patterns that appear at least 5 times
+        HAVING COUNT(*) >= 3  -- Only patterns that appear at least 3 times (meaningful patterns)
     LOOP
         -- Insert only pattern name and frequency, not embedding (to be set by application)
         INSERT INTO pattern_embeddings (pattern_name, pattern_frequency)

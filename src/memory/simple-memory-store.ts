@@ -422,6 +422,13 @@ export class SimpleMemoryStore extends MemoryStore {
     ];
   }
 
+  async analyzeAndStoreThoughtChain(sessionId: string): Promise<any> {
+    // Simple memory store doesn't have sophisticated analysis capabilities
+    // Return null to indicate analysis not available
+    console.error(`💭 Simple memory store: Thought analysis not available for session ${sessionId}`);
+    return null;
+  }
+
   async calculatePerformanceMetrics(): Promise<{
     classification_accuracy: number;
     intent_extraction_precision: number;

@@ -272,6 +272,12 @@ export class FileSystemStore extends MemoryStore {
     throw new Error('FileSystemStore prompt methods not implemented yet');
   }
 
+  async analyzeAndStoreThoughtChain(sessionId: string): Promise<any> {
+    // FileSystemStore doesn't have sophisticated analysis capabilities
+    console.error(`💭 File system store: Thought analysis not available for session ${sessionId}`);
+    return null;
+  }
+
   async calculatePerformanceMetrics(): Promise<{
     classification_accuracy: number;
     intent_extraction_precision: number;

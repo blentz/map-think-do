@@ -126,6 +126,7 @@ export interface ThoughtData {
   branch_from_thought?: number;
   branch_id?: string;
   needs_more_thoughts?: boolean;
+  working_directory?: string;
 }
 
 const ThoughtDataSchema = z
@@ -143,6 +144,7 @@ const ThoughtDataSchema = z
     branch_from_thought: z.number().int().positive().optional(),
     branch_id: z.string().trim().min(1).optional(),
     needs_more_thoughts: z.boolean().optional(),
+    working_directory: z.string().trim().min(1).optional(),
   })
   .refine(
     d =>
@@ -214,6 +216,7 @@ an advanced cognitive architecture that exhibits emergent intelligence and self-
 - next_thought_needed: Set to FALSE when AGI determines completion
 - branch_from_thought + branch_id: Alternative exploration (🌿)
 - is_revision + revises_thought: Cognitive correction (🔄)
+- working_directory: Optional client working directory for project context (📁)
 
 🔮 AGI MAGIC OUTPUTS:
 - cognitive_insights: Detected patterns and breakthroughs
@@ -1068,27 +1071,39 @@ export class CodeReasoningServer {
 
       // 📁 PROJECT RESOLUTION: Extract project context from working directory (first)
       console.error('📁 Resolving project context from working directory...');
-      const projectId = await this.resolveProjectFromWorkingDirectory();
+      let projectId: string | undefined;
       let project: Project | undefined;
+      
+      try {
+        projectId = await this.resolveProjectFromWorkingDirectory(data.working_directory);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Project management requires PostgreSQL')) {
+          console.error('ℹ️ Continuing without project context (basic memory store in use)');
+          projectId = undefined;
+        } else {
+          console.error('⚠️ Failed to resolve project context:', error);
+          projectId = undefined;
+        }
+      }
 
       if (projectId) {
         console.error(`✅ Project context resolved: ${projectId}`);
         // Fetch the full project object for cognitive integration
         try {
-          if (typeof (this.memoryStore as any).getProject === 'function') {
-            project = (await (this.memoryStore as any).getProject(projectId)) || undefined;
-            if (project) {
-              console.error(
-                `📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`
-              );
-            } else {
-              console.error(`⚠️ Project ${projectId} not found in database`);
-            }
+          project = (await this.memoryStore.getProject(projectId)) || undefined;
+          if (project) {
+            console.error(
+              `📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`
+            );
           } else {
-            console.error('❌ getProject method not available on memory store');
+            console.error(`⚠️ Project ${projectId} not found in database`);
           }
         } catch (error) {
-          console.error('⚠️ Failed to fetch project details:', error);
+          if (error instanceof Error && error.message.includes('not supported')) {
+            console.error(`⚠️ Project retrieval not supported by ${this.memoryStore.constructor.name}`);
+          } else {
+            console.error('⚠️ Failed to fetch project details:', error);
+          }
         }
       } else {
         console.error('ℹ️ No project context available (working_directory not set)');
@@ -1214,6 +1229,20 @@ export class CodeReasoningServer {
       // Then store the thought (which references the session)
       await this.memoryStore.storeThought(storedThought);
 
+      // Check if session is complete and trigger thought analysis
+      if (!data.next_thought_needed) {
+        // Trigger analysis asynchronously to avoid blocking
+        setImmediate(async () => {
+          try {
+            console.error(`🧠 Session completed, triggering thought analysis for session: ${storedThought.session_id}`);
+            await this.memoryStore.analyzeAndStoreThoughtChain(storedThought.session_id);
+            console.error(`✅ Thought analysis completed for session: ${storedThought.session_id}`);
+          } catch (error) {
+            console.error(`❌ Thought analysis failed for session ${storedThought.session_id}:`, error);
+          }
+        });
+      }
+
       // Stats & storage with memory management -------------------------
       // Use mutex to prevent race conditions in shared state mutations
       await this.thoughtMutex.withLock(async () => {
@@ -1325,14 +1354,39 @@ export class CodeReasoningServer {
   /**
    * Resolve project from working directory with comprehensive metadata extraction
    */
-  private async resolveProjectFromWorkingDirectory(): Promise<string | undefined> {
+  private async resolveProjectFromWorkingDirectory(clientWorkingDirectory?: string): Promise<string | undefined> {
     try {
       const storedValues = this.promptValueManager.getStoredValues('');
       let workingDirectory = storedValues.working_directory;
 
+      // Prioritize client-provided working directory
+      if (clientWorkingDirectory && typeof clientWorkingDirectory === 'string') {
+        workingDirectory = clientWorkingDirectory;
+        console.error(`📁 Using client-provided working directory: ${workingDirectory}`);
+        
+        // Store the client-provided working directory for future use
+        try {
+          await this.promptValueManager.updateStoredValues('', {
+            working_directory: workingDirectory,
+          });
+          console.error(`✅ Client working directory stored: ${workingDirectory}`);
+        } catch (error) {
+          console.error('⚠️ Failed to store client working directory:', error);
+        }
+      }
       // If no working_directory is set, automatically detect it from process.cwd()
-      if (!workingDirectory || typeof workingDirectory !== 'string') {
+      else if (!workingDirectory || typeof workingDirectory !== 'string') {
+        // Try multiple methods to detect the working directory
         workingDirectory = process.cwd();
+        
+        // Also check PWD environment variable which might be more accurate in some cases
+        const pwdEnv = process.env.PWD;
+        if (pwdEnv && pwdEnv !== workingDirectory) {
+          console.error(`🔍 PWD env var suggests: ${pwdEnv}, process.cwd(): ${workingDirectory}`);
+          // Use PWD if it exists and is different from process.cwd()
+          workingDirectory = pwdEnv;
+        }
+        
         console.error(`🔄 Auto-detecting working directory: ${workingDirectory}`);
 
         // Store the detected working directory for future use
@@ -1364,6 +1418,16 @@ export class CodeReasoningServer {
       }
     } catch (error) {
       console.error('❌ Error resolving project context:', error);
+      
+      // Diagnostic information for debugging
+      console.error('🔧 Debug info:');
+      console.error(`   - process.cwd(): ${process.cwd()}`);
+      console.error(`   - process.env.PWD: ${process.env.PWD || 'undefined'}`);
+      console.error(`   - process.env.INIT_CWD: ${process.env.INIT_CWD || 'undefined'}`);
+      console.error(`   - stored working_directory: ${this.promptValueManager.getStoredValues('').working_directory || 'undefined'}`);
+      console.error(`   - memory store type: ${this.memoryStore.constructor.name}`);
+      console.error(`   - error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
+      console.error(`   - error message: ${error instanceof Error ? error.message : String(error)}`);
     }
     return undefined;
   }
@@ -1372,29 +1436,28 @@ export class CodeReasoningServer {
    * Find existing project or create new one with metadata extraction
    */
   private async findOrCreateProject(directoryPath: string): Promise<string> {
-    // Check if project already exists
     try {
-      if (typeof (this.memoryStore as any).findProjectByPath !== 'function') {
-        console.error('❌ findProjectByPath method not available on memory store');
-        throw new Error('Project management not supported by current memory store');
-      }
-      
-      const existingProject = await (this.memoryStore as any).findProjectByPath(directoryPath);
+      // Check if project already exists
+      const existingProject = await this.memoryStore.findProjectByPath(directoryPath);
       if (existingProject) {
         // Update last activity
-        if (typeof (this.memoryStore as any).updateProject === 'function') {
-          await (this.memoryStore as any).updateProject(existingProject.id, {
-            last_activity_at: new Date(),
-          });
-        }
+        await this.memoryStore.updateProject(existingProject.id, {
+          last_activity_at: new Date(),
+        });
         console.error(
           `✅ Found existing project: ${existingProject.project_name} (${existingProject.id})`
         );
         return existingProject.id;
       }
     } catch (error) {
+      // Handle unsupported memory stores gracefully
+      if (error instanceof Error && error.message.includes('not supported')) {
+        console.error(`⚠️ Project management not supported by ${this.memoryStore.constructor.name}`);
+        console.error('💡 Use PostgreSQL memory store (MEMORY_STORE_TYPE=postgresql) for full project support');
+        throw new Error('Project management requires PostgreSQL memory store');
+      }
       console.error('❌ Error checking for existing project:', error);
-      // Continue to create new project
+      throw error;
     }
 
     // Create new project with metadata extraction
@@ -1417,27 +1480,24 @@ export class CodeReasoningServer {
     };
 
     try {
-      if (typeof (this.memoryStore as any).createProject !== 'function') {
-        console.error('❌ createProject method not available on memory store');
-        throw new Error('Project creation not supported by current memory store');
-      }
-
-      const createdProject = await (this.memoryStore as any).createProject(project);
-      if (createdProject) {
-        console.error(
-          `🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`
-        );
-        console.error(
-          `🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`
-        );
-        console.error(
-          `🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`
-        );
-        return createdProject.id;
-      }
-
-      throw new Error('Failed to create project: createProject returned null/undefined');
+      const createdProject = await this.memoryStore.createProject(project);
+      console.error(
+        `🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`
+      );
+      console.error(
+        `🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`
+      );
+      console.error(
+        `🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`
+      );
+      return createdProject.id;
     } catch (error) {
+      // Handle unsupported memory stores gracefully
+      if (error instanceof Error && error.message.includes('not supported')) {
+        console.error(`⚠️ Project creation not supported by ${this.memoryStore.constructor.name}`);
+        console.error('💡 Use PostgreSQL memory store (MEMORY_STORE_TYPE=postgresql) for full project support');
+        throw new Error('Project management requires PostgreSQL memory store');
+      }
       console.error('❌ Error creating project:', error);
       throw new Error(`Failed to create project: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -3031,6 +3091,12 @@ class InMemoryStore extends MemoryStore {
 
   async updatePatternEmbeddings(): Promise<number> {
     throw new Error('Pattern embeddings not supported in InMemoryStore');
+  }
+
+  async analyzeAndStoreThoughtChain(sessionId: string): Promise<any> {
+    // InMemoryStore doesn't have sophisticated analysis capabilities
+    console.error(`💭 In-memory store: Thought analysis not available for session ${sessionId}`);
+    return null;
   }
 
   async close(): Promise<void> {

@@ -436,21 +436,18 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         .then(() => {
           // Update pattern embeddings if patterns were detected
           if (thought.patterns_detected && thought.patterns_detected.length > 0) {
+            // First update pattern frequencies, then generate embeddings
             this.trackAsyncOperation(
-              this.updatePatternEmbeddings().catch(error => {
-                if (this.isInitialized && !this.isShuttingDown) {
-                  console.warn('Failed to update pattern embeddings:', error);
-                }
-              })
-            );
-
-            // Generate embeddings for new patterns immediately
-            this.trackAsyncOperation(
-              this.generatePatternEmbeddings(thought.patterns_detected).catch(error => {
-                if (this.isInitialized && !this.isShuttingDown) {
-                  console.warn('Failed to generate pattern embeddings:', error);
-                }
-              })
+              this.updatePatternEmbeddings()
+                .then(() => {
+                  // Generate embeddings for new patterns after updating frequencies
+                  return this.generatePatternEmbeddings(thought.patterns_detected!);
+                })
+                .catch(error => {
+                  if (this.isInitialized && !this.isShuttingDown) {
+                    console.warn('Failed to update or generate pattern embeddings:', error);
+                  }
+                })
             );
           }
         })
@@ -1814,13 +1811,24 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   private async generatePatternEmbeddings(patterns: string[]): Promise<void> {
     try {
       const embeddingService = getEmbeddingService();
+      
+      // Pre-check vector support once
+      const hasVectorSupport = await this.checkVectorSupport();
 
       for (const pattern of patterns) {
         try {
-          const result = await embeddingService.generateEmbedding(pattern);
+          // Check if this pattern already has an embedding
+          const existingPattern = await this.query(
+            'SELECT embedding IS NOT NULL as has_embedding FROM pattern_embeddings WHERE pattern_name = $1',
+            [pattern]
+          );
+          
+          if (existingPattern.rows.length > 0 && existingPattern.rows[0].has_embedding) {
+            console.error(`✅ Pattern "${pattern}" already has embedding, skipping`);
+            continue;
+          }
 
-          // Check if pgvector is available for proper vector storage
-          const hasVectorSupport = await this.checkVectorSupport();
+          const result = await embeddingService.generateEmbedding(pattern);
 
           if (hasVectorSupport) {
             // Use the proper database function for vector storage

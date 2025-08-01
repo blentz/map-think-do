@@ -528,6 +528,11 @@ export abstract class MemoryStore {
   >;
 
   /**
+   * Analyze and store thought chain quality metrics for a completed session
+   */
+  abstract analyzeAndStoreThoughtChain(sessionId: string): Promise<any>;
+
+  /**
    * Calculate performance metrics for validation
    */
   abstract calculatePerformanceMetrics(): Promise<{
