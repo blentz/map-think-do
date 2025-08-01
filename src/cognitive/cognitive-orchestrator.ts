@@ -121,6 +121,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   private readonly NATIVE_MEMORY_LIMIT_MB = 500; // 500MB RSS limit
   private readonly EMERGENCY_MEMORY_LIMIT_MB = 750; // Emergency cleanup threshold
   private readonly MEMORY_CHECK_INTERVAL = 30000; // Check every 30 seconds
+  private readonly ABSOLUTE_MEMORY_LIMIT_MB = 1000; // 🚨 Hard limit - exit process before system crash
 
   // Synchronization - using registry to prevent contention
   private readonly mutexRegistry = new MutexRegistry(true);
@@ -1571,13 +1572,25 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   }
 
   /**
-   * 🚨 Native memory pressure detection
+   * 🚨 Enhanced native memory pressure detection with forced exit
    */
   private checkNativeMemoryPressure(): boolean {
     const memUsage = process.memoryUsage();
     const rssInMB = memUsage.rss / 1024 / 1024;
     const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
     const externalMB = memUsage.external / 1024 / 1024;
+
+    // 🚨 CRITICAL: Force exit if we exceed absolute limit (prevents system crash)
+    if (rssInMB > this.ABSOLUTE_MEMORY_LIMIT_MB) {
+      console.error(
+        `🚨 CRITICAL MEMORY LIMIT EXCEEDED: ${rssInMB.toFixed(1)}MB > ${this.ABSOLUTE_MEMORY_LIMIT_MB}MB - FORCE EXITING`
+      );
+      console.error('🛑 Process will exit in 1 second to prevent system crash');
+      setTimeout(() => {
+        process.exit(1); // Force exit with error code
+      }, 1000);
+      return true;
+    }
 
     // Track memory growth
     const growthMB = rssInMB - this.lastRSSMB;
@@ -1587,6 +1600,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       console.warn(
         `🔍 Rapid native memory growth: +${growthMB.toFixed(1)}MB (RSS: ${rssInMB.toFixed(1)}MB)`
       );
+      
+      // 🚨 NEW: Force cleanup if growth is too rapid
+      if (this.memoryGrowthAlerts > 5) {
+        console.error('🚨 Excessive memory growth detected - forcing emergency cleanup');
+        this.emergencyMemoryCleanup();
+        this.memoryGrowthAlerts = 0;
+      }
     }
     this.lastRSSMB = rssInMB;
 
@@ -1606,6 +1626,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     if (externalMB > 100) {
       // External native memory over 100MB
       console.warn(`⚠️ High external memory usage: ${externalMB.toFixed(1)}MB`);
+    }
+
+    // 🚨 NEW: Check heap usage
+    if (heapUsedMB > 400) {
+      console.warn(`⚠️ High heap usage: ${heapUsedMB.toFixed(1)}MB`);
     }
 
     return false;
@@ -1667,21 +1692,42 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     this.lastRSSMB = process.memoryUsage().rss / 1024 / 1024;
 
     this.memoryMonitorInterval = setInterval(() => {
-      this.checkNativeMemoryPressure();
+      try {
+        const pressureDetected = this.checkNativeMemoryPressure();
+        
+        // Force cleanup if pressure detected
+        if (pressureDetected) {
+          console.error('🧹 Memory pressure detected - forcing cleanup');
+          this.emergencyMemoryCleanup();
+        }
+        
+        // Auto-restart prevention
+        if (this.cognitiveState.thought_count % 1000 === 0 && this.cognitiveState.thought_count > 0) {
+          const memUsage = process.memoryUsage();
+          const rssInMB = memUsage.rss / 1024 / 1024;
 
-      // Auto-restart prevention
-      if (this.cognitiveState.thought_count % 1000 === 0 && this.cognitiveState.thought_count > 0) {
+          console.error(
+            `🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`
+          );
+
+          if (rssInMB > 800) {
+            console.error('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
+            process.exit(0); // Let process manager restart
+          }
+        }
+        
+        // 🚨 Additional safety check - if memory monitor itself fails
         const memUsage = process.memoryUsage();
         const rssInMB = memUsage.rss / 1024 / 1024;
-
-        console.error(
-          `🔄 Thought milestone ${this.cognitiveState.thought_count}: RSS=${rssInMB.toFixed(1)}MB`
-        );
-
-        if (rssInMB > 800) {
-          console.error('🔄 Preventive restart at 1000 thoughts to prevent memory leaks');
-          process.exit(0); // Let process manager restart
+        
+        if (rssInMB > this.ABSOLUTE_MEMORY_LIMIT_MB) {
+          console.error(`🚨 MEMORY MONITOR SAFETY: ${rssInMB.toFixed(1)}MB > ${this.ABSOLUTE_MEMORY_LIMIT_MB}MB - FORCE EXIT`);
+          process.exit(1);
         }
+        
+      } catch (error) {
+        console.error('❌ Memory monitoring error:', error);
+        // Don't let memory monitoring errors crash the system, but log them
       }
     }, this.MEMORY_CHECK_INTERVAL);
   }
