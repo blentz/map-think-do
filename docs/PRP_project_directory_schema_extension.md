@@ -18,7 +18,7 @@ The Sentient AGI Reasoning Server currently implements:
 
 - **PostgreSQL Memory Store** (`src/memory/postgresql-memory-store.ts`) with core tables:
   - `reasoning_sessions`: Complete reasoning sessions with cognitive metadata
-  - `stored_prompts`: Incoming prompts with AI classification and intent extraction  
+  - `stored_prompts`: Incoming prompts with AI classification and intent extraction
   - `stored_thoughts`: Individual thoughts within sessions with JSONB context
 - **Working Directory Tracking** (`src/prompts/valueManager.ts`) in prompt values but not cognitive memory
 - **Domain-based Classification** for organizing thoughts and prompts by subject area
@@ -152,6 +152,7 @@ However, this is only used for prompt argument persistence, not for cognitive me
 ### Implementation Tasks (Ordered Sequence)
 
 #### Task 1: Normalized Database Schema Extension
+
 **File**: `container-files/postgresql/init-scripts/06-projects-schema.sql`
 
 ```sql
@@ -159,33 +160,33 @@ However, this is only used for prompt argument persistence, not for cognitive me
 CREATE TABLE IF NOT EXISTS projects (
     -- Primary identification
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+
     -- Core project information
     directory_path TEXT UNIQUE NOT NULL,
     project_name TEXT NOT NULL,
     description TEXT,
-    
+
     -- Technology and metadata
     technology_stack TEXT[], -- ['react', 'typescript', 'nodejs']
     project_type VARCHAR(50), -- 'web-app', 'api', 'library', 'mobile', etc.
     programming_languages TEXT[], -- ['typescript', 'python', 'sql']
-    
+
     -- Project lifecycle
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE,
     is_archived BOOLEAN DEFAULT FALSE,
-    
+
     -- Cognitive settings (JSONB for flexibility)
     cognitive_settings JSONB DEFAULT '{}', -- AI preferences, persona settings, etc.
     project_metadata JSONB DEFAULT '{}', -- Custom metadata, tags, etc.
-    
+
     -- Analytics fields
     total_sessions INTEGER DEFAULT 0,
     total_thoughts INTEGER DEFAULT 0,
     total_prompts INTEGER DEFAULT 0,
-    
+
     -- Constraints
     CONSTRAINT valid_directory_path CHECK (length(directory_path) > 0),
     CONSTRAINT valid_project_name CHECK (length(project_name) > 0)
@@ -208,7 +209,7 @@ CREATE INDEX idx_sessions_project_id ON reasoning_sessions(project_id) WHERE pro
 CREATE INDEX idx_prompts_project_id ON stored_prompts(project_id) WHERE project_id IS NOT NULL;
 CREATE INDEX idx_thoughts_project_id ON stored_thoughts(project_id) WHERE project_id IS NOT NULL;
 
--- Composite indexes for common query patterns  
+-- Composite indexes for common query patterns
 CREATE INDEX idx_sessions_project_domain ON reasoning_sessions(project_id, domain) WHERE project_id IS NOT NULL;
 CREATE INDEX idx_prompts_project_type ON stored_prompts(project_id, prompt_type) WHERE project_id IS NOT NULL;
 CREATE INDEX idx_thoughts_project_session ON stored_thoughts(project_id, session_id) WHERE project_id IS NOT NULL;
@@ -219,6 +220,7 @@ CREATE INDEX idx_projects_metadata ON projects USING GIN (project_metadata) WHER
 ```
 
 #### Task 2: Enhanced TypeScript Interface Updates
+
 **File**: `src/memory/memory-store.ts`
 
 ```typescript
@@ -228,23 +230,23 @@ export interface Project {
   directory_path: string;
   project_name: string;
   description?: string;
-  
+
   // Technology metadata
   technology_stack?: string[];
   project_type?: string;
   programming_languages?: string[];
-  
+
   // Lifecycle information
   created_at: Date;
   updated_at: Date;
   last_activity_at: Date;
   is_active: boolean;
   is_archived: boolean;
-  
+
   // Cognitive and custom metadata
   cognitive_settings?: Record<string, any>;
   project_metadata?: Record<string, any>;
-  
+
   // Analytics
   total_sessions?: number;
   total_thoughts?: number;
@@ -254,53 +256,53 @@ export interface Project {
 // Updated core interfaces with project relationships
 export interface StoredThought {
   // ... existing fields
-  project_id?: string;  // UUID foreign key
-  project?: Project;    // Optional populated project data
+  project_id?: string; // UUID foreign key
+  project?: Project; // Optional populated project data
 }
 
 export interface StoredPrompt {
-  // ... existing fields  
-  project_id?: string;  // UUID foreign key
-  project?: Project;    // Optional populated project data
+  // ... existing fields
+  project_id?: string; // UUID foreign key
+  project?: Project; // Optional populated project data
 }
 
 export interface ReasoningSession {
   // ... existing fields
-  project_id?: string;  // UUID foreign key
-  project?: Project;    // Optional populated project data
+  project_id?: string; // UUID foreign key
+  project?: Project; // Optional populated project data
 }
 
 // Enhanced query interfaces
 export interface MemoryQuery {
   // ... existing filters
-  project_id?: string;           // Filter by specific project
-  project_ids?: string[];        // Filter by multiple projects
+  project_id?: string; // Filter by specific project
+  project_ids?: string[]; // Filter by multiple projects
   project_scoped_only?: boolean; // Restrict to project data only
-  include_project?: boolean;     // Populate project data in results
+  include_project?: boolean; // Populate project data in results
   project_active_only?: boolean; // Only active projects
 }
 
 export interface PromptQuery {
   // ... existing filters
-  project_id?: string;           // Filter by specific project
-  project_ids?: string[];        // Filter by multiple projects
+  project_id?: string; // Filter by specific project
+  project_ids?: string[]; // Filter by multiple projects
   project_scoped_only?: boolean; // Restrict to project data only
-  include_project?: boolean;     // Populate project data in results
+  include_project?: boolean; // Populate project data in results
   project_active_only?: boolean; // Only active projects
 }
 
 // New project query interface
 export interface ProjectQuery {
-  directory_path?: string;       // Find by directory path
-  project_name?: string;         // Filter by name
-  project_type?: string;         // Filter by type
-  technology_stack?: string[];   // Must include all specified technologies
+  directory_path?: string; // Find by directory path
+  project_name?: string; // Filter by name
+  project_type?: string; // Filter by type
+  technology_stack?: string[]; // Must include all specified technologies
   programming_languages?: string[]; // Must include all specified languages
-  is_active?: boolean;           // Filter by active status
-  is_archived?: boolean;         // Filter by archived status
-  created_after?: Date;          // Created after date
-  created_before?: Date;         // Created before date
-  last_activity_after?: Date;    // Activity after date
+  is_active?: boolean; // Filter by active status
+  is_archived?: boolean; // Filter by archived status
+  created_after?: Date; // Created after date
+  created_before?: Date; // Created before date
+  last_activity_after?: Date; // Activity after date
   has_cognitive_settings?: boolean; // Has custom cognitive settings
   limit?: number;
   offset?: number;
@@ -310,6 +312,7 @@ export interface ProjectQuery {
 ```
 
 #### Task 3: Project Resolution and Management Logic
+
 **File**: `src/server.ts`
 
 Implement comprehensive project resolution from working directory:
@@ -323,10 +326,10 @@ private async resolveProjectFromWorkingDirectory(): Promise<string | undefined> 
   try {
     const storedValues = this.promptManager.getStoredValues('');
     const workingDirectory = storedValues.working_directory;
-    
+
     if (workingDirectory && typeof workingDirectory === 'string') {
       const normalizedPath = path.resolve(workingDirectory);
-      
+
       // Find or create project record
       const projectId = await this.findOrCreateProject(normalizedPath);
       return projectId;
@@ -348,7 +351,7 @@ private async findOrCreateProject(directoryPath: string): Promise<string> {
     });
     return existingProject.id;
   }
-  
+
   // Create new project with metadata extraction
   const projectMetadata = await this.extractProjectMetadata(directoryPath);
   const project: Project = {
@@ -367,7 +370,7 @@ private async findOrCreateProject(directoryPath: string): Promise<string> {
     cognitive_settings: {},
     project_metadata: projectMetadata.customMetadata || {}
   };
-  
+
   const createdProject = await this.memoryStore.createProject(project);
   return createdProject.id;
 }
@@ -387,7 +390,7 @@ private async extractProjectMetadata(directoryPath: string): Promise<{
   let description: string | undefined;
   let projectType: string | undefined;
   const customMetadata: Record<string, any> = {};
-  
+
   try {
     // Check for package.json (Node.js project)
     const packageJsonPath = path.join(directoryPath, 'package.json');
@@ -396,31 +399,31 @@ private async extractProjectMetadata(directoryPath: string): Promise<{
       description = packageJson.description;
       technologyStack.push('nodejs');
       programmingLanguages.push('javascript');
-      
+
       // Detect TypeScript
       if (packageJson.devDependencies?.typescript || packageJson.dependencies?.typescript) {
         technologyStack.push('typescript');
         programmingLanguages.push('typescript');
       }
-      
+
       // Detect React
       if (packageJson.dependencies?.react) {
         technologyStack.push('react');
         projectType = 'web-app';
       }
-      
+
       // Detect Next.js
       if (packageJson.dependencies?.next) {
         technologyStack.push('nextjs');
         projectType = 'web-app';
       }
-      
+
       customMetadata.packageJson = {
         name: packageJson.name,
         version: packageJson.version
       };
     }
-    
+
     // Check for requirements.txt or pyproject.toml (Python project)
     if (fs.existsSync(path.join(directoryPath, 'requirements.txt')) ||
         fs.existsSync(path.join(directoryPath, 'pyproject.toml'))) {
@@ -428,20 +431,20 @@ private async extractProjectMetadata(directoryPath: string): Promise<{
       programmingLanguages.push('python');
       if (!projectType) projectType = 'api';
     }
-    
+
     // Check for Cargo.toml (Rust project)
     if (fs.existsSync(path.join(directoryPath, 'Cargo.toml'))) {
       technologyStack.push('rust');
       programmingLanguages.push('rust');
     }
-    
+
     // Check for go.mod (Go project)
     if (fs.existsSync(path.join(directoryPath, 'go.mod'))) {
       technologyStack.push('go');
       programmingLanguages.push('go');
       if (!projectType) projectType = 'api';
     }
-    
+
     // Check for README files for description
     if (!description) {
       const readmeFiles = ['README.md', 'README.txt', 'README.rst'];
@@ -461,7 +464,7 @@ private async extractProjectMetadata(directoryPath: string): Promise<{
   } catch (error) {
     console.error('Error extracting project metadata:', error);
   }
-  
+
   return {
     name: projectName,
     description,
@@ -491,7 +494,7 @@ const storedPrompt: StoredPrompt = {
   // ... rest of prompt data
 };
 
-// Updated StoredThought creation  
+// Updated StoredThought creation
 const storedThought: StoredThought = {
   // ... existing fields
   project_id: await this.resolveProjectFromWorkingDirectory(),
@@ -507,6 +510,7 @@ const session: ReasoningSession = {
 ```
 
 #### Task 4: PostgreSQL Memory Store Updates
+
 **File**: `src/memory/postgresql-memory-store.ts`
 
 Add comprehensive project management capabilities to the PostgreSQL memory store:
@@ -515,10 +519,10 @@ Add comprehensive project management capabilities to the PostgreSQL memory store
 // Project management methods for single-user scenarios
 async createProject(project: Omit<Project, 'id'>): Promise<Project> {
   const client = await this.pool!.connect();
-  
+
   try {
     await client.query('BEGIN');
-    
+
     // Create project with generated UUID
     const createQuery = `
       INSERT INTO projects (
@@ -528,7 +532,7 @@ async createProject(project: Omit<Project, 'id'>): Promise<Project> {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
-    
+
     const values = [
       project.directory_path,
       project.project_name,
@@ -542,19 +546,19 @@ async createProject(project: Omit<Project, 'id'>): Promise<Project> {
       project.updated_at,
       project.last_activity_at
     ];
-    
+
     const result = await client.query(createQuery, values);
     await client.query('COMMIT');
-    
+
     const createdProject = this.mapRowToProject(result.rows[0]);
-    
+
     // Cache the project for single-user performance
     this.projectCache.set(createdProject.id, createdProject);
     this.projectPathCache.set(createdProject.directory_path, createdProject);
-    
+
     console.error(`✅ Created project: ${createdProject.project_name} (${createdProject.id})`);
     return createdProject;
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Failed to create project:', error);
@@ -569,21 +573,21 @@ async getProject(projectId: string): Promise<Project | null> {
   if (this.projectCache.has(projectId)) {
     return this.projectCache.get(projectId)!;
   }
-  
+
   try {
     const query = 'SELECT * FROM projects WHERE id = $1';
     const result = await this.executeQuery(query, [projectId]);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
-    
+
     const project = this.mapRowToProject(result.rows[0]);
-    
+
     // Cache for future requests
     this.projectCache.set(project.id, project);
     this.projectPathCache.set(project.directory_path, project);
-    
+
     return project;
   } catch (error) {
     console.error('❌ Failed to get project:', error);
@@ -596,21 +600,21 @@ async findProjectByPath(directoryPath: string): Promise<Project | null> {
   if (this.projectPathCache.has(directoryPath)) {
     return this.projectPathCache.get(directoryPath)!;
   }
-  
+
   try {
     const query = 'SELECT * FROM projects WHERE directory_path = $1';
     const result = await this.executeQuery(query, [directoryPath]);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
-    
+
     const project = this.mapRowToProject(result.rows[0]);
-    
+
     // Cache for future requests
     this.projectCache.set(project.id, project);
     this.projectPathCache.set(project.directory_path, project);
-    
+
     return project;
   } catch (error) {
     console.error('❌ Failed to find project by path:', error);
@@ -620,91 +624,91 @@ async findProjectByPath(directoryPath: string): Promise<Project | null> {
 
 async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
   const client = await this.pool!.connect();
-  
+
   try {
     await client.query('BEGIN');
-    
+
     // Build dynamic update query
     const updateFields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
-    
+
     if (updates.project_name !== undefined) {
       updateFields.push(`project_name = $${paramIndex++}`);
       values.push(updates.project_name);
     }
-    
+
     if (updates.description !== undefined) {
       updateFields.push(`description = $${paramIndex++}`);
       values.push(updates.description);
     }
-    
+
     if (updates.technology_stack !== undefined) {
       updateFields.push(`technology_stack = $${paramIndex++}`);
       values.push(updates.technology_stack);
     }
-    
+
     if (updates.project_type !== undefined) {
       updateFields.push(`project_type = $${paramIndex++}`);
       values.push(updates.project_type);
     }
-    
+
     if (updates.programming_languages !== undefined) {
       updateFields.push(`programming_languages = $${paramIndex++}`);
       values.push(updates.programming_languages);
     }
-    
+
     if (updates.cognitive_settings !== undefined) {
       updateFields.push(`cognitive_settings = $${paramIndex++}`);
       values.push(JSON.stringify(updates.cognitive_settings));
     }
-    
+
     if (updates.project_metadata !== undefined) {
       updateFields.push(`project_metadata = $${paramIndex++}`);
       values.push(JSON.stringify(updates.project_metadata));
     }
-    
+
     if (updates.is_active !== undefined) {
       updateFields.push(`is_active = $${paramIndex++}`);
       values.push(updates.is_active);
     }
-    
+
     if (updates.is_archived !== undefined) {
       updateFields.push(`is_archived = $${paramIndex++}`);
       values.push(updates.is_archived);
     }
-    
+
     // Always update the timestamp
     updateFields.push(`updated_at = $${paramIndex++}`);
     values.push(new Date());
-    
+
     if (updates.last_activity_at !== undefined) {
       updateFields.push(`last_activity_at = $${paramIndex++}`);
       values.push(updates.last_activity_at);
     }
-    
+
     values.push(projectId); // WHERE condition
-    
+
     const updateQuery = `
-      UPDATE projects 
+      UPDATE projects
       SET ${updateFields.join(', ')}
       WHERE id = $${paramIndex}
       RETURNING *
     `;
-    
+
     const result = await client.query(updateQuery, values);
     await client.query('COMMIT');
-    
+
     if (result.rows.length > 0) {
       const updatedProject = this.mapRowToProject(result.rows[0]);
-      
+
       // Update cache
       this.projectCache.set(updatedProject.id, updatedProject);
       this.projectPathCache.set(updatedProject.directory_path, updatedProject);
     }
-    
+
     console.error(`✅ Updated project: ${projectId}`);
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Failed to update project:', error);
@@ -719,81 +723,81 @@ async queryProjects(query: ProjectQuery = {}): Promise<Project[]> {
     let sql = 'SELECT * FROM projects WHERE 1=1';
     const values: any[] = [];
     let paramIndex = 1;
-    
+
     // Add filtering conditions
     if (query.directory_path) {
       sql += ` AND directory_path = $${paramIndex++}`;
       values.push(query.directory_path);
     }
-    
+
     if (query.project_name) {
       sql += ` AND project_name ILIKE $${paramIndex++}`;
       values.push(`%${query.project_name}%`);
     }
-    
+
     if (query.project_type) {
       sql += ` AND project_type = $${paramIndex++}`;
       values.push(query.project_type);
     }
-    
+
     if (query.technology_stack && query.technology_stack.length > 0) {
       sql += ` AND technology_stack @> $${paramIndex++}`;
       values.push(query.technology_stack);
     }
-    
+
     if (query.programming_languages && query.programming_languages.length > 0) {
       sql += ` AND programming_languages @> $${paramIndex++}`;
       values.push(query.programming_languages);
     }
-    
+
     if (query.is_active !== undefined) {
       sql += ` AND is_active = $${paramIndex++}`;
       values.push(query.is_active);
     }
-    
+
     if (query.is_archived !== undefined) {
       sql += ` AND is_archived = $${paramIndex++}`;
       values.push(query.is_archived);
     }
-    
+
     if (query.created_after) {
       sql += ` AND created_at >= $${paramIndex++}`;
       values.push(query.created_after);
     }
-    
+
     if (query.created_before) {
       sql += ` AND created_at <= $${paramIndex++}`;
       values.push(query.created_before);
     }
-    
+
     if (query.last_activity_after) {
       sql += ` AND last_activity_at >= $${paramIndex++}`;
       values.push(query.last_activity_after);
     }
-    
+
     if (query.has_cognitive_settings) {
       sql += ` AND cognitive_settings != '{}'`;
     }
-    
+
     // Add sorting
     const sortBy = query.sort_by || 'last_activity_at';
     const sortOrder = query.sort_order || 'desc';
     sql += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
-    
+
     // Add pagination
     if (query.limit) {
       sql += ` LIMIT $${paramIndex++}`;
       values.push(query.limit);
     }
-    
+
     if (query.offset) {
       sql += ` OFFSET $${paramIndex++}`;
       values.push(query.offset);
     }
-    
+
     const result = await this.executeQuery(sql, values);
     return result.rows.map(row => this.mapRowToProject(row));
-    
+
   } catch (error) {
     console.error('❌ Failed to query projects:', error);
     throw new Error(`Project query failed: ${error.message}`);
@@ -815,7 +819,7 @@ async storePrompt(prompt: StoredPrompt): Promise<void> {
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
       )
     `;
-    
+
     const values = [
       prompt.id,
       prompt.session_id,
@@ -842,14 +846,14 @@ async storePrompt(prompt: StoredPrompt): Promise<void> {
       prompt.created_at,
       prompt.updated_at
     ];
-    
+
     await this.executeQuery(query, values);
-    
+
     // Update project activity if project_id is present
     if (prompt.project_id) {
       await this.updateProjectActivity(prompt.project_id);
     }
-    
+
   } catch (error) {
     console.error('❌ Failed to store prompt:', error);
     throw new Error(`Prompt storage failed: ${error.message}`);
@@ -870,7 +874,7 @@ async storeThought(thought: StoredThought): Promise<void> {
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
       )
     `;
-    
+
     const values = [
       thought.id,
       thought.session_id,
@@ -903,14 +907,14 @@ async storeThought(thought: StoredThought): Promise<void> {
       thought.created_at,
       thought.updated_at
     ];
-    
+
     await this.executeQuery(query, values);
-    
+
     // Update project activity if project_id is present
     if (thought.project_id) {
       await this.updateProjectActivity(thought.project_id);
     }
-    
+
   } catch (error) {
     console.error('❌ Failed to store thought:', error);
     throw new Error(`Thought storage failed: ${error.message}`);
@@ -930,7 +934,7 @@ async storeSession(session: ReasoningSession): Promise<void> {
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
       )
     `;
-    
+
     const values = [
       session.id,
       session.project_id || null, // Handle null project_id for backward compatibility
@@ -955,14 +959,14 @@ async storeSession(session: ReasoningSession): Promise<void> {
       session.created_at,
       session.updated_at
     ];
-    
+
     await this.executeQuery(query, values);
-    
+
     // Update project activity if project_id is present
     if (session.project_id) {
       await this.updateProjectActivity(session.project_id);
     }
-    
+
   } catch (error) {
     console.error('❌ Failed to store session:', error);
     throw new Error(`Session storage failed: ${error.message}`);
@@ -995,16 +999,16 @@ private mapRowToProject(row: any): Project {
 private async updateProjectActivity(projectId: string): Promise<void> {
   try {
     const query = `
-      UPDATE projects 
+      UPDATE projects
       SET last_activity_at = $1, updated_at = $1
       WHERE id = $2
     `;
-    
+
     await this.executeQuery(query, [new Date(), projectId]);
-    
+
     // Invalidate cache
     this.projectCache.delete(projectId);
-    
+
   } catch (error) {
     console.error('❌ Failed to update project activity:', error);
     // Don't throw - this is not critical
@@ -1023,6 +1027,7 @@ async clearProjectCache(): Promise<void> {
 ```
 
 #### Task 5: Enhanced Query Capabilities with Project-Aware Searches
+
 **File**: `src/memory/postgresql-memory-store.ts`
 
 Implement sophisticated project-aware querying and analytics for single-user scenarios:
@@ -1040,71 +1045,71 @@ async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
     `;
     const values: any[] = [];
     let paramIndex = 1;
-    
+
     // Project-based filtering
     if (query.project_id) {
       sql += ` AND p.project_id = $${paramIndex++}`;
       values.push(query.project_id);
     }
-    
+
     if (query.project_ids && query.project_ids.length > 0) {
       sql += ` AND p.project_id = ANY($${paramIndex++})`;
       values.push(query.project_ids);
     }
-    
+
     if (query.project_scoped_only) {
       sql += ` AND p.project_id IS NOT NULL`;
     }
-    
+
     if (query.project_active_only) {
       sql += ` AND (pr.is_active = true OR p.project_id IS NULL)`;
     }
-    
+
     // Existing filters
     if (query.session_id) {
       sql += ` AND p.session_id = $${paramIndex++}`;
       values.push(query.session_id);
     }
-    
+
     if (query.prompt_type) {
       sql += ` AND p.prompt_type = $${paramIndex++}`;
       values.push(query.prompt_type);
     }
-    
+
     if (query.domain) {
       sql += ` AND p.domain = $${paramIndex++}`;
       values.push(query.domain);
     }
-    
+
     if (query.complexity_range) {
       sql += ` AND p.complexity_estimate BETWEEN $${paramIndex++} AND $${paramIndex++}`;
       values.push(query.complexity_range[0], query.complexity_range[1]);
     }
-    
+
     if (query.date_range) {
       sql += ` AND p.received_at BETWEEN $${paramIndex++} AND $${paramIndex++}`;
       values.push(query.date_range[0], query.date_range[1]);
     }
-    
+
     if (query.processing_success !== undefined) {
       sql += ` AND p.processing_success = $${paramIndex++}`;
       values.push(query.processing_success);
     }
-    
+
     if (query.tags && query.tags.length > 0) {
       sql += ` AND p.tags @> $${paramIndex++}`;
       values.push(query.tags);
     }
-    
+
     // Text similarity search
     if (query.similar_to) {
       sql += ` AND similarity(p.original_prompt, $${paramIndex++}) > 0.3`;
       values.push(query.similar_to);
-      
+
       // Order by similarity when searching
       const sortBy = query.sort_by || 'similarity';
       const sortOrder = query.sort_order || 'desc';
-      
+
       if (sortBy === 'similarity') {
         sql += ` ORDER BY similarity(p.original_prompt, $${paramIndex++}) ${sortOrder.toUpperCase()}`;
         values.push(query.similar_to);
@@ -1117,21 +1122,21 @@ async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
       const sortOrder = query.sort_order || 'desc';
       sql += ` ORDER BY p.${sortBy} ${sortOrder.toUpperCase()}`;
     }
-    
+
     // Pagination
     if (query.limit) {
       sql += ` LIMIT $${paramIndex++}`;
       values.push(query.limit);
     }
-    
+
     if (query.offset) {
       sql += ` OFFSET $${paramIndex++}`;
       values.push(query.offset);
     }
-    
+
     const result = await this.executeQuery(sql, values);
     return result.rows.map(row => this.mapRowToPromptWithProject(row, query.include_project));
-    
+
   } catch (error) {
     console.error('❌ Failed to query prompts:', error);
     throw new Error(`Prompt query failed: ${error.message}`);
@@ -1149,79 +1154,79 @@ async queryThoughts(query: MemoryQuery): Promise<StoredThought[]> {
     `;
     const values: any[] = [];
     let paramIndex = 1;
-    
+
     // Project-based filtering
     if (query.project_id) {
       sql += ` AND t.project_id = $${paramIndex++}`;
       values.push(query.project_id);
     }
-    
+
     if (query.project_ids && query.project_ids.length > 0) {
       sql += ` AND t.project_id = ANY($${paramIndex++})`;
       values.push(query.project_ids);
     }
-    
+
     if (query.project_scoped_only) {
       sql += ` AND t.project_id IS NOT NULL`;
     }
-    
+
     if (query.project_active_only) {
       sql += ` AND (pr.is_active = true OR t.project_id IS NULL)`;
     }
-    
+
     // Existing filters
     if (query.session_ids && query.session_ids.length > 0) {
       sql += ` AND t.session_id = ANY($${paramIndex++})`;
       values.push(query.session_ids);
     }
-    
+
     if (query.domain) {
       sql += ` AND t.domain = $${paramIndex++}`;
       values.push(query.domain);
     }
-    
+
     if (query.confidence_range) {
       sql += ` AND t.confidence BETWEEN $${paramIndex++} AND $${paramIndex++}`;
       values.push(query.confidence_range[0], query.confidence_range[1]);
     }
-    
+
     if (query.complexity_range) {
       sql += ` AND t.complexity BETWEEN $${paramIndex++} AND $${paramIndex++}`;
       values.push(query.complexity_range[0], query.complexity_range[1]);
     }
-    
+
     if (query.time_range) {
       sql += ` AND t.timestamp BETWEEN $${paramIndex++} AND $${paramIndex++}`;
       values.push(query.time_range[0], query.time_range[1]);
     }
-    
+
     if (query.success_only) {
       sql += ` AND t.success = true`;
     }
-    
+
     if (query.effectiveness_threshold) {
       sql += ` AND t.effectiveness_score >= $${paramIndex++}`;
       values.push(query.effectiveness_threshold);
     }
-    
+
     if (query.tags && query.tags.length > 0) {
       sql += ` AND t.tags @> $${paramIndex++}`;
       values.push(query.tags);
     }
-    
+
     if (query.patterns && query.patterns.length > 0) {
       sql += ` AND t.patterns_detected @> $${paramIndex++}`;
       values.push(query.patterns);
     }
-    
+
     // Text similarity search
     if (query.text_similarity) {
       sql += ` AND similarity(t.thought, $${paramIndex++}) > 0.3`;
       values.push(query.text_similarity);
-      
+
       const sortBy = query.sort_by || 'similarity';
       const sortOrder = query.sort_order || 'desc';
-      
+
       if (sortBy === 'similarity') {
         sql += ` ORDER BY similarity(t.thought, $${paramIndex++}) ${sortOrder.toUpperCase()}`;
         values.push(query.text_similarity);
@@ -1234,21 +1239,21 @@ async queryThoughts(query: MemoryQuery): Promise<StoredThought[]> {
       const sortOrder = query.sort_order || 'desc';
       sql += ` ORDER BY t.${sortBy} ${sortOrder.toUpperCase()}`;
     }
-    
+
     // Pagination
     if (query.limit) {
       sql += ` LIMIT $${paramIndex++}`;
       values.push(query.limit);
     }
-    
+
     if (query.offset) {
       sql += ` OFFSET $${paramIndex++}`;
       values.push(query.offset);
     }
-    
+
     const result = await this.executeQuery(sql, values);
     return result.rows.map(row => this.mapRowToThoughtWithProject(row, query.include_project));
-    
+
   } catch (error) {
     console.error('❌ Failed to query thoughts:', error);
     throw new Error(`Thought query failed: ${error.message}`);
@@ -1265,21 +1270,21 @@ async findSimilarPromptsHybrid(prompt: string, limit = 5, projectId?: string): P
       limit: limit,
       include_project: true
     });
-    
+
     if (projectResults.length >= Math.min(3, limit)) {
       return projectResults.slice(0, limit);
     }
-    
+
     // Fallback to global search for remaining slots
     const globalResults = await this.queryPrompts({
       similar_to: prompt,
       limit: limit - projectResults.length,
       include_project: true
     });
-    
+
     return [...projectResults, ...globalResults].slice(0, limit);
   }
-  
+
   // No project context, use global search
   return this.queryPrompts({
     similar_to: prompt,
@@ -1297,21 +1302,21 @@ async findSimilarThoughtsHybrid(thought: string, limit = 5, projectId?: string):
       limit: limit,
       include_project: true
     });
-    
+
     if (projectResults.length >= Math.min(3, limit)) {
       return projectResults.slice(0, limit);
     }
-    
+
     // Fallback to global search for remaining slots
     const globalResults = await this.queryThoughts({
       text_similarity: thought,
       limit: limit - projectResults.length,
       include_project: true
     });
-    
+
     return [...projectResults, ...globalResults].slice(0, limit);
   }
-  
+
   // No project context, use global search
   return this.queryThoughts({
     text_similarity: thought,
@@ -1336,64 +1341,64 @@ async getProjectAnalytics(projectId: string): Promise<{
       this.executeQuery(`
         SELECT COUNT(*) as count FROM reasoning_sessions WHERE project_id = $1
       `, [projectId]),
-      
+
       this.executeQuery(`
         SELECT COUNT(*) as count FROM stored_thoughts WHERE project_id = $1
       `, [projectId]),
-      
+
       this.executeQuery(`
         SELECT COUNT(*) as count FROM stored_prompts WHERE project_id = $1
       `, [projectId]),
-      
+
       // Average session length
       this.executeQuery(`
-        SELECT AVG(total_thoughts) as avg_length 
-        FROM reasoning_sessions 
+        SELECT AVG(total_thoughts) as avg_length
+        FROM reasoning_sessions
         WHERE project_id = $1 AND total_thoughts > 0
       `, [projectId]),
-      
+
       // Success rate
       this.executeQuery(`
-        SELECT 
+        SELECT
           COUNT(*) as total,
           COUNT(*) FILTER (WHERE goal_achieved = true) as successful
-        FROM reasoning_sessions 
+        FROM reasoning_sessions
         WHERE project_id = $1
       `, [projectId]),
-      
+
       // Recent activity (last 30 days)
       this.executeQuery(`
-        SELECT 
+        SELECT
           DATE(start_time) as date,
           COUNT(*) as sessions,
           SUM(total_thoughts) as thoughts
-        FROM reasoning_sessions 
-        WHERE project_id = $1 
+        FROM reasoning_sessions
+        WHERE project_id = $1
           AND start_time >= NOW() - INTERVAL '30 days'
         GROUP BY DATE(start_time)
         ORDER BY date DESC
         LIMIT 30
       `, [projectId])
     ]);
-    
+
     const [sessions, thoughts, prompts, avgLength, successData, recentActivity] = analytics;
-    
+
     const totalSessions = parseInt(sessions.rows[0]?.count || '0');
     const totalThoughts = parseInt(thoughts.rows[0]?.count || '0');
     const totalPrompts = parseInt(prompts.rows[0]?.count || '0');
     const averageSessionLength = parseFloat(avgLength.rows[0]?.avg_length || '0');
-    
+
     const successTotal = parseInt(successData.rows[0]?.total || '0');
     const successCount = parseInt(successData.rows[0]?.successful || '0');
     const successRate = successTotal > 0 ? successCount / successTotal : 0;
-    
+
     // Get project technology stack for insights
     const project = await this.getProject(projectId);
     const mostUsedTechnologies = project?.technology_stack?.map(tech => ({
       tech,
       usage: 1 // In single-user scenario, this is simplified
     })) || [];
-    
+
     return {
       totalSessions,
       totalThoughts,
@@ -1407,7 +1412,7 @@ async getProjectAnalytics(projectId: string): Promise<{
         thoughts: parseInt(row.thoughts || '0')
       }))
     };
-    
+
   } catch (error) {
     console.error('❌ Failed to get project analytics:', error);
     throw new Error(`Project analytics failed: ${error.message}`);
@@ -1423,7 +1428,7 @@ async getCrossProjectPatterns(limit = 10): Promise<Array<{
 }>> {
   try {
     const query = `
-      SELECT 
+      SELECT
         unnest(patterns_detected) as pattern,
         array_agg(DISTINCT pr.project_name) as project_names,
         COUNT(*) as frequency,
@@ -1436,16 +1441,16 @@ async getCrossProjectPatterns(limit = 10): Promise<Array<{
       ORDER BY frequency DESC, success_rate DESC
       LIMIT $1
     `;
-    
+
     const result = await this.executeQuery(query, [limit]);
-    
+
     return result.rows.map(row => ({
       pattern: row.pattern,
       projects: row.project_names,
       frequency: parseInt(row.frequency),
       successRate: parseFloat(row.success_rate || '0')
     }));
-    
+
   } catch (error) {
     console.error('❌ Failed to get cross-project patterns:', error);
     throw new Error(`Cross-project pattern analysis failed: ${error.message}`);
@@ -1480,7 +1485,7 @@ private mapRowToPromptWithProject(row: any, includeProject = false): StoredPromp
     created_at: row.created_at,
     updated_at: row.updated_at
   };
-  
+
   if (includeProject && row.project_id && row.project_name) {
     prompt.project = {
       id: row.project_id,
@@ -1496,7 +1501,7 @@ private mapRowToPromptWithProject(row: any, includeProject = false): StoredPromp
       is_archived: false
     };
   }
-  
+
   return prompt;
 }
 
@@ -1533,7 +1538,7 @@ private mapRowToThoughtWithProject(row: any, includeProject = false): StoredThou
     created_at: row.created_at,
     updated_at: row.updated_at
   };
-  
+
   if (includeProject && row.project_id && row.project_name) {
     thought.project = {
       id: row.project_id,
@@ -1549,12 +1554,13 @@ private mapRowToThoughtWithProject(row: any, includeProject = false): StoredThou
       is_archived: false
     };
   }
-  
+
   return thought;
 }
 ```
 
 #### Task 6: Comprehensive Testing for Single-User Scenarios
+
 **File**: `test/memory/project-schema-extension.test.ts`
 
 Complete testing framework for normalized project schema with single-user focus:
@@ -1562,9 +1568,14 @@ Complete testing framework for normalized project schema with single-user focus:
 ```typescript
 import { PostgreSQLMemoryStore } from '../../src/memory/postgresql-memory-store.js';
 import { PostgreSQLConfigs } from '../../src/memory/postgresql-config.js';
-import { 
-  Project, StoredPrompt, StoredThought, ReasoningSession, 
-  ProjectQuery, PromptQuery, MemoryQuery 
+import {
+  Project,
+  StoredPrompt,
+  StoredThought,
+  ReasoningSession,
+  ProjectQuery,
+  PromptQuery,
+  MemoryQuery,
 } from '../../src/memory/memory-store.js';
 import { strict as assert } from 'assert';
 import * as path from 'path';
@@ -1572,46 +1583,45 @@ import * as fs from 'fs';
 
 export async function runProjectSchemaExtensionTests(): Promise<void> {
   console.log('🧪 Running Project Schema Extension Tests (Single-User)...');
-  
+
   const config = PostgreSQLConfigs.testing();
   const memoryStore = new PostgreSQLMemoryStore(config);
-  
+
   try {
     await memoryStore.initialize();
     console.log('✅ PostgreSQL Memory Store initialized for testing');
-    
+
     // Test 1: Project CRUD Operations
     await testProjectCRUD(memoryStore);
-    
+
     // Test 2: Project Metadata Extraction
     await testProjectMetadataExtraction(memoryStore);
-    
+
     // Test 3: Project-Scoped Data Storage
     await testProjectScopedDataStorage(memoryStore);
-    
+
     // Test 4: Project-Aware Queries
     await testProjectAwareQueries(memoryStore);
-    
+
     // Test 5: Hybrid Similarity Search
     await testHybridSimilaritySearch(memoryStore);
-    
+
     // Test 6: Project Analytics
     await testProjectAnalytics(memoryStore);
-    
+
     // Test 7: Cross-Project Pattern Analysis
     await testCrossProjectPatterns(memoryStore);
-    
+
     // Test 8: Backward Compatibility
     await testBackwardCompatibility(memoryStore);
-    
+
     // Test 9: Error Handling
     await testErrorHandling(memoryStore);
-    
+
     // Test 10: Performance with Caching
     await testPerformanceOptimization(memoryStore);
-    
+
     console.log('🎉 All project schema extension tests passed!');
-    
   } catch (error) {
     console.error('❌ Test failed:', error);
     throw error;
@@ -1622,7 +1632,7 @@ export async function runProjectSchemaExtensionTests(): Promise<void> {
 
 async function testProjectCRUD(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing project CRUD operations...');
-  
+
   // Test project creation
   const testProject: Omit<Project, 'id'> = {
     directory_path: '/home/user/test-project',
@@ -1637,81 +1647,94 @@ async function testProjectCRUD(store: PostgreSQLMemoryStore): Promise<void> {
     is_active: true,
     is_archived: false,
     cognitive_settings: { preferred_persona: 'Engineer' },
-    project_metadata: { test: true }
+    project_metadata: { test: true },
   };
-  
+
   const createdProject = await store.createProject(testProject);
   assert(createdProject.id, 'Project should have an ID');
   assert.strictEqual(createdProject.project_name, 'Test Project');
   assert.deepStrictEqual(createdProject.technology_stack, ['typescript', 'nodejs', 'react']);
-  
+
   // Test project retrieval
   const retrievedProject = await store.getProject(createdProject.id);
   assert(retrievedProject, 'Project should be retrievable');
   assert.strictEqual(retrievedProject.project_name, 'Test Project');
-  
+
   // Test find by path
   const foundProject = await store.findProjectByPath('/home/user/test-project');
   assert(foundProject, 'Project should be findable by path');
   assert.strictEqual(foundProject.id, createdProject.id);
-  
+
   // Test project update
   await store.updateProject(createdProject.id, {
     description: 'Updated description',
     technology_stack: ['typescript', 'nodejs', 'react', 'postgresql'],
-    is_active: false
+    is_active: false,
   });
-  
+
   const updatedProject = await store.getProject(createdProject.id);
   assert.strictEqual(updatedProject!.description, 'Updated description');
   assert(updatedProject!.technology_stack!.includes('postgresql'));
   assert.strictEqual(updatedProject!.is_active, false);
-  
+
   // Test project query
   const projects = await store.queryProjects({
     project_type: 'web-app',
     technology_stack: ['typescript'],
-    is_active: false
+    is_active: false,
   });
-  
+
   assert(projects.length >= 1, 'Should find at least one project');
-  assert(projects.some(p => p.id === createdProject.id), 'Should include our test project');
-  
+  assert(
+    projects.some(p => p.id === createdProject.id),
+    'Should include our test project'
+  );
+
   console.log('✅ Project CRUD operations validated');
 }
 
 async function testProjectMetadataExtraction(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing project metadata extraction...');
-  
+
   // Create temporary test directory structure
   const tempDir = '/tmp/test-project-metadata';
   const packageJsonPath = path.join(tempDir, 'package.json');
   const readmePath = path.join(tempDir, 'README.md');
-  
+
   try {
     // Setup test files
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
-    
-    fs.writeFileSync(packageJsonPath, JSON.stringify({
-      name: 'test-metadata-project',
-      version: '1.0.0',
-      description: 'A project for testing metadata extraction',
-      dependencies: {
-        react: '^18.0.0',
-        typescript: '^4.8.0'
-      },
-      devDependencies: {
-        '@types/node': '^18.0.0'
-      }
-    }, null, 2));
-    
-    fs.writeFileSync(readmePath, '# Test Metadata Project\n\nThis project tests metadata extraction capabilities.\n\n## Features\n- Automated testing\n- Metadata extraction');
-    
+
+    fs.writeFileSync(
+      packageJsonPath,
+      JSON.stringify(
+        {
+          name: 'test-metadata-project',
+          version: '1.0.0',
+          description: 'A project for testing metadata extraction',
+          dependencies: {
+            react: '^18.0.0',
+            typescript: '^4.8.0',
+          },
+          devDependencies: {
+            '@types/node': '^18.0.0',
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    fs.writeFileSync(
+      readmePath,
+      '# Test Metadata Project\n\nThis project tests metadata extraction capabilities.\n\n## Features\n- Automated testing\n- Metadata extraction'
+    );
+
     // Test metadata extraction logic by simulating server.ts behavior
     const extractedMetadata = await extractProjectMetadataForTest(tempDir);
-    
+
     assert.strictEqual(extractedMetadata.name, 'test-project-metadata');
     assert(extractedMetadata.description!.includes('metadata extraction'));
     assert(extractedMetadata.technologyStack.includes('react'));
@@ -1719,9 +1742,8 @@ async function testProjectMetadataExtraction(store: PostgreSQLMemoryStore): Prom
     assert(extractedMetadata.technologyStack.includes('nodejs'));
     assert(extractedMetadata.programmingLanguages.includes('typescript'));
     assert.strictEqual(extractedMetadata.projectType, 'web-app');
-    
+
     console.log('✅ Project metadata extraction validated');
-    
   } finally {
     // Cleanup
     if (fs.existsSync(tempDir)) {
@@ -1732,7 +1754,7 @@ async function testProjectMetadataExtraction(store: PostgreSQLMemoryStore): Prom
 
 async function testProjectScopedDataStorage(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing project-scoped data storage...');
-  
+
   // Create test projects
   const project1 = await store.createProject({
     directory_path: '/home/user/project-1',
@@ -1742,9 +1764,9 @@ async function testProjectScopedDataStorage(store: PostgreSQLMemoryStore): Promi
     updated_at: new Date(),
     last_activity_at: new Date(),
     is_active: true,
-    is_archived: false
+    is_archived: false,
   });
-  
+
   const project2 = await store.createProject({
     directory_path: '/home/user/project-2',
     project_name: 'Project 2',
@@ -1753,9 +1775,9 @@ async function testProjectScopedDataStorage(store: PostgreSQLMemoryStore): Promi
     updated_at: new Date(),
     last_activity_at: new Date(),
     is_active: true,
-    is_archived: false
+    is_archived: false,
   });
-  
+
   // Create test session with project association
   const session1: ReasoningSession = {
     id: 'test-session-1',
@@ -1768,11 +1790,11 @@ async function testProjectScopedDataStorage(store: PostgreSQLMemoryStore): Promi
     revision_count: 0,
     branch_count: 0,
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storeSession(session1);
-  
+
   // Create test prompt with project association
   const prompt1: StoredPrompt = {
     id: 'test-prompt-1',
@@ -1781,11 +1803,11 @@ async function testProjectScopedDataStorage(store: PostgreSQLMemoryStore): Promi
     original_prompt: 'Help me with project 1 specific task',
     received_at: new Date(),
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storePrompt(prompt1);
-  
+
   // Create test thought with project association
   const thought1: StoredThought = {
     id: 'test-thought-1',
@@ -1799,106 +1821,112 @@ async function testProjectScopedDataStorage(store: PostgreSQLMemoryStore): Promi
     timestamp: new Date(),
     context: {},
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storeThought(thought1);
-  
+
   // Verify project activity was updated
   const updatedProject = await store.getProject(project1.id);
-  assert(updatedProject!.last_activity_at > project1.last_activity_at, 'Project activity should be updated');
-  
+  assert(
+    updatedProject!.last_activity_at > project1.last_activity_at,
+    'Project activity should be updated'
+  );
+
   console.log('✅ Project-scoped data storage validated');
 }
 
 async function testProjectAwareQueries(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing project-aware queries...');
-  
+
   // Query prompts by project
   const project1Prompts = await store.queryPrompts({
     project_id: (await store.findProjectByPath('/home/user/project-1'))!.id,
-    include_project: true
+    include_project: true,
   });
-  
+
   assert(project1Prompts.length >= 1, 'Should find prompts for project 1');
   assert(project1Prompts[0].project, 'Should include project data');
   assert.strictEqual(project1Prompts[0].project!.project_name, 'Project 1');
-  
+
   // Query thoughts by project
   const project1Thoughts = await store.queryThoughts({
     project_id: (await store.findProjectByPath('/home/user/project-1'))!.id,
-    include_project: true
+    include_project: true,
   });
-  
+
   assert(project1Thoughts.length >= 1, 'Should find thoughts for project 1');
   assert(project1Thoughts[0].project, 'Should include project data');
-  
+
   // Query only project-scoped data
   const projectScopedPrompts = await store.queryPrompts({
     project_scoped_only: true,
-    include_project: true
+    include_project: true,
   });
-  
-  assert(projectScopedPrompts.every(p => p.project_id), 'All prompts should have project_id');
-  
+
+  assert(
+    projectScopedPrompts.every(p => p.project_id),
+    'All prompts should have project_id'
+  );
+
   // Query only active projects
   const activeProjectPrompts = await store.queryPrompts({
     project_active_only: true,
-    include_project: true
+    include_project: true,
   });
-  
-  assert(activeProjectPrompts.every(p => !p.project || p.project.is_active), 'All prompts should be from active projects or have no project');
-  
+
+  assert(
+    activeProjectPrompts.every(p => !p.project || p.project.is_active),
+    'All prompts should be from active projects or have no project'
+  );
+
   console.log('✅ Project-aware queries validated');
 }
 
 async function testHybridSimilaritySearch(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing hybrid similarity search...');
-  
+
   const project1 = await store.findProjectByPath('/home/user/project-1');
-  
+
   // Test project-scoped similarity search
   const similarPrompts = await store.findSimilarPromptsHybrid(
     'Help me with project task',
     5,
     project1!.id
   );
-  
+
   assert(similarPrompts.length > 0, 'Should find similar prompts');
-  
+
   // Test global similarity search
-  const globalSimilarPrompts = await store.findSimilarPromptsHybrid(
-    'Help me with project task',
-    5
-  );
-  
+  const globalSimilarPrompts = await store.findSimilarPromptsHybrid('Help me with project task', 5);
+
   assert(globalSimilarPrompts.length > 0, 'Should find similar prompts globally');
-  
+
   console.log('✅ Hybrid similarity search validated');
 }
 
 async function testProjectAnalytics(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing project analytics...');
-  
+
   const project1 = await store.findProjectByPath('/home/user/project-1');
   const analytics = await store.getProjectAnalytics(project1!.id);
-  
+
   assert(analytics.totalSessions >= 1, 'Should have at least one session');
   assert(analytics.totalThoughts >= 1, 'Should have at least one thought');
   assert(analytics.totalPrompts >= 1, 'Should have at least one prompt');
   assert(typeof analytics.successRate === 'number', 'Success rate should be a number');
   assert(Array.isArray(analytics.recentActivity), 'Recent activity should be an array');
-  
+
   console.log('✅ Project analytics validated');
 }
 
 async function testCrossProjectPatterns(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing cross-project pattern analysis...');
-  
+
   // Add thoughts with patterns to multiple projects
   const project1 = await store.findProjectByPath('/home/user/project-1');
   const project2 = await store.findProjectByPath('/home/user/project-2');
-  
+
   const thoughtWithPattern: StoredThought = {
     id: 'test-thought-pattern',
     session_id: 'test-session-1',
@@ -1912,23 +1940,23 @@ async function testCrossProjectPatterns(store: PostgreSQLMemoryStore): Promise<v
     success: true,
     context: {},
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storeThought(thoughtWithPattern);
-  
+
   const patterns = await store.getCrossProjectPatterns(5);
-  
+
   // Note: This test may not find patterns if database doesn't have enough data
   // In real scenarios, this would be populated over time
   assert(Array.isArray(patterns), 'Should return an array of patterns');
-  
+
   console.log('✅ Cross-project pattern analysis validated');
 }
 
 async function testBackwardCompatibility(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing backward compatibility...');
-  
+
   // Store data without project_id (simulating legacy data)
   const legacyPrompt: StoredPrompt = {
     id: 'legacy-prompt-1',
@@ -1937,11 +1965,11 @@ async function testBackwardCompatibility(store: PostgreSQLMemoryStore): Promise<
     original_prompt: 'Legacy prompt without project association',
     received_at: new Date(),
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storePrompt(legacyPrompt);
-  
+
   const legacyThought: StoredThought = {
     id: 'legacy-thought-1',
     session_id: 'legacy-session-1',
@@ -1953,24 +1981,30 @@ async function testBackwardCompatibility(store: PostgreSQLMemoryStore): Promise<
     timestamp: new Date(),
     context: {},
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storeThought(legacyThought);
-  
+
   // Query should work with null project_id
   const allPrompts = await store.queryPrompts({});
-  assert(allPrompts.some(p => p.id === 'legacy-prompt-1'), 'Should include legacy prompts');
-  
+  assert(
+    allPrompts.some(p => p.id === 'legacy-prompt-1'),
+    'Should include legacy prompts'
+  );
+
   const allThoughts = await store.queryThoughts({});
-  assert(allThoughts.some(t => t.id === 'legacy-thought-1'), 'Should include legacy thoughts');
-  
+  assert(
+    allThoughts.some(t => t.id === 'legacy-thought-1'),
+    'Should include legacy thoughts'
+  );
+
   console.log('✅ Backward compatibility validated');
 }
 
 async function testErrorHandling(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing error handling...');
-  
+
   // Test duplicate directory path
   try {
     await store.createProject({
@@ -1980,52 +2014,52 @@ async function testErrorHandling(store: PostgreSQLMemoryStore): Promise<void> {
       updated_at: new Date(),
       last_activity_at: new Date(),
       is_active: true,
-      is_archived: false
+      is_archived: false,
     });
     assert.fail('Should have thrown error for duplicate directory path');
   } catch (error) {
     assert(error.message.includes('creation failed'), 'Should indicate creation failure');
   }
-  
+
   // Test invalid project ID
   const invalidProject = await store.getProject('invalid-uuid');
   assert.strictEqual(invalidProject, null, 'Should return null for invalid project ID');
-  
+
   // Test non-existent path
   const nonExistentProject = await store.findProjectByPath('/non/existent/path');
   assert.strictEqual(nonExistentProject, null, 'Should return null for non-existent path');
-  
+
   console.log('✅ Error handling validated');
 }
 
 async function testPerformanceOptimization(store: PostgreSQLMemoryStore): Promise<void> {
   console.log('Testing performance optimization with caching...');
-  
+
   const project1 = await store.findProjectByPath('/home/user/project-1');
   const projectId = project1!.id;
-  
+
   // First call - loads from database
   const start1 = Date.now();
   const project1First = await store.getProject(projectId);
   const time1 = Date.now() - start1;
-  
+
   // Second call - should use cache
   const start2 = Date.now();
   const project1Second = await store.getProject(projectId);
   const time2 = Date.now() - start2;
-  
+
   assert(project1First?.id === project1Second?.id, 'Should return same project');
   assert(time2 < time1, 'Second call should be faster (cached)');
-  
+
   // Test cache invalidation on update
   await store.updateProject(projectId, { description: 'Cache invalidation test' });
-  
+
   const projectAfterUpdate = await store.getProject(projectId);
   assert.strictEqual(projectAfterUpdate!.description, 'Cache invalidation test');
-  
+
   // Clear cache for cleanup
   await store.clearProjectCache();
-  
+
   console.log('✅ Performance optimization validated');
 }
 
@@ -2045,7 +2079,7 @@ async function extractProjectMetadataForTest(directoryPath: string): Promise<{
   let description: string | undefined;
   let projectType: string | undefined;
   const customMetadata: Record<string, any> = {};
-  
+
   try {
     const packageJsonPath = path.join(directoryPath, 'package.json');
     if (fs.existsSync(packageJsonPath)) {
@@ -2053,23 +2087,23 @@ async function extractProjectMetadataForTest(directoryPath: string): Promise<{
       description = packageJson.description;
       technologyStack.push('nodejs');
       programmingLanguages.push('javascript');
-      
+
       if (packageJson.devDependencies?.typescript || packageJson.dependencies?.typescript) {
         technologyStack.push('typescript');
         programmingLanguages.push('typescript');
       }
-      
+
       if (packageJson.dependencies?.react) {
         technologyStack.push('react');
         projectType = 'web-app';
       }
-      
+
       customMetadata.packageJson = {
         name: packageJson.name,
-        version: packageJson.version
+        version: packageJson.version,
       };
     }
-    
+
     if (!description) {
       const readmeFiles = ['README.md', 'README.txt'];
       for (const readme of readmeFiles) {
@@ -2087,14 +2121,14 @@ async function extractProjectMetadataForTest(directoryPath: string): Promise<{
   } catch (error) {
     console.error('Error in metadata extraction test:', error);
   }
-  
+
   return {
     name: projectName,
     description,
     technologyStack: [...new Set(technologyStack)],
     projectType,
     programmingLanguages: [...new Set(programmingLanguages)],
-    customMetadata
+    customMetadata,
   };
 }
 
@@ -2105,6 +2139,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 ```
 
 #### Update Abstract MemoryStore Interface
+
 **File**: `src/memory/memory-store.ts`
 
 Add project management methods to the abstract MemoryStore class:
@@ -2173,18 +2208,18 @@ export abstract class MemoryStore {
    * Find similar thoughts with hybrid project-aware search
    */
   abstract findSimilarThoughtsHybrid(thought: string, limit?: number, projectId?: string): Promise<StoredThought[]>;
-  
+
   // ... existing methods continue
 }
       $1, $2, $3, $4, $5, $6, $7, $8, -- ... other values
     )`;
-  
+
   const values = [
     prompt.id, prompt.session_id, prompt.original_prompt,
     prompt.prompt_type, prompt.domain, prompt.project_directory,
     // ... other values
   ];
-  
+
   await this.executeQuery(query, values);
 }
 
@@ -2193,18 +2228,18 @@ async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
   let sql = 'SELECT * FROM stored_prompts WHERE 1=1';
   const values: any[] = [];
   let paramIndex = 1;
-  
+
   // Add project filtering
   if (query.project_directory) {
     sql += ` AND project_directory = $${paramIndex++}`;
     values.push(query.project_directory);
   }
-  
+
   if (query.project_scoped_only && query.project_directory) {
     // Only return results from specified project
     sql += ` AND project_directory IS NOT NULL`;
   }
-  
+
   // ... existing query logic
   return this.executeQuery(sql, values);
 }
@@ -2213,6 +2248,7 @@ async queryPrompts(query: PromptQuery): Promise<StoredPrompt[]> {
 ```
 
 #### Task 5: Enhanced Query Capabilities
+
 **File**: `src/memory/postgresql-memory-store.ts`
 
 Add project-aware similarity detection:
@@ -2221,24 +2257,24 @@ Add project-aware similarity detection:
 // Enhanced similarity search with project awareness
 async findSimilarPrompts(prompt: string, limit = 5, projectDirectory?: string): Promise<StoredPrompt[]> {
   let sql = `
-    SELECT *, 
+    SELECT *,
            similarity(original_prompt, $1) as similarity_score
-    FROM stored_prompts 
+    FROM stored_prompts
     WHERE similarity(original_prompt, $1) > 0.3
   `;
-  
+
   const values = [prompt];
   let paramIndex = 2;
-  
+
   // Add project filtering if specified
   if (projectDirectory) {
     sql += ` AND project_directory = $${paramIndex++}`;
     values.push(projectDirectory);
   }
-  
+
   sql += ` ORDER BY similarity_score DESC LIMIT $${paramIndex}`;
   values.push(limit);
-  
+
   return this.executeQuery(sql, values);
 }
 
@@ -2247,22 +2283,23 @@ async findSimilarPromptsHybrid(prompt: string, limit = 5, projectDirectory?: str
   if (projectDirectory) {
     // First try project-scoped search
     const projectResults = await this.findSimilarPrompts(prompt, limit, projectDirectory);
-    
+
     if (projectResults.length >= Math.min(3, limit)) {
       return projectResults.slice(0, limit);
     }
-    
+
     // Fallback to global search for remaining slots
     const globalResults = await this.findSimilarPrompts(prompt, limit - projectResults.length);
     return [...projectResults, ...globalResults].slice(0, limit);
   }
-  
+
   // No project context, use global search
   return this.findSimilarPrompts(prompt, limit);
 }
 ```
 
 #### Task 6: Comprehensive Testing
+
 **File**: `test/memory/project-directory-extension.test.ts`
 
 ```typescript
@@ -2272,28 +2309,28 @@ import { StoredPrompt, StoredThought, ReasoningSession } from '../../src/memory/
 
 export async function runProjectDirectoryTests(): Promise<void> {
   console.log('🧪 Running Project Directory Extension Tests...');
-  
+
   const config = PostgreSQLConfigs.testing();
   const memoryStore = new PostgreSQLMemoryStore(config);
-  
+
   try {
     await memoryStore.initialize();
-    
+
     // Test 1: Schema validation
     await testSchemaExtension(memoryStore);
-    
+
     // Test 2: Project context storage
     await testProjectContextStorage(memoryStore);
-    
+
     // Test 3: Project-scoped queries
     await testProjectScopedQueries(memoryStore);
-    
+
     // Test 4: Hybrid similarity search
     await testHybridSimilaritySearch(memoryStore);
-    
+
     // Test 5: Backward compatibility
     await testBackwardCompatibility(memoryStore);
-    
+
     console.log('🎉 All project directory tests passed!');
   } finally {
     await memoryStore.close();
@@ -2307,35 +2344,35 @@ async function testSchemaExtension(store: PostgreSQLMemoryStore): Promise<void> 
     WHERE table_name IN ('reasoning_sessions', 'stored_prompts', 'stored_thoughts')
     AND column_name = 'project_directory'
   `);
-  
+
   if (result.rows.length !== 3) {
     throw new Error('project_directory columns not found in all tables');
   }
-  
+
   console.log('✅ Schema extension validated');
 }
 
 async function testProjectContextStorage(store: PostgreSQLMemoryStore): Promise<void> {
   const projectDir = '/home/user/my-project';
-  
+
   // Test prompt storage with project context
   const prompt: StoredPrompt = {
     id: 'test-prompt-1',
-    session_id: 'test-session-1', 
+    session_id: 'test-session-1',
     original_prompt: 'Help me debug this React component',
     project_directory: projectDir,
     received_at: new Date(),
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   };
-  
+
   await store.storePrompt(prompt);
-  
+
   const retrieved = await store.getPrompt('test-prompt-1');
   if (retrieved?.project_directory !== projectDir) {
     throw new Error('Project directory not stored correctly');
   }
-  
+
   console.log('✅ Project context storage validated');
 }
 
@@ -2348,29 +2385,29 @@ async function testProjectScopedQueries(store: PostgreSQLMemoryStore): Promise<v
     project_directory: '/home/user/project-a',
     received_at: new Date(),
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   });
-  
+
   await store.storePrompt({
-    id: 'proj-b-prompt', 
+    id: 'proj-b-prompt',
     session_id: 'session-b',
     original_prompt: 'Project B prompt',
     project_directory: '/home/user/project-b',
     received_at: new Date(),
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
   });
-  
+
   // Test project-scoped query
   const projectAResults = await store.queryPrompts({
     project_directory: '/home/user/project-a',
-    limit: 10
+    limit: 10,
   });
-  
+
   if (projectAResults.length !== 1 || projectAResults[0].id !== 'proj-a-prompt') {
     throw new Error('Project-scoped query failed');
   }
-  
+
   console.log('✅ Project-scoped queries validated');
 }
 ```
@@ -2390,7 +2427,7 @@ npm run test:schema
 # Integration testing
 npm run test:memory
 
-# End-to-end validation  
+# End-to-end validation
 npm run test:e2e
 
 # Performance regression testing
@@ -2402,20 +2439,25 @@ npm run test:performance
 ### Technical Risks
 
 **Risk**: Database migration impacts existing data
+
 - **Mitigation**: Thorough testing with production data copies, rollback procedures
 
-**Risk**: Performance degradation from additional columns/indexes  
+**Risk**: Performance degradation from additional columns/indexes
+
 - **Mitigation**: Performance testing, query optimization, selective indexing
 
 **Risk**: Breaking changes to existing APIs
+
 - **Mitigation**: Backward compatibility design, optional fields, comprehensive testing
 
 ### Business Risks
 
 **Risk**: Feature complexity impacts delivery timeline
+
 - **Mitigation**: Phased implementation, early testing, stakeholder communication
 
 **Risk**: Cross-domain learning capabilities are diminished
+
 - **Mitigation**: Hybrid search implementation, configurable project isolation
 
 ## Success Criteria
@@ -2423,7 +2465,7 @@ npm run test:performance
 ### Primary Success Metrics
 
 1. **Functional Completeness**: All core tables extended with project_directory field
-2. **Query Performance**: Project-scoped queries perform 2-3x faster than global queries  
+2. **Query Performance**: Project-scoped queries perform 2-3x faster than global queries
 3. **Backward Compatibility**: 100% of existing functionality remains intact
 4. **Test Coverage**: >95% test coverage for all new functionality
 
@@ -2445,9 +2487,10 @@ npm run test:performance
 
 **Confidence Level for One-Pass Implementation**: 9.0/10
 
-**Justification**: 
+**Justification**:
+
 - **Enhanced Architecture**: Normalized database design with comprehensive project metadata support
-- **Advanced Capabilities**: Technology stack awareness, project lifecycle analytics, cognitive settings per project  
+- **Advanced Capabilities**: Technology stack awareness, project lifecycle analytics, cognitive settings per project
 - **Comprehensive Planning**: Detailed implementation tasks with AGI-enhanced reasoning analysis
 - **Scalable Foundation**: Supports future project management features and multi-tenant deployments
 - **Robust Testing Strategy**: Covers normalization, relationships, performance, and migration scenarios

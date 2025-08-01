@@ -1,17 +1,28 @@
 /**
  * @fileoverview Real Production Success Criteria Validation System
- * 
+ *
  * Implements comprehensive validation with actual measurements:
  * - Tier 1: Core Functional Success (>95% required)
- * - Tier 2: Cognitive Enhancement Success (>85% required)  
+ * - Tier 2: Cognitive Enhancement Success (>85% required)
  * - Tier 3: Evolutionary Success (>80% required)
- * 
+ *
  * NO FAKE DATA - All measurements from real system performance.
  */
 
-import { MemoryStore, StoredPrompt, StoredThought, ReasoningSession, Project } from '../memory/memory-store.js';
+import {
+  MemoryStore,
+  StoredPrompt,
+  StoredThought,
+  ReasoningSession,
+  Project,
+} from '../memory/memory-store.js';
 import { ABTestFramework, ABTestConfig } from './ab-testing-framework.js';
-import { PerformanceBenchmark, PerformanceMetrics, ConcurrencyTestResult, MemoryAnalysis } from './performance-benchmark.js';
+import {
+  PerformanceBenchmark,
+  PerformanceMetrics,
+  ConcurrencyTestResult,
+  MemoryAnalysis,
+} from './performance-benchmark.js';
 import { PromptClassifier } from '../memory/prompt-intelligence/prompt-classifier.js';
 import { IntentExtractor } from '../memory/prompt-intelligence/intent-extractor.js';
 import { SimilarityDetector } from '../memory/prompt-intelligence/similarity-detector.js';
@@ -138,19 +149,25 @@ export class SuccessCriteriaValidator {
     ]);
 
     // Calculate overall score from real measurements
-    const overall_score = tier1.score * 0.35 + tier2.score * 0.40 + tier3.score * 0.25;
-    
+    const overall_score = tier1.score * 0.35 + tier2.score * 0.4 + tier3.score * 0.25;
+
     // Real 10/10 criteria requirements - no shortcuts
-    const passes_10_10_criteria = 
-      tier1.score >= 0.95 && 
-      tier2.score >= 0.85 && 
-      tier3.score >= 0.80 &&
+    const passes_10_10_criteria =
+      tier1.score >= 0.95 &&
+      tier2.score >= 0.85 &&
+      tier3.score >= 0.8 &&
       tier2.reasoning_improvement_statistical_significance &&
       tier3.outcompetition_statistical_significance;
 
     const validationTime = Date.now() - startTime;
     const statistical_confidence = this.calculateOverallStatisticalConfidence(tier1, tier2, tier3);
-    const detailed_report = this.generateProductionReport(tier1, tier2, tier3, overall_score, validationTime);
+    const detailed_report = this.generateProductionReport(
+      tier1,
+      tier2,
+      tier3,
+      overall_score,
+      validationTime
+    );
 
     const result: OverallValidationResult = {
       tier1_metrics: tier1,
@@ -242,9 +259,10 @@ export class SuccessCriteriaValidator {
     integrityViolations = constraintViolations + fkViolations;
 
     const metrics: Tier1Metrics = {
-      prompt_capture_rate: 1.0 - (concurrencyMetrics.failure_count / concurrencyMetrics.concurrent_operations),
+      prompt_capture_rate:
+        1.0 - concurrencyMetrics.failure_count / concurrencyMetrics.concurrent_operations,
       prompt_capture_confidence_interval: this.calculateConfidenceInterval(
-        concurrencyMetrics.success_count, 
+        concurrencyMetrics.success_count,
         concurrencyMetrics.concurrent_operations
       ),
       storage_performance_avg: storageMetrics.avg_time,
@@ -271,11 +289,11 @@ export class SuccessCriteriaValidator {
     console.error('🎯 Validating Tier 2: Cognitive Enhancement...');
 
     const testPrompts = [
-      { text: "Debug this React component error", expected: "debugging" },
-      { text: "Design a microservices architecture", expected: "architecture" },
-      { text: "Implement user authentication", expected: "feature-request" },
-      { text: "Optimize database performance", expected: "optimization" },
-      { text: "Create REST API endpoints", expected: "feature-request" }
+      { text: 'Debug this React component error', expected: 'debugging' },
+      { text: 'Design a microservices architecture', expected: 'architecture' },
+      { text: 'Implement user authentication', expected: 'feature-request' },
+      { text: 'Optimize database performance', expected: 'optimization' },
+      { text: 'Create REST API endpoints', expected: 'feature-request' },
     ];
 
     let correctClassifications = 0;
@@ -284,7 +302,7 @@ export class SuccessCriteriaValidator {
 
     for (const test of testPrompts) {
       const result = await this.promptClassifier.classifyPrompt(test.text);
-      
+
       if (result.type === test.expected) {
         correctClassifications++;
       }
@@ -311,8 +329,8 @@ export class SuccessCriteriaValidator {
     for (const [type, stats] of typeStats) {
       const precision = stats.correct / stats.total;
       const recall = stats.correct / stats.total;
-      const f1 = 2 * (precision * recall) / (precision + recall) || 0;
-      
+      const f1 = (2 * (precision * recall)) / (precision + recall) || 0;
+
       precisionByType.set(type, precision);
       recallByType.set(type, recall);
       f1Scores.set(type, f1);
@@ -338,7 +356,12 @@ export class SuccessCriteriaValidator {
 
     for (const test of testPrompts) {
       if (existingPrompts.length > 0) {
-        const similar = await this.similarityDetector.findSimilarPrompts(test.text, existingPrompts, 3, 0.3);
+        const similar = await this.similarityDetector.findSimilarPrompts(
+          test.text,
+          existingPrompts,
+          3,
+          0.3
+        );
         similarityTests++;
         if (similar.length > 0) {
           similarityCorrect++;
@@ -369,12 +392,13 @@ export class SuccessCriteriaValidator {
       intent_constraint_detection: totalConstraints / testPrompts.length,
       similarity_detection_recall: similarityTests > 0 ? similarityCorrect / similarityTests : 0,
       similarity_false_positive_rate: similarityTests > 0 ? falsePositives / similarityTests : 0,
-      similarity_ranking_quality: similarityTests > 0 ? (similarityCorrect - falsePositives) / similarityTests : 0,
+      similarity_ranking_quality:
+        similarityTests > 0 ? (similarityCorrect - falsePositives) / similarityTests : 0,
       reasoning_improvement_avg: reasoningImprovement,
       reasoning_improvement_statistical_significance: reasoningImprovement > 0.15,
       reasoning_improvement_confidence_interval: [
-        Math.max(0, reasoningImprovement - 0.05), 
-        reasoningImprovement + 0.05
+        Math.max(0, reasoningImprovement - 0.05),
+        reasoningImprovement + 0.05,
       ],
       bias_reduction_percentage: Math.max(0, 1 - biasVariance),
       bias_detection_accuracy: biasVariance < 0.2 ? 0.8 : 0.6,
@@ -394,10 +418,10 @@ export class SuccessCriteriaValidator {
     console.error('🎯 Validating Tier 3: Evolutionary Success...');
 
     const adaptationPrompts = [
-      "Implement OAuth authentication",
-      "Add OAuth token validation", 
-      "Create OAuth refresh logic",
-      "Build OAuth scope management",
+      'Implement OAuth authentication',
+      'Add OAuth token validation',
+      'Create OAuth refresh logic',
+      'Build OAuth scope management',
     ];
 
     let adaptationExamples = 0;
@@ -408,23 +432,23 @@ export class SuccessCriteriaValidator {
       adaptationExamples++;
       const result = await this.promptClassifier.classifyPrompt(prompt);
       confidenceProgression.push(result.confidence);
-      
-      if (result.type === "feature-request" && result.confidence > 0.6) {
+
+      if (result.type === 'feature-request' && result.confidence > 0.6) {
         consistentResults++;
       }
-      
+
       if (consistentResults / adaptationExamples >= 0.8) {
         break;
       }
     }
 
     const adaptationSuccessRate = consistentResults / adaptationExamples;
-    
+
     const generalizationPrompts = [
-      "Build payment processing system",
-      "Create user notification service",
-      "Design data analytics pipeline",
-      "Implement caching layer"
+      'Build payment processing system',
+      'Create user notification service',
+      'Design data analytics pipeline',
+      'Implement caching layer',
     ];
 
     let generalizationSuccess = 0;
@@ -439,7 +463,8 @@ export class SuccessCriteriaValidator {
     }
 
     const generalizationRate = generalizationSuccess / generalizationPrompts.length;
-    const avgZeroShotPerformance = zeroShotScores.reduce((sum, score) => sum + score, 0) / zeroShotScores.length;
+    const avgZeroShotPerformance =
+      zeroShotScores.reduce((sum, score) => sum + score, 0) / zeroShotScores.length;
 
     const patternLearningExamples = this.calculatePatternLearningConvergence(confidenceProgression);
     const metaLearningFactor = this.calculateMetaLearningAcceleration(confidenceProgression);
@@ -450,7 +475,8 @@ export class SuccessCriteriaValidator {
 
     const metrics: Tier3Metrics = {
       outcompetition_baseline_margin: Math.max(0, outcompetitionMargin),
-      outcompetition_statistical_significance: adaptationSuccessRate > 0.7 && adaptationExamples >= 3,
+      outcompetition_statistical_significance:
+        adaptationSuccessRate > 0.7 && adaptationExamples >= 3,
       cross_environment_robustness: generalizationRate,
       environment_adaptation_success_rate: adaptationSuccessRate,
       adaptation_speed_examples: adaptationExamples,
@@ -472,68 +498,79 @@ export class SuccessCriteriaValidator {
     return metrics;
   }
 
-  private calculateBiasVariance(testPrompts: Array<{ text: string; expected: string }>): Promise<number> {
+  private calculateBiasVariance(
+    testPrompts: Array<{ text: string; expected: string }>
+  ): Promise<number> {
     // Calculate variance in confidence scores across similar prompts
     const confidencesByType = new Map<string, number[]>();
-    
-    return Promise.all(testPrompts.map(async test => {
-      const result = await this.promptClassifier.classifyPrompt(test.text);
-      if (!confidencesByType.has(test.expected)) {
-        confidencesByType.set(test.expected, []);
-      }
-      confidencesByType.get(test.expected)!.push(result.confidence);
-    })).then(() => {
+
+    return Promise.all(
+      testPrompts.map(async test => {
+        const result = await this.promptClassifier.classifyPrompt(test.text);
+        if (!confidencesByType.has(test.expected)) {
+          confidencesByType.set(test.expected, []);
+        }
+        confidencesByType.get(test.expected)!.push(result.confidence);
+      })
+    ).then(() => {
       let totalVariance = 0;
       let typeCount = 0;
-      
+
       for (const confidences of confidencesByType.values()) {
         if (confidences.length > 1) {
           const mean = confidences.reduce((sum, val) => sum + val, 0) / confidences.length;
-          const variance = confidences.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / confidences.length;
+          const variance =
+            confidences.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / confidences.length;
           totalVariance += variance;
           typeCount++;
         }
       }
-      
+
       return typeCount > 0 ? totalVariance / typeCount : 0;
     });
   }
 
-  private async calculateCognitiveLoadAccuracy(testPrompts: Array<{ text: string; expected: string }>): Promise<number> {
+  private async calculateCognitiveLoadAccuracy(
+    testPrompts: Array<{ text: string; expected: string }>
+  ): Promise<number> {
     let accurateEstimations = 0;
-    
+
     for (const test of testPrompts) {
       const complexity = await this.complexityEstimator.estimateComplexity(test.text);
       const expectedComplexity = this.getExpectedComplexity(test.text);
-      
+
       if (Math.abs(complexity.complexity - expectedComplexity) <= 2) {
         accurateEstimations++;
       }
     }
-    
+
     return accurateEstimations / testPrompts.length;
   }
 
   private getExpectedComplexity(prompt: string): number {
     const words = prompt.split(' ').length;
-    const hasComplexKeywords = /debug|architect|implement|optimize|design/.test(prompt.toLowerCase());
-    
+    const hasComplexKeywords = /debug|architect|implement|optimize|design/.test(
+      prompt.toLowerCase()
+    );
+
     if (words < 5) return 2;
     if (words > 15 && hasComplexKeywords) return 8;
     if (hasComplexKeywords) return 6;
     return 4;
   }
 
-  private calculateCrossDomainConsistency(typeStats: Map<string, { correct: number; total: number; confidence: number }>): number {
+  private calculateCrossDomainConsistency(
+    typeStats: Map<string, { correct: number; total: number; confidence: number }>
+  ): number {
     let consistentTypes = 0;
-    
+
     for (const stats of typeStats.values()) {
       const accuracy = stats.correct / stats.total;
       if (accuracy > 0.7) {
         consistentTypes++;
       }
     }
-    
+
     return typeStats.size > 0 ? consistentTypes / typeStats.size : 0;
   }
 
@@ -541,7 +578,7 @@ export class SuccessCriteriaValidator {
     // Calculate how many examples were needed for stable pattern recognition
     let stableCount = 0;
     const stabilityThreshold = 0.7;
-    
+
     for (let i = 1; i < confidenceProgression.length; i++) {
       if (confidenceProgression[i] >= stabilityThreshold) {
         stableCount++;
@@ -552,22 +589,24 @@ export class SuccessCriteriaValidator {
         stableCount = 0;
       }
     }
-    
+
     return confidenceProgression.length * 150; // Didn't converge quickly
   }
 
   private calculateMetaLearningAcceleration(confidenceProgression: number[]): number {
     if (confidenceProgression.length < 2) return 1.0;
-    
+
     const initialRate = confidenceProgression[1] - confidenceProgression[0];
-    const finalRate = confidenceProgression[confidenceProgression.length - 1] - confidenceProgression[confidenceProgression.length - 2];
-    
+    const finalRate =
+      confidenceProgression[confidenceProgression.length - 1] -
+      confidenceProgression[confidenceProgression.length - 2];
+
     return finalRate > initialRate ? finalRate / Math.max(initialRate, 0.1) : 1.0;
   }
 
   private async assessCreativeSolutionGeneration(prompts: string[]): Promise<number> {
     let creativeResponses = 0;
-    
+
     for (const prompt of prompts) {
       const result = await this.promptClassifier.classifyPrompt(prompt);
       // Creative problems might have diverse classifications with reasonable confidence
@@ -575,28 +614,28 @@ export class SuccessCriteriaValidator {
         creativeResponses++;
       }
     }
-    
+
     return creativeResponses / prompts.length;
   }
 
   private calculateSelfImprovementRate(confidenceProgression: number[]): number {
     if (confidenceProgression.length < 2) return 0;
-    
+
     const initialScore = confidenceProgression[0];
     const finalScore = confidenceProgression[confidenceProgression.length - 1];
-    
+
     return Math.max(0, (finalScore - initialScore) / initialScore);
   }
 
   private calculateConvergenceStability(confidenceProgression: number[]): number {
     if (confidenceProgression.length < 2) return 0;
-    
+
     let stabilityScore = 0;
     for (let i = 1; i < confidenceProgression.length; i++) {
       const change = Math.abs(confidenceProgression[i] - confidenceProgression[i - 1]);
       stabilityScore += Math.max(0, 1 - change);
     }
-    
+
     return stabilityScore / (confidenceProgression.length - 1);
   }
 
@@ -606,34 +645,41 @@ export class SuccessCriteriaValidator {
       Math.min(10 / Math.max(metrics.storage_performance_avg, 1), 1),
       Math.min(50 / Math.max(metrics.query_response_time_avg, 1), 1),
       metrics.memory_efficiency_score,
-      metrics.data_integrity_violations === 0 ? 1 : Math.max(0, 1 - metrics.data_integrity_violations * 0.2),
+      metrics.data_integrity_violations === 0
+        ? 1
+        : Math.max(0, 1 - metrics.data_integrity_violations * 0.2),
       metrics.database_connection_stability,
     ];
-    
+
     return scores.reduce((sum, score) => sum + score, 0) / scores.length;
   }
 
   private calculateTier2Score(metrics: Tier2Metrics): number {
     const scores = [
       Math.min(metrics.prompt_classification_accuracy / 0.85, 1),
-      Math.min(metrics.intent_extraction_precision / 0.80, 1),
-      Math.min(metrics.similarity_detection_recall / 0.90, 1),
-      Math.min(Math.max(metrics.reasoning_improvement_avg, 0) / 0.20, 1),
+      Math.min(metrics.intent_extraction_precision / 0.8, 1),
+      Math.min(metrics.similarity_detection_recall / 0.9, 1),
+      Math.min(Math.max(metrics.reasoning_improvement_avg, 0) / 0.2, 1),
       Math.min(metrics.confidence_calibration_accuracy / 0.85, 1),
     ];
-    
+
     return scores.reduce((sum, score) => sum + score, 0) / scores.length;
   }
 
   private calculateTier3Score(metrics: Tier3Metrics): number {
     const scores = [
-      Math.min(metrics.outcompetition_baseline_margin / 0.20, 1),
-      Math.min(metrics.cross_environment_robustness / 0.80, 1),
-      metrics.adaptation_speed_examples <= 20 ? 1 : Math.max(0, 20 / metrics.adaptation_speed_examples),
-      Math.min(metrics.generalization_success_rate / 0.70, 1),
-      (metrics.pattern_learning_convergence_examples >= 200 && metrics.pattern_learning_convergence_examples <= 500) ? 1 : 0.7,
+      Math.min(metrics.outcompetition_baseline_margin / 0.2, 1),
+      Math.min(metrics.cross_environment_robustness / 0.8, 1),
+      metrics.adaptation_speed_examples <= 20
+        ? 1
+        : Math.max(0, 20 / metrics.adaptation_speed_examples),
+      Math.min(metrics.generalization_success_rate / 0.7, 1),
+      metrics.pattern_learning_convergence_examples >= 200 &&
+      metrics.pattern_learning_convergence_examples <= 500
+        ? 1
+        : 0.7,
     ];
-    
+
     return scores.reduce((sum, score) => sum + score, 0) / scores.length;
   }
 
@@ -644,9 +690,14 @@ export class SuccessCriteriaValidator {
     return [Math.max(0, p - margin), Math.min(1, p + margin)];
   }
 
-  private calculateOverallStatisticalConfidence(tier1: Tier1Metrics, tier2: Tier2Metrics, tier3: Tier3Metrics): number {
+  private calculateOverallStatisticalConfidence(
+    tier1: Tier1Metrics,
+    tier2: Tier2Metrics,
+    tier3: Tier3Metrics
+  ): number {
     const confidences = [
-      1 - (tier1.prompt_capture_confidence_interval[1] - tier1.prompt_capture_confidence_interval[0]),
+      1 -
+        (tier1.prompt_capture_confidence_interval[1] - tier1.prompt_capture_confidence_interval[0]),
       tier2.reasoning_improvement_statistical_significance ? 0.95 : 0.7,
       tier3.outcompetition_statistical_significance ? 0.95 : 0.7,
     ];
@@ -668,7 +719,7 @@ Validation Time: ${(validationTime / 1000).toFixed(1)}s
 
 ## Overall Assessment
 - **Overall Score**: ${(overall * 100).toFixed(2)}%
-- **10/10 Integration Quality**: ${overall >= 0.95 && tier2.score >= 0.85 && tier3.score >= 0.80 ? '✅ ACHIEVED' : '❌ NOT MET'}
+- **10/10 Integration Quality**: ${overall >= 0.95 && tier2.score >= 0.85 && tier3.score >= 0.8 ? '✅ ACHIEVED' : '❌ NOT MET'}
 
 ## Tier 1: Core Functional Success (${(tier1.score * 100).toFixed(2)}%)
 - Prompt Capture Rate: ${(tier1.prompt_capture_rate * 100).toFixed(2)}%
@@ -704,10 +755,15 @@ Validation Time: ${(validationTime / 1000).toFixed(1)}s
 - Adaptation and learning measured through progressive testing
 
 ## Recommendations
-${overall >= 0.98 ? '🎉 Exceptional performance! All criteria exceeded.' : 
-  overall >= 0.95 ? '✅ Excellent performance! Ready for 10/10 rating.' :
-  overall >= 0.85 ? '⚠️ Good performance, improvements needed for 10/10.' :
-  '❌ Significant improvements required across multiple tiers.'}
+${
+  overall >= 0.98
+    ? '🎉 Exceptional performance! All criteria exceeded.'
+    : overall >= 0.95
+      ? '✅ Excellent performance! Ready for 10/10 rating.'
+      : overall >= 0.85
+        ? '⚠️ Good performance, improvements needed for 10/10.'
+        : '❌ Significant improvements required across multiple tiers.'
+}
 `;
   }
 }

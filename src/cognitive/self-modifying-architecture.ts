@@ -123,7 +123,7 @@ export class SelfModifyingArchitecture extends EventEmitter {
   private evolutionCycle: number = 0;
   private stabilityThreshold: number = 0.6;
   private innovationPressure: number = 0.3;
-  
+
   // 🚨 RUNAWAY PROCESS PREVENTION
   private readonly MAX_EVOLUTION_CYCLES = 1000; // Prevent infinite evolution
   private readonly MAX_ADAPTATION_TIME_MS = 5000; // 5 second max per cycle
@@ -352,7 +352,9 @@ export class SelfModifyingArchitecture extends EventEmitter {
 
     // Check evolution cycle limit
     if (this.evolutionCycle >= this.MAX_EVOLUTION_CYCLES) {
-      console.error(`🛑 Maximum evolution cycles reached (${this.MAX_EVOLUTION_CYCLES}) - stopping adaptation`);
+      console.error(
+        `🛑 Maximum evolution cycles reached (${this.MAX_EVOLUTION_CYCLES}) - stopping adaptation`
+      );
       this.stopAdaptation();
       return;
     }
@@ -382,35 +384,40 @@ export class SelfModifyingArchitecture extends EventEmitter {
       // Set a timeout for the entire adaptation cycle
       const adaptationPromise = this.performAdaptationCycle();
       const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error('Adaptation cycle timeout')), this.MAX_ADAPTATION_TIME_MS);
+        setTimeout(
+          () => reject(new Error('Adaptation cycle timeout')),
+          this.MAX_ADAPTATION_TIME_MS
+        );
       });
 
       await Promise.race([adaptationPromise, timeoutPromise]);
-      
+
       // Reset failure counter on success
       this.consecutiveFailures = 0;
-      
     } catch (error) {
       console.error('❌ Adaptation cycle failed:', error);
       this.consecutiveFailures++;
-      
+
       // Trigger emergency stop after 3 consecutive failures
       if (this.consecutiveFailures >= 3) {
         this.triggerEmergencyStop(`${this.consecutiveFailures} consecutive failures`);
         return;
       }
-      
+
       // Exponential backoff on failures
       const backoffDelay = Math.min(60000, 1000 * Math.pow(2, this.consecutiveFailures));
       console.warn(`⏱️ Backing off for ${backoffDelay}ms after failure`);
-      setTimeout(() => { /* No-op, just delay next cycle */ }, backoffDelay);
-      
+      setTimeout(() => {
+        /* No-op, just delay next cycle */
+      }, backoffDelay);
     } finally {
       this.isAdapting = false;
-      
+
       const cycleTime = Date.now() - cycleStartTime;
       if (cycleTime > this.MAX_ADAPTATION_TIME_MS) {
-        console.warn(`⚠️ Adaptation cycle took ${cycleTime}ms (max: ${this.MAX_ADAPTATION_TIME_MS}ms)`);
+        console.warn(
+          `⚠️ Adaptation cycle took ${cycleTime}ms (max: ${this.MAX_ADAPTATION_TIME_MS}ms)`
+        );
       }
     }
   }
@@ -421,22 +428,26 @@ export class SelfModifyingArchitecture extends EventEmitter {
   private checkMemoryPressure(): boolean {
     const memUsage = process.memoryUsage();
     const rssInMB = memUsage.rss / 1024 / 1024;
-    
+
     // Check if we're approaching dangerous memory levels
-    if (rssInMB > 500) { // 500MB is concerning
+    if (rssInMB > 500) {
+      // 500MB is concerning
       console.warn(`⚠️ High memory usage detected: ${rssInMB.toFixed(1)}MB`);
       return true;
     }
-    
+
     // Estimate this component's memory usage
-    const componentCount = this.components.size + this.pathways.size + this.patterns.size + this.mutations.size;
+    const componentCount =
+      this.components.size + this.pathways.size + this.patterns.size + this.mutations.size;
     const estimatedComponentMemoryMB = componentCount * 0.1; // Rough estimate
-    
+
     if (estimatedComponentMemoryMB > this.MEMORY_LIMIT_MB) {
-      console.warn(`⚠️ Component memory limit exceeded: ${estimatedComponentMemoryMB.toFixed(1)}MB > ${this.MEMORY_LIMIT_MB}MB`);
+      console.warn(
+        `⚠️ Component memory limit exceeded: ${estimatedComponentMemoryMB.toFixed(1)}MB > ${this.MEMORY_LIMIT_MB}MB`
+      );
       return true;
     }
-    
+
     return false;
   }
 
@@ -607,7 +618,7 @@ export class SelfModifyingArchitecture extends EventEmitter {
 
     // 🚨 FIX: Limit mutations per cycle to prevent runaway growth
     const limitedOpportunities = opportunities.slice(0, this.MAX_MUTATIONS_PER_CYCLE);
-    
+
     for (const opportunity of limitedOpportunities) {
       const mutation = this.createMutation(opportunity);
       if (mutation) {
@@ -617,7 +628,9 @@ export class SelfModifyingArchitecture extends EventEmitter {
 
     // Log if we're hitting limits
     if (opportunities.length > this.MAX_MUTATIONS_PER_CYCLE) {
-      console.warn(`⚠️ Limited mutations to ${this.MAX_MUTATIONS_PER_CYCLE} from ${opportunities.length} opportunities`);
+      console.warn(
+        `⚠️ Limited mutations to ${this.MAX_MUTATIONS_PER_CYCLE} from ${opportunities.length} opportunities`
+      );
     }
 
     return mutations;
@@ -737,7 +750,8 @@ export class SelfModifyingArchitecture extends EventEmitter {
 
     if (mutation.target_components.length === 0) {
       // 🚨 FIX: Limit component creation to prevent unbounded growth
-      if (this.components.size >= 50) { // Maximum 50 components
+      if (this.components.size >= 50) {
+        // Maximum 50 components
         console.warn('⚠️ Component limit reached - skipping component creation');
         return {
           performance_change: 0,
@@ -748,7 +762,7 @@ export class SelfModifyingArchitecture extends EventEmitter {
           learning_insights: ['System at component capacity'],
         };
       }
-      
+
       // Create new component
       const newComponentId = `adaptive_component_${Date.now()}`;
       const newComponent: ArchitecturalComponent = {
@@ -928,20 +942,20 @@ export class SelfModifyingArchitecture extends EventEmitter {
    */
   destroy(): void {
     console.error('🧹 Destroying SelfModifyingArchitecture...');
-    
+
     // Stop adaptation immediately
     this.emergencyStopTriggered = true;
     this.stopAdaptation();
-    
+
     // Clear all data structures
     this.components.clear();
     this.pathways.clear();
     this.patterns.clear();
     this.mutations.clear();
-    
+
     // Remove all listeners
     this.removeAllListeners();
-    
+
     console.error('✅ SelfModifyingArchitecture destroyed');
   }
 
@@ -958,13 +972,17 @@ export class SelfModifyingArchitecture extends EventEmitter {
   } {
     const memoryPressure = this.checkMemoryPressure();
     let status: 'healthy' | 'warning' | 'critical' = 'healthy';
-    
+
     if (this.emergencyStopTriggered || this.consecutiveFailures >= 3) {
       status = 'critical';
-    } else if (memoryPressure || this.consecutiveFailures > 0 || this.evolutionCycle > this.MAX_EVOLUTION_CYCLES * 0.8) {
+    } else if (
+      memoryPressure ||
+      this.consecutiveFailures > 0 ||
+      this.evolutionCycle > this.MAX_EVOLUTION_CYCLES * 0.8
+    ) {
       status = 'warning';
     }
-    
+
     return {
       status,
       evolutionCycle: this.evolutionCycle,

@@ -326,38 +326,52 @@ export class FileSystemStore extends MemoryStore {
     throw new Error('Project analytics not supported in FileSystemStore');
   }
 
-  async getCrossProjectPatterns(limit?: number): Promise<Array<{
-    pattern: string;
-    projects: string[];
-    frequency: number;
-    successRate: number;
-  }>> {
+  async getCrossProjectPatterns(limit?: number): Promise<
+    Array<{
+      pattern: string;
+      projects: string[];
+      frequency: number;
+      successRate: number;
+    }>
+  > {
     throw new Error('Cross-project patterns not supported in FileSystemStore');
   }
 
-  async findSimilarPromptsHybrid(prompt: string, limit?: number, projectId?: string): Promise<StoredPrompt[]> {
+  async findSimilarPromptsHybrid(
+    prompt: string,
+    limit?: number,
+    projectId?: string
+  ): Promise<StoredPrompt[]> {
     throw new Error('Hybrid similarity search not supported in FileSystemStore');
   }
 
-  async findSimilarThoughtsHybrid(thought: string, limit?: number, projectId?: string): Promise<StoredThought[]> {
-    throw new Error('Hybrid similarity search not supported in FileSystemStore'); 
+  async findSimilarThoughtsHybrid(
+    thought: string,
+    limit?: number,
+    projectId?: string
+  ): Promise<StoredThought[]> {
+    throw new Error('Hybrid similarity search not supported in FileSystemStore');
   }
 
-  async findSimilarPatterns(): Promise<Array<{
-    pattern_name: string;
-    similarity_score: number;
-    pattern_frequency: number;
-    created_at: Date;
-  }>> {
+  async findSimilarPatterns(): Promise<
+    Array<{
+      pattern_name: string;
+      similarity_score: number;
+      pattern_frequency: number;
+      created_at: Date;
+    }>
+  > {
     throw new Error('Pattern embeddings not supported in FileSystemStore');
   }
 
-  async getPatterns(): Promise<Array<{
-    pattern_name: string;
-    pattern_frequency: number;
-    created_at: Date;
-    has_embedding: boolean;
-  }>> {
+  async getPatterns(): Promise<
+    Array<{
+      pattern_name: string;
+      pattern_frequency: number;
+      created_at: Date;
+      has_embedding: boolean;
+    }>
+  > {
     throw new Error('Pattern embeddings not supported in FileSystemStore');
   }
 

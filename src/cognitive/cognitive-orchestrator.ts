@@ -39,7 +39,7 @@ import {
   ProjectCognitiveContext,
   ProjectCognitiveContextFactory,
   TechnologyCognitiveStrategy,
-  ProjectLifecyclePhase
+  ProjectLifecyclePhase,
 } from './project-cognitive-context.js';
 import { ValidatedThoughtData } from '../server.js';
 import { StateTracker, CognitiveState } from './state-tracker.js';
@@ -276,7 +276,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       {
         component: 'CognitiveOrchestrator',
         method: 'processThought',
-        input: { thoughtData, sessionContext, project: project ? { id: project.id, name: project.project_name } : undefined },
+        input: {
+          thoughtData,
+          sessionContext,
+          project: project ? { id: project.id, name: project.project_name } : undefined,
+        },
       },
       async (error, context) => {
         // Fallback: return minimal safe response
@@ -705,7 +709,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         project,
         this.memoryStore
       );
-      
+
       // Log project context enhancement
       if (project) {
         console.error(`🧠 Enhanced cognitive context with project: ${project.project_name}`);
@@ -713,14 +717,14 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         if (enhancedContext.technologyStrategy) {
           console.error(`⚙️ Technology strategy applied with preferences:`, {
             topPersonas: Object.entries(enhancedContext.technologyStrategy.preferredPersonas)
-              .sort(([,a], [,b]) => b - a)
+              .sort(([, a], [, b]) => b - a)
               .slice(0, 3)
               .map(([persona, weight]) => `${persona}(${weight.toFixed(2)})`)
-              .join(', ')
+              .join(', '),
           });
         }
       }
-      
+
       return enhancedContext;
     } catch (error) {
       console.error('⚠️ Failed to enhance cognitive context with project information:', error);
@@ -1637,7 +1641,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       console.warn(
         `🔍 Rapid native memory growth: +${growthMB.toFixed(1)}MB (RSS: ${rssInMB.toFixed(1)}MB)`
       );
-      
+
       // 🚨 NEW: Force cleanup if growth is too rapid
       if (this.memoryGrowthAlerts > 5) {
         console.error('🚨 Excessive memory growth detected - forcing emergency cleanup');
@@ -1731,15 +1735,18 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     this.memoryMonitorInterval = setInterval(() => {
       try {
         const pressureDetected = this.checkNativeMemoryPressure();
-        
+
         // Force cleanup if pressure detected
         if (pressureDetected) {
           console.error('🧹 Memory pressure detected - forcing cleanup');
           this.emergencyMemoryCleanup();
         }
-        
+
         // Auto-restart prevention
-        if (this.cognitiveState.thought_count % 1000 === 0 && this.cognitiveState.thought_count > 0) {
+        if (
+          this.cognitiveState.thought_count % 1000 === 0 &&
+          this.cognitiveState.thought_count > 0
+        ) {
           const memUsage = process.memoryUsage();
           const rssInMB = memUsage.rss / 1024 / 1024;
 
@@ -1748,7 +1755,9 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           );
 
           if (rssInMB > this.ABSOLUTE_MEMORY_LIMIT_MB) {
-            console.error(`🚨 MEMORY MONITOR SAFETY: ${rssInMB.toFixed(1)}MB > ${this.ABSOLUTE_MEMORY_LIMIT_MB}MB - FORCE EXIT`);
+            console.error(
+              `🚨 MEMORY MONITOR SAFETY: ${rssInMB.toFixed(1)}MB > ${this.ABSOLUTE_MEMORY_LIMIT_MB}MB - FORCE EXIT`
+            );
             process.exit(1);
           }
 
@@ -1757,7 +1766,6 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
             process.exit(0); // Let process manager restart
           }
         }
-        
       } catch (error) {
         console.error('❌ Memory monitoring error:', error);
         // Don't let memory monitoring errors crash the system, but log them

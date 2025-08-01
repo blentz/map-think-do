@@ -67,7 +67,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   private biasTracker: BiasReductionTracker;
   private thoughtAnalyzer: ThoughtQualityAnalyzer;
   private pendingOperations: Set<Promise<any>> = new Set();
-  
+
   // Project caching for single-user optimization
   private projectCache = new Map<string, Project>();
   private projectPathCache = new Map<string, Project>();
@@ -335,7 +335,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         Promise.allSettled([...this.pendingOperations]),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout waiting for operations')), timeoutMs)
-        )
+        ),
       ]);
       console.log('✅ All pending operations completed');
     } catch (error) {
@@ -1629,9 +1629,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   private async checkVectorSupport(): Promise<boolean> {
     try {
-      const result = await this.query(
-        "SELECT extname FROM pg_extension WHERE extname = 'vector'"
-      );
+      const result = await this.query("SELECT extname FROM pg_extension WHERE extname = 'vector'");
       return result.rows.length > 0;
     } catch (error) {
       return false;
@@ -1655,19 +1653,21 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    * Find similar patterns using semantic similarity
    */
   async findSimilarPatterns(
-    pattern: string, 
-    limit: number = 10, 
+    pattern: string,
+    limit: number = 10,
     similarityThreshold: number = 0.65
-  ): Promise<Array<{
-    pattern_name: string;
-    similarity_score: number;
-    pattern_frequency: number;
-    created_at: Date;
-  }>> {
+  ): Promise<
+    Array<{
+      pattern_name: string;
+      similarity_score: number;
+      pattern_frequency: number;
+      created_at: Date;
+    }>
+  > {
     try {
       const embeddingService = getEmbeddingService();
       const embeddingResult = await embeddingService.generateEmbedding(pattern);
-      
+
       const result = await this.query(
         'SELECT * FROM find_similar_patterns_semantic($1::vector(384), $2, $3)',
         [`[${embeddingResult.embedding.join(',')}]`, similarityThreshold, limit]
@@ -1677,7 +1677,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         pattern_name: row.pattern_name,
         similarity_score: parseFloat(row.similarity_score),
         pattern_frequency: parseInt(row.pattern_frequency),
-        created_at: new Date(row.created_at)
+        created_at: new Date(row.created_at),
       }));
     } catch (error) {
       console.warn('Pattern similarity search not available:', error);
@@ -1689,17 +1689,19 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    * Get all stored patterns with their frequencies
    */
   async getPatterns(
-    limit: number = 100, 
+    limit: number = 100,
     minFrequency: number = 1
-  ): Promise<Array<{
-    pattern_name: string;
-    pattern_frequency: number;
-    created_at: Date;
-    has_embedding: boolean;
-  }>> {
+  ): Promise<
+    Array<{
+      pattern_name: string;
+      pattern_frequency: number;
+      created_at: Date;
+      has_embedding: boolean;
+    }>
+  > {
     try {
       const hasVectorSupport = await this.checkVectorSupport();
-      
+
       let query: string;
       if (hasVectorSupport) {
         query = `
@@ -1726,14 +1728,14 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           LIMIT $2
         `;
       }
-      
+
       const result = await this.query(query, [minFrequency, limit]);
 
       return result.rows.map(row => ({
         pattern_name: row.pattern_name,
         pattern_frequency: parseInt(row.pattern_frequency),
         created_at: new Date(row.created_at),
-        has_embedding: Boolean(row.has_embedding)
+        has_embedding: Boolean(row.has_embedding),
       }));
     } catch (error) {
       console.warn('Pattern retrieval not available:', error);
@@ -1819,19 +1821,21 @@ export class PostgreSQLMemoryStore extends MemoryStore {
 
           // Check if pgvector is available for proper vector storage
           const hasVectorSupport = await this.checkVectorSupport();
-          
+
           if (hasVectorSupport) {
             // Use the proper database function for vector storage
-            await this.query(
-              'SELECT upsert_pattern_embedding($1, $2::vector(384), NULL, $3)',
-              [pattern, `[${result.embedding.join(',')}]`, result.model]
-            );
+            await this.query('SELECT upsert_pattern_embedding($1, $2::vector(384), NULL, $3)', [
+              pattern,
+              `[${result.embedding.join(',')}]`,
+              result.model,
+            ]);
           } else {
             // Use JSONB fallback for systems without pgvector
-            await this.query(
-              'SELECT upsert_pattern_embedding($1, NULL, $2::jsonb, $3)',
-              [pattern, JSON.stringify(result.embedding), result.model]
-            );
+            await this.query('SELECT upsert_pattern_embedding($1, NULL, $2::jsonb, $3)', [
+              pattern,
+              JSON.stringify(result.embedding),
+              result.model,
+            ]);
           }
           console.error(
             `✅ Generated pattern embedding for "${pattern}" (${result.processingTime}ms)`
@@ -2460,10 +2464,10 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async createProject(project: Omit<Project, 'id'>): Promise<Project> {
     const client = await this.pool!.connect();
-    
+
     try {
       await client.query('BEGIN');
-      
+
       // Create project with generated UUID
       const createQuery = `
         INSERT INTO projects (
@@ -2473,7 +2477,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
       `;
-      
+
       const values = [
         project.directory_path,
         project.project_name,
@@ -2487,21 +2491,20 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         project.updated_at,
         project.last_activity_at,
         project.is_active,
-        project.is_archived
+        project.is_archived,
       ];
-      
+
       const result = await client.query(createQuery, values);
       await client.query('COMMIT');
-      
+
       const createdProject = this.mapRowToProject(result.rows[0]);
-      
+
       // Cache the project for single-user performance
       this.projectCache.set(createdProject.id, createdProject);
       this.projectPathCache.set(createdProject.directory_path, createdProject);
-      
+
       console.error(`✅ Created project: ${createdProject.project_name} (${createdProject.id})`);
       return createdProject;
-      
     } catch (error: unknown) {
       await client.query('ROLLBACK');
       console.error('❌ Failed to create project:', error);
@@ -2519,21 +2522,21 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     if (this.projectCache.has(projectId)) {
       return this.projectCache.get(projectId)!;
     }
-    
+
     try {
       const query = 'SELECT * FROM projects WHERE id = $1';
       const result = await this.query(query, [projectId]);
-      
+
       if (result.rows.length === 0) {
         return null;
       }
-      
+
       const project = this.mapRowToProject(result.rows[0]);
-      
+
       // Cache for future requests
       this.projectCache.set(project.id, project);
       this.projectPathCache.set(project.directory_path, project);
-      
+
       return project;
     } catch (error: unknown) {
       console.error('❌ Failed to get project:', error);
@@ -2549,21 +2552,21 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     if (this.projectPathCache.has(directoryPath)) {
       return this.projectPathCache.get(directoryPath)!;
     }
-    
+
     try {
       const query = 'SELECT * FROM projects WHERE directory_path = $1';
       const result = await this.query(query, [directoryPath]);
-      
+
       if (result.rows.length === 0) {
         return null;
       }
-      
+
       const project = this.mapRowToProject(result.rows[0]);
-      
+
       // Cache for future requests
       this.projectCache.set(project.id, project);
       this.projectPathCache.set(project.directory_path, project);
-      
+
       return project;
     } catch (error: unknown) {
       console.error('❌ Failed to find project by path:', error);
@@ -2576,91 +2579,90 @@ export class PostgreSQLMemoryStore extends MemoryStore {
    */
   async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
     const client = await this.pool!.connect();
-    
+
     try {
       await client.query('BEGIN');
-      
+
       // Build dynamic update query
       const updateFields: string[] = [];
       const values: any[] = [];
       let paramIndex = 1;
-      
+
       if (updates.project_name !== undefined) {
         updateFields.push(`project_name = $${paramIndex++}`);
         values.push(updates.project_name);
       }
-      
+
       if (updates.description !== undefined) {
         updateFields.push(`description = $${paramIndex++}`);
         values.push(updates.description);
       }
-      
+
       if (updates.technology_stack !== undefined) {
         updateFields.push(`technology_stack = $${paramIndex++}`);
         values.push(updates.technology_stack);
       }
-      
+
       if (updates.project_type !== undefined) {
         updateFields.push(`project_type = $${paramIndex++}`);
         values.push(updates.project_type);
       }
-      
+
       if (updates.programming_languages !== undefined) {
         updateFields.push(`programming_languages = $${paramIndex++}`);
         values.push(updates.programming_languages);
       }
-      
+
       if (updates.cognitive_settings !== undefined) {
         updateFields.push(`cognitive_settings = $${paramIndex++}`);
         values.push(JSON.stringify(updates.cognitive_settings));
       }
-      
+
       if (updates.project_metadata !== undefined) {
         updateFields.push(`project_metadata = $${paramIndex++}`);
         values.push(JSON.stringify(updates.project_metadata));
       }
-      
+
       if (updates.is_active !== undefined) {
         updateFields.push(`is_active = $${paramIndex++}`);
         values.push(updates.is_active);
       }
-      
+
       if (updates.is_archived !== undefined) {
         updateFields.push(`is_archived = $${paramIndex++}`);
         values.push(updates.is_archived);
       }
-      
+
       // Always update the timestamp
       updateFields.push(`updated_at = $${paramIndex++}`);
       values.push(new Date());
-      
+
       if (updates.last_activity_at !== undefined) {
         updateFields.push(`last_activity_at = $${paramIndex++}`);
         values.push(updates.last_activity_at);
       }
-      
+
       values.push(projectId); // WHERE condition
-      
+
       const updateQuery = `
         UPDATE projects 
         SET ${updateFields.join(', ')}
         WHERE id = $${paramIndex}
         RETURNING *
       `;
-      
+
       const result = await client.query(updateQuery, values);
       await client.query('COMMIT');
-      
+
       if (result.rows.length > 0) {
         const updatedProject = this.mapRowToProject(result.rows[0]);
-        
+
         // Update cache
         this.projectCache.set(updatedProject.id, updatedProject);
         this.projectPathCache.set(updatedProject.directory_path, updatedProject);
       }
-      
+
       console.error(`✅ Updated project: ${projectId}`);
-      
     } catch (error: unknown) {
       await client.query('ROLLBACK');
       console.error('❌ Failed to update project:', error);
@@ -2678,81 +2680,80 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       let sql = 'SELECT * FROM projects WHERE 1=1';
       const values: any[] = [];
       let paramIndex = 1;
-      
+
       // Add filtering conditions
       if (query.directory_path) {
         sql += ` AND directory_path = $${paramIndex++}`;
         values.push(query.directory_path);
       }
-      
+
       if (query.project_name) {
         sql += ` AND project_name ILIKE $${paramIndex++}`;
         values.push(`%${query.project_name}%`);
       }
-      
+
       if (query.project_type) {
         sql += ` AND project_type = $${paramIndex++}`;
         values.push(query.project_type);
       }
-      
+
       if (query.technology_stack && query.technology_stack.length > 0) {
         sql += ` AND technology_stack @> $${paramIndex++}`;
         values.push(query.technology_stack);
       }
-      
+
       if (query.programming_languages && query.programming_languages.length > 0) {
         sql += ` AND programming_languages @> $${paramIndex++}`;
         values.push(query.programming_languages);
       }
-      
+
       if (query.is_active !== undefined) {
         sql += ` AND is_active = $${paramIndex++}`;
         values.push(query.is_active);
       }
-      
+
       if (query.is_archived !== undefined) {
         sql += ` AND is_archived = $${paramIndex++}`;
         values.push(query.is_archived);
       }
-      
-      if (query.created_after) {  
+
+      if (query.created_after) {
         sql += ` AND created_at >= $${paramIndex++}`;
         values.push(query.created_after);
       }
-      
+
       if (query.created_before) {
         sql += ` AND created_at <= $${paramIndex++}`;
         values.push(query.created_before);
       }
-      
+
       if (query.last_activity_after) {
         sql += ` AND last_activity_at >= $${paramIndex++}`;
         values.push(query.last_activity_after);
       }
-      
+
       if (query.has_cognitive_settings) {
         sql += ` AND cognitive_settings != '{}'`;
       }
-      
+
       // Add sorting
       const sortBy = query.sort_by || 'last_activity_at';
       const sortOrder = query.sort_order || 'desc';
       sql += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
-      
+
       // Add pagination
       if (query.limit) {
         sql += ` LIMIT $${paramIndex++}`;
         values.push(query.limit);
       }
-      
+
       if (query.offset) {
         sql += ` OFFSET $${paramIndex++}`;
         values.push(query.offset);
       }
-      
+
       const result = await this.query(sql, values);
       return result.rows.map(row => this.mapRowToProject(row));
-      
     } catch (error: unknown) {
       console.error('❌ Failed to query projects:', error);
       throw new Error(`Project query failed: ${getErrorMessage(error)}`);
@@ -2774,36 +2775,52 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     try {
       const analytics = await Promise.all([
         // Basic counts
-        this.query(`
+        this.query(
+          `
           SELECT COUNT(*) as count FROM reasoning_sessions WHERE project_id = $1
-        `, [projectId]),
-        
-        this.query(`
+        `,
+          [projectId]
+        ),
+
+        this.query(
+          `
           SELECT COUNT(*) as count FROM stored_thoughts WHERE project_id = $1
-        `, [projectId]),
-        
-        this.query(`
+        `,
+          [projectId]
+        ),
+
+        this.query(
+          `
           SELECT COUNT(*) as count FROM stored_prompts WHERE project_id = $1
-        `, [projectId]),
-        
+        `,
+          [projectId]
+        ),
+
         // Average session length
-        this.query(`
+        this.query(
+          `
           SELECT AVG(total_thoughts) as avg_length 
           FROM reasoning_sessions 
           WHERE project_id = $1 AND total_thoughts > 0
-        `, [projectId]),
-        
+        `,
+          [projectId]
+        ),
+
         // Success rate
-        this.query(`
+        this.query(
+          `
           SELECT 
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE goal_achieved = true) as successful
           FROM reasoning_sessions 
           WHERE project_id = $1
-        `, [projectId]),
-        
+        `,
+          [projectId]
+        ),
+
         // Recent activity (last 30 days)
-        this.query(`
+        this.query(
+          `
           SELECT 
             DATE(start_time) as date,
             COUNT(*) as sessions,
@@ -2814,27 +2831,30 @@ export class PostgreSQLMemoryStore extends MemoryStore {
           GROUP BY DATE(start_time)
           ORDER BY date DESC
           LIMIT 30
-        `, [projectId])
+        `,
+          [projectId]
+        ),
       ]);
-      
+
       const [sessions, thoughts, prompts, avgLength, successData, recentActivity] = analytics;
-      
+
       const totalSessions = parseInt(sessions.rows[0]?.count || '0');
       const totalThoughts = parseInt(thoughts.rows[0]?.count || '0');
       const totalPrompts = parseInt(prompts.rows[0]?.count || '0');
       const averageSessionLength = parseFloat(avgLength.rows[0]?.avg_length || '0');
-      
+
       const successTotal = parseInt(successData.rows[0]?.total || '0');
       const successCount = parseInt(successData.rows[0]?.successful || '0');
       const successRate = successTotal > 0 ? successCount / successTotal : 0;
-      
+
       // Get project technology stack for insights
       const project = await this.getProject(projectId);
-      const mostUsedTechnologies = project?.technology_stack?.map(tech => ({
-        tech,
-        usage: 1 // In single-user scenario, this is simplified
-      })) || [];
-      
+      const mostUsedTechnologies =
+        project?.technology_stack?.map(tech => ({
+          tech,
+          usage: 1, // In single-user scenario, this is simplified
+        })) || [];
+
       return {
         totalSessions,
         totalThoughts,
@@ -2845,10 +2865,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         recentActivity: recentActivity.rows.map(row => ({
           date: row.date,
           sessions: parseInt(row.sessions),
-          thoughts: parseInt(row.thoughts || '0')
-        }))
+          thoughts: parseInt(row.thoughts || '0'),
+        })),
       };
-      
     } catch (error: unknown) {
       console.error('❌ Failed to get project analytics:', error);
       throw new Error(`Project analytics failed: ${getErrorMessage(error)}`);
@@ -2858,12 +2877,14 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Get cross-project patterns for personal learning insights
    */
-  async getCrossProjectPatterns(limit = 10): Promise<Array<{
-    pattern: string;
-    projects: string[];
-    frequency: number;
-    successRate: number;
-  }>> {
+  async getCrossProjectPatterns(limit = 10): Promise<
+    Array<{
+      pattern: string;
+      projects: string[];
+      frequency: number;
+      successRate: number;
+    }>
+  > {
     try {
       const query = `
         SELECT 
@@ -2879,16 +2900,15 @@ export class PostgreSQLMemoryStore extends MemoryStore {
         ORDER BY frequency DESC, success_rate DESC
         LIMIT $1
       `;
-      
+
       const result = await this.query(query, [limit]);
-      
+
       return result.rows.map((row: any) => ({
         pattern: row.pattern,
         projects: row.project_names,
         frequency: parseInt(row.frequency),
-        successRate: parseFloat(row.success_rate || '0')
+        successRate: parseFloat(row.success_rate || '0'),
       }));
-      
     } catch (error: unknown) {
       console.error('❌ Failed to get cross-project patterns:', error);
       throw new Error(`Cross-project pattern analysis failed: ${getErrorMessage(error)}`);
@@ -2898,70 +2918,78 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   /**
    * Find similar prompts with hybrid project-aware search
    */
-  async findSimilarPromptsHybrid(prompt: string, limit = 5, projectId?: string): Promise<StoredPrompt[]> {
+  async findSimilarPromptsHybrid(
+    prompt: string,
+    limit = 5,
+    projectId?: string
+  ): Promise<StoredPrompt[]> {
     if (projectId) {
       // First try project-scoped search
       const projectResults = await this.queryPrompts({
         project_id: projectId,
         similar_to: prompt,
         limit: limit,
-        include_project: true
+        include_project: true,
       });
-      
+
       if (projectResults.length >= Math.min(3, limit)) {
         return projectResults.slice(0, limit);
       }
-      
+
       // Fallback to global search for remaining slots
       const globalResults = await this.queryPrompts({
         similar_to: prompt,
         limit: limit - projectResults.length,
-        include_project: true
+        include_project: true,
       });
-      
+
       return [...projectResults, ...globalResults].slice(0, limit);
     }
-    
+
     // No project context, use global search
     return this.queryPrompts({
       similar_to: prompt,
       limit: limit,
-      include_project: true
+      include_project: true,
     });
   }
 
   /**
    * Find similar thoughts with hybrid project-aware search
    */
-  async findSimilarThoughtsHybrid(thought: string, limit = 5, projectId?: string): Promise<StoredThought[]> {
+  async findSimilarThoughtsHybrid(
+    thought: string,
+    limit = 5,
+    projectId?: string
+  ): Promise<StoredThought[]> {
     if (projectId) {
       // First try project-scoped search
       const projectResults = await this.queryThoughts({
         project_id: projectId,
         text_similarity: thought,
         limit: limit,
-        include_project: true
+        include_project: true,
       });
-      
+
       if (projectResults.length >= Math.min(3, limit)) {
         return projectResults.slice(0, limit);
       }
-      
+
       // Fallback to global search for remaining slots
       const globalResults = await this.queryThoughts({
         text_similarity: thought,
         limit: limit - projectResults.length,
-        include_project: true
+        include_project: true,
       });
-      
+
       return [...projectResults, ...globalResults].slice(0, limit);
     }
-    
+
     // No project context, use global search
     return this.queryThoughts({
       text_similarity: thought,
       limit: limit,
-      include_project: true
+      include_project: true,
     });
   }
 
@@ -2994,7 +3022,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       project_metadata: row.project_metadata || {},
       total_sessions: row.total_sessions || 0,
       total_thoughts: row.total_thoughts || 0,
-      total_prompts: row.total_prompts || 0
+      total_prompts: row.total_prompts || 0,
     };
   }
 }

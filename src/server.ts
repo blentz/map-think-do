@@ -518,7 +518,7 @@ export class CodeReasoningServer {
     this.currentSession!.objective = this.inferObjective(data);
     this.currentSession!.domain = this.inferDomain(data);
     this.currentSession!.total_thoughts = data.total_thoughts;
-    
+
     // Update project association if available
     if (projectId && !this.currentSession!.project_id) {
       this.currentSession!.project_id = projectId;
@@ -919,7 +919,10 @@ export class CodeReasoningServer {
   /**
    * Capture and analyze the original prompt using AGI-like intelligence
    */
-  private async captureAndAnalyzePrompt(thoughtData: ValidatedThoughtData, projectId?: string): Promise<string | null> {
+  private async captureAndAnalyzePrompt(
+    thoughtData: ValidatedThoughtData,
+    projectId?: string
+  ): Promise<string | null> {
     try {
       // Use the thought content as a proxy for the original prompt
       // In a more advanced implementation, this would capture the actual user prompt
@@ -1067,14 +1070,16 @@ export class CodeReasoningServer {
       console.error('📁 Resolving project context from working directory...');
       const projectId = await this.resolveProjectFromWorkingDirectory();
       let project: Project | undefined;
-      
+
       if (projectId) {
         console.error(`✅ Project context resolved: ${projectId}`);
         // Fetch the full project object for cognitive integration
         try {
-          project = await (this.memoryStore as any).getProject?.(projectId) || undefined;
+          project = (await (this.memoryStore as any).getProject?.(projectId)) || undefined;
           if (project) {
-            console.error(`📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`);
+            console.error(
+              `📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`
+            );
           }
         } catch (error) {
           console.error('⚠️ Failed to fetch project details:', error);
@@ -1149,17 +1154,21 @@ export class CodeReasoningServer {
             promptContext,
             project // Pass project context for cognitive awareness
           )
-        : await this.cognitiveOrchestrator.processThought(data, {
-            id: this.currentSessionId,
-            objective: this.inferObjective(data),
-            domain: this.inferDomain(data),
-            start_time: new Date(),
-            goal_achieved: false,
-            confidence_level: 0.5,
-            total_thoughts: data.total_thoughts,
-            revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
-            branch_count: this.branches.size,
-          }, project); // Pass project context for cognitive awareness
+        : await this.cognitiveOrchestrator.processThought(
+            data,
+            {
+              id: this.currentSessionId,
+              objective: this.inferObjective(data),
+              domain: this.inferDomain(data),
+              start_time: new Date(),
+              goal_achieved: false,
+              confidence_level: 0.5,
+              total_thoughts: data.total_thoughts,
+              revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
+              branch_count: this.branches.size,
+            },
+            project
+          ); // Pass project context for cognitive awareness
 
       // Store thought in memory with cognitive enrichment and prompt linkage
       const storedThought: StoredThought = {
@@ -1313,8 +1322,24 @@ export class CodeReasoningServer {
   private async resolveProjectFromWorkingDirectory(): Promise<string | undefined> {
     try {
       const storedValues = this.promptValueManager.getStoredValues('');
-      const workingDirectory = storedValues.working_directory;
-      
+      let workingDirectory = storedValues.working_directory;
+
+      // If no working_directory is set, automatically detect it from process.cwd()
+      if (!workingDirectory || typeof workingDirectory !== 'string') {
+        workingDirectory = process.cwd();
+        console.error(`🔄 Auto-detecting working directory: ${workingDirectory}`);
+
+        // Store the detected working directory for future use
+        try {
+          await this.promptValueManager.updateStoredValues('', {
+            working_directory: workingDirectory,
+          });
+          console.error(`✅ Auto-detected working directory stored: ${workingDirectory}`);
+        } catch (error) {
+          console.error('⚠️ Failed to store auto-detected working directory:', error);
+        }
+      }
+
       if (workingDirectory && typeof workingDirectory === 'string') {
         // Validate path for security
         const pathValidation = MemoryUtils.validateProjectPath(workingDirectory);
@@ -1325,7 +1350,7 @@ export class CodeReasoningServer {
 
         const normalizedPath = path.resolve(workingDirectory);
         console.error(`🔍 Resolving project from: ${normalizedPath}`);
-        
+
         // Find or create project record
         const projectId = await this.findOrCreateProject(normalizedPath);
         console.error(`📁 Project resolved: ${projectId}`);
@@ -1346,12 +1371,14 @@ export class CodeReasoningServer {
     if (existingProject) {
       // Update last activity
       await (this.memoryStore as any).updateProject?.(existingProject.id, {
-        last_activity_at: new Date()
+        last_activity_at: new Date(),
       });
-      console.error(`✅ Found existing project: ${existingProject.project_name} (${existingProject.id})`);
+      console.error(
+        `✅ Found existing project: ${existingProject.project_name} (${existingProject.id})`
+      );
       return existingProject.id;
     }
-    
+
     // Create new project with metadata extraction
     console.error(`📝 Creating new project for: ${directoryPath}`);
     const projectMetadata = await this.extractProjectMetadata(directoryPath);
@@ -1368,17 +1395,23 @@ export class CodeReasoningServer {
       is_active: true,
       is_archived: false,
       cognitive_settings: {},
-      project_metadata: projectMetadata.customMetadata || {}
+      project_metadata: projectMetadata.customMetadata || {},
     };
-    
+
     const createdProject = await (this.memoryStore as any).createProject?.(project);
     if (createdProject) {
-      console.error(`🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`);
-      console.error(`🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`);
-      console.error(`🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`);
+      console.error(
+        `🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`
+      );
+      console.error(
+        `🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`
+      );
+      console.error(
+        `🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`
+      );
       return createdProject.id;
     }
-    
+
     throw new Error('Failed to create project');
   }
 
@@ -1399,7 +1432,7 @@ export class CodeReasoningServer {
     let description: string | undefined;
     let projectType: string | undefined;
     const customMetadata: Record<string, any> = {};
-    
+
     try {
       console.error(`🔍 Analyzing project structure: ${directoryPath}`);
 
@@ -1411,21 +1444,21 @@ export class CodeReasoningServer {
         description = packageJson.description;
         technologyStack.push('nodejs');
         programmingLanguages.push('javascript');
-        
+
         // Detect TypeScript
         if (packageJson.devDependencies?.typescript || packageJson.dependencies?.typescript) {
           technologyStack.push('typescript');
           programmingLanguages.push('typescript');
           console.error('📝 TypeScript detected');
         }
-        
+
         // Detect React
         if (packageJson.dependencies?.react) {
           technologyStack.push('react');
           projectType = 'web-app';
           console.error('⚛️ React detected');
         }
-        
+
         // Detect Next.js
         if (packageJson.dependencies?.next) {
           technologyStack.push('nextjs');
@@ -1453,19 +1486,19 @@ export class CodeReasoningServer {
           projectType = 'api';
           console.error('🐱 NestJS detected');
         }
-        
+
         customMetadata.packageJson = {
           name: packageJson.name,
           version: packageJson.version,
           dependencies: Object.keys(packageJson.dependencies || {}),
-          devDependencies: Object.keys(packageJson.devDependencies || {})
+          devDependencies: Object.keys(packageJson.devDependencies || {}),
         };
       }
-      
+
       // Check for requirements.txt or pyproject.toml (Python project)
       const requirementsPath = path.join(directoryPath, 'requirements.txt');
       const pyprojectPath = path.join(directoryPath, 'pyproject.toml');
-      if (await this.fileExists(requirementsPath) || await this.fileExists(pyprojectPath)) {
+      if ((await this.fileExists(requirementsPath)) || (await this.fileExists(pyprojectPath))) {
         console.error('🐍 Python project detected');
         technologyStack.push('python');
         programmingLanguages.push('python');
@@ -1491,14 +1524,14 @@ export class CodeReasoningServer {
           }
         }
       }
-      
+
       // Check for Cargo.toml (Rust project)
       const cargoPath = path.join(directoryPath, 'Cargo.toml');
       if (await this.fileExists(cargoPath)) {
         console.error('🦀 Rust project detected');
         technologyStack.push('rust');
         programmingLanguages.push('rust');
-        
+
         try {
           const cargoContent = await this.readFileContent(cargoPath);
           if (cargoContent.includes('[dependencies]')) {
@@ -1511,7 +1544,7 @@ export class CodeReasoningServer {
           console.error('⚠️ Error reading Cargo.toml:', error);
         }
       }
-      
+
       // Check for go.mod (Go project)
       const goModPath = path.join(directoryPath, 'go.mod');
       if (await this.fileExists(goModPath)) {
@@ -1519,7 +1552,7 @@ export class CodeReasoningServer {
         technologyStack.push('go');
         programmingLanguages.push('go');
         if (!projectType) projectType = 'api';
-        
+
         try {
           const goModContent = await this.readFileContent(goModPath);
           if (goModContent.includes('gin-gonic') || goModContent.includes('gorilla')) {
@@ -1561,7 +1594,7 @@ export class CodeReasoningServer {
         console.error('🐙 Docker Compose detected');
         technologyStack.push('docker-compose');
       }
-      
+
       // Check for README files for description
       if (!description) {
         const readmeFiles = ['README.md', 'README.txt', 'README.rst'];
@@ -1572,7 +1605,8 @@ export class CodeReasoningServer {
               const content = await this.readFileContent(readmePath);
               // Extract first meaningful paragraph as description
               const lines = content.split('\n').filter(line => line.trim().length > 0);
-              for (const line of lines.slice(1, 5)) { // Skip title, check next few lines
+              for (const line of lines.slice(1, 5)) {
+                // Skip title, check next few lines
                 if (line.length > 20 && line.length < 500 && !line.startsWith('#')) {
                   description = line.replace(/^[#\-\*\s]*/, '').trim();
                   console.error(`📚 Description extracted from ${readme}`);
@@ -1597,7 +1631,10 @@ export class CodeReasoningServer {
         programmingLanguages.push('java');
         console.error('☕ Java files detected');
       }
-      if ((commonFiles.includes('.cpp') || commonFiles.includes('.cc')) && !programmingLanguages.includes('cpp')) {
+      if (
+        (commonFiles.includes('.cpp') || commonFiles.includes('.cc')) &&
+        !programmingLanguages.includes('cpp')
+      ) {
         programmingLanguages.push('cpp');
         console.error('⚙️ C++ files detected');
       }
@@ -1605,18 +1642,17 @@ export class CodeReasoningServer {
         programmingLanguages.push('c');
         console.error('⚙️ C files detected');
       }
-
     } catch (error) {
       console.error('❌ Error extracting project metadata:', error);
     }
-    
+
     const result = {
       name: projectName,
       description,
       technologyStack: [...new Set(technologyStack)], // Remove duplicates
       projectType,
       programmingLanguages: [...new Set(programmingLanguages)], // Remove duplicates
-      customMetadata
+      customMetadata,
     };
 
     console.error('📊 Project metadata extraction complete:', {
@@ -1624,7 +1660,7 @@ export class CodeReasoningServer {
       type: result.projectType || 'unknown',
       technologies: result.technologyStack.length,
       languages: result.programmingLanguages.length,
-      hasDescription: !!result.description
+      hasDescription: !!result.description,
     });
 
     return result;
@@ -1661,14 +1697,15 @@ export class CodeReasoningServer {
     try {
       const files = await fs.promises.readdir(directoryPath);
       const extensions = new Set<string>();
-      
-      for (const file of files.slice(0, 100)) { // Limit to first 100 files for performance
+
+      for (const file of files.slice(0, 100)) {
+        // Limit to first 100 files for performance
         const ext = path.extname(file).toLowerCase();
         if (ext) {
           extensions.add(ext);
         }
       }
-      
+
       return Array.from(extensions);
     } catch (error) {
       console.error(`⚠️ Error scanning directory ${directoryPath}:`, error);
@@ -2527,17 +2564,17 @@ class InMemoryStore extends MemoryStore {
       }
 
       if (query.complexity_range) {
-        results = results.filter(p => 
-          p.complexity_estimate !== undefined &&
-          p.complexity_estimate >= query.complexity_range![0] &&
-          p.complexity_estimate <= query.complexity_range![1]
+        results = results.filter(
+          p =>
+            p.complexity_estimate !== undefined &&
+            p.complexity_estimate >= query.complexity_range![0] &&
+            p.complexity_estimate <= query.complexity_range![1]
         );
       }
 
       if (query.date_range) {
-        results = results.filter(p => 
-          p.received_at >= query.date_range![0] &&
-          p.received_at <= query.date_range![1]
+        results = results.filter(
+          p => p.received_at >= query.date_range![0] && p.received_at <= query.date_range![1]
         );
       }
 
@@ -2546,13 +2583,11 @@ class InMemoryStore extends MemoryStore {
       }
 
       if (query.tags && query.tags.length > 0) {
-        results = results.filter(p => 
-          p.tags && query.tags!.every(tag => p.tags!.includes(tag))
-        );
+        results = results.filter(p => p.tags && query.tags!.every(tag => p.tags!.includes(tag)));
       }
 
       if (query.similar_to) {
-        results = results.filter(p => 
+        results = results.filter(p =>
           p.original_prompt.toLowerCase().includes(query.similar_to!.toLowerCase())
         );
       }
@@ -2560,7 +2595,7 @@ class InMemoryStore extends MemoryStore {
       // Apply sorting
       const sortBy = query.sort_by || 'received_at';
       const sortOrder = query.sort_order || 'desc';
-      
+
       // Handle similarity-based sorting for similar_to queries
       if (query.similar_to) {
         const queryLower = query.similar_to.toLowerCase();
@@ -2572,7 +2607,7 @@ class InMemoryStore extends MemoryStore {
       } else {
         results.sort((a, b) => {
           let valueA: any, valueB: any;
-          
+
           switch (sortBy) {
             case 'received_at':
               valueA = a.received_at.getTime();
@@ -2694,17 +2729,21 @@ class InMemoryStore extends MemoryStore {
 
       domainGroups.forEach((domainPrompts, domain) => {
         const successfulPrompts = domainPrompts.filter(p => p.processing_success === true);
-        const successRate = domainPrompts.length > 0 ? successfulPrompts.length / domainPrompts.length : 0;
-        
-        if (successRate > 0.5) { // Only include patterns with >50% success rate
+        const successRate =
+          domainPrompts.length > 0 ? successfulPrompts.length / domainPrompts.length : 0;
+
+        if (successRate > 0.5) {
+          // Only include patterns with >50% success rate
           patterns.push({
             pattern_type: `domain_${domain}`,
             success_rate: successRate,
             common_attributes: {
               domain,
               total_prompts: domainPrompts.length,
-              avg_complexity: domainPrompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) / domainPrompts.length
-            }
+              avg_complexity:
+                domainPrompts.reduce((sum, p) => sum + (p.complexity_estimate || 0), 0) /
+                domainPrompts.length,
+            },
           });
         }
       });
@@ -2722,8 +2761,9 @@ class InMemoryStore extends MemoryStore {
 
       typeGroups.forEach((typePrompts, type) => {
         const successfulPrompts = typePrompts.filter(p => p.processing_success === true);
-        const successRate = typePrompts.length > 0 ? successfulPrompts.length / typePrompts.length : 0;
-        
+        const successRate =
+          typePrompts.length > 0 ? successfulPrompts.length / typePrompts.length : 0;
+
         if (successRate > 0.5) {
           patterns.push({
             pattern_type: `prompt_type_${type}`,
@@ -2731,8 +2771,10 @@ class InMemoryStore extends MemoryStore {
             common_attributes: {
               prompt_type: type,
               total_prompts: typePrompts.length,
-              avg_cognitive_load: typePrompts.reduce((sum, p) => sum + (p.estimated_cognitive_load || 0), 0) / typePrompts.length
-            }
+              avg_cognitive_load:
+                typePrompts.reduce((sum, p) => sum + (p.estimated_cognitive_load || 0), 0) /
+                typePrompts.length,
+            },
           });
         }
       });
@@ -2753,42 +2795,51 @@ class InMemoryStore extends MemoryStore {
   }> {
     try {
       const allPrompts = Array.from(this.prompts.values());
-      
+
       if (allPrompts.length === 0) {
         return {
           classification_accuracy: 0,
           intent_extraction_precision: 0,
           similarity_detection_recall: 0,
-          reasoning_improvement_average: 0
+          reasoning_improvement_average: 0,
         };
       }
 
       // Calculate classification accuracy (based on successful processing)
       const processedPrompts = allPrompts.filter(p => p.processing_success !== undefined);
       const successfulPrompts = processedPrompts.filter(p => p.processing_success === true);
-      const classificationAccuracy = processedPrompts.length > 0 ? 
-        successfulPrompts.length / processedPrompts.length : 0;
+      const classificationAccuracy =
+        processedPrompts.length > 0 ? successfulPrompts.length / processedPrompts.length : 0;
 
       // Calculate intent extraction precision (based on extracted_intent presence)
-      const promptsWithIntent = allPrompts.filter(p => p.extracted_intent && Object.keys(p.extracted_intent).length > 0);
-      const intentExtractionPrecision = allPrompts.length > 0 ? 
-        promptsWithIntent.length / allPrompts.length : 0;
+      const promptsWithIntent = allPrompts.filter(
+        p => p.extracted_intent && Object.keys(p.extracted_intent).length > 0
+      );
+      const intentExtractionPrecision =
+        allPrompts.length > 0 ? promptsWithIntent.length / allPrompts.length : 0;
 
       // Calculate similarity detection recall (simplified - based on similar_prompts data)
-      const promptsWithSimilarityData = allPrompts.filter(p => p.similar_prompts && p.similar_prompts.length > 0);
-      const similarityDetectionRecall = allPrompts.length > 0 ? 
-        promptsWithSimilarityData.length / allPrompts.length : 0;
+      const promptsWithSimilarityData = allPrompts.filter(
+        p => p.similar_prompts && p.similar_prompts.length > 0
+      );
+      const similarityDetectionRecall =
+        allPrompts.length > 0 ? promptsWithSimilarityData.length / allPrompts.length : 0;
 
       // Calculate reasoning improvement average
-      const promptsWithImprovement = allPrompts.filter(p => p.reasoning_improvement !== undefined && p.reasoning_improvement !== null);
-      const reasoningImprovementAverage = promptsWithImprovement.length > 0 ? 
-        promptsWithImprovement.reduce((sum, p) => sum + (p.reasoning_improvement || 0), 0) / promptsWithImprovement.length : 0;
+      const promptsWithImprovement = allPrompts.filter(
+        p => p.reasoning_improvement !== undefined && p.reasoning_improvement !== null
+      );
+      const reasoningImprovementAverage =
+        promptsWithImprovement.length > 0
+          ? promptsWithImprovement.reduce((sum, p) => sum + (p.reasoning_improvement || 0), 0) /
+            promptsWithImprovement.length
+          : 0;
 
       return {
         classification_accuracy: classificationAccuracy,
         intent_extraction_precision: intentExtractionPrecision,
         similarity_detection_recall: similarityDetectionRecall,
-        reasoning_improvement_average: reasoningImprovementAverage
+        reasoning_improvement_average: reasoningImprovementAverage,
       };
     } catch (error) {
       const errorMessage = this.getErrorMessage(error);
@@ -2815,13 +2866,19 @@ class InMemoryStore extends MemoryStore {
       const updatedPrompt: StoredPrompt = {
         ...existingPrompt,
         processing_success: performance.processing_success,
-        reasoning_improvement: performance.reasoning_improvement !== undefined ? 
-          performance.reasoning_improvement : existingPrompt.reasoning_improvement,
-        persona_selected: performance.persona_selected !== undefined ? 
-          performance.persona_selected : existingPrompt.persona_selected,
-        cognitive_priming_effectiveness: performance.cognitive_priming_effectiveness !== undefined ? 
-          performance.cognitive_priming_effectiveness : existingPrompt.cognitive_priming_effectiveness,
-        updated_at: new Date()
+        reasoning_improvement:
+          performance.reasoning_improvement !== undefined
+            ? performance.reasoning_improvement
+            : existingPrompt.reasoning_improvement,
+        persona_selected:
+          performance.persona_selected !== undefined
+            ? performance.persona_selected
+            : existingPrompt.persona_selected,
+        cognitive_priming_effectiveness:
+          performance.cognitive_priming_effectiveness !== undefined
+            ? performance.cognitive_priming_effectiveness
+            : existingPrompt.cognitive_priming_effectiveness,
+        updated_at: new Date(),
       };
 
       this.prompts.set(promptId, updatedPrompt);
@@ -2863,7 +2920,7 @@ class InMemoryStore extends MemoryStore {
 
   async queryProjects(query: ProjectQuery = {}): Promise<Project[]> {
     let results = Array.from(this.projects.values());
-    
+
     // Apply basic filtering
     if (query.directory_path) {
       results = results.filter(p => p.directory_path === query.directory_path);
@@ -2871,7 +2928,7 @@ class InMemoryStore extends MemoryStore {
     if (query.is_active !== undefined) {
       results = results.filter(p => p.is_active === query.is_active);
     }
-    
+
     return results.slice(0, query.limit || 100);
   }
 
@@ -2891,42 +2948,56 @@ class InMemoryStore extends MemoryStore {
       averageSessionLength: 0,
       successRate: 0,
       mostUsedTechnologies: [],
-      recentActivity: []
+      recentActivity: [],
     };
   }
 
-  async getCrossProjectPatterns(limit = 10): Promise<Array<{
-    pattern: string;
-    projects: string[];
-    frequency: number;
-    successRate: number;
-  }>> {
+  async getCrossProjectPatterns(limit = 10): Promise<
+    Array<{
+      pattern: string;
+      projects: string[];
+      frequency: number;
+      successRate: number;
+    }>
+  > {
     return [];
   }
 
-  async findSimilarPromptsHybrid(prompt: string, limit = 5, projectId?: string): Promise<StoredPrompt[]> {
+  async findSimilarPromptsHybrid(
+    prompt: string,
+    limit = 5,
+    projectId?: string
+  ): Promise<StoredPrompt[]> {
     return [];
   }
 
-  async findSimilarThoughtsHybrid(thought: string, limit = 5, projectId?: string): Promise<StoredThought[]> {
+  async findSimilarThoughtsHybrid(
+    thought: string,
+    limit = 5,
+    projectId?: string
+  ): Promise<StoredThought[]> {
     return [];
   }
 
-  async findSimilarPatterns(): Promise<Array<{
-    pattern_name: string;
-    similarity_score: number;
-    pattern_frequency: number;
-    created_at: Date;
-  }>> {
+  async findSimilarPatterns(): Promise<
+    Array<{
+      pattern_name: string;
+      similarity_score: number;
+      pattern_frequency: number;
+      created_at: Date;
+    }>
+  > {
     throw new Error('Pattern embeddings not supported in InMemoryStore');
   }
 
-  async getPatterns(): Promise<Array<{
-    pattern_name: string;
-    pattern_frequency: number;
-    created_at: Date;
-    has_embedding: boolean;
-  }>> {
+  async getPatterns(): Promise<
+    Array<{
+      pattern_name: string;
+      pattern_frequency: number;
+      created_at: Date;
+      has_embedding: boolean;
+    }>
+  > {
     throw new Error('Pattern embeddings not supported in InMemoryStore');
   }
 

@@ -500,7 +500,7 @@ export class ThoughtQualityAnalyzer {
     const meaningfulWords = thought.toLowerCase().match(/\b\w{4,}\b/g) || [];
     if (meaningfulWords.length > 0) {
       const avgWordLength =
-        meaningfulWords.reduce((sum, word) => sum + word.length, 0) / meaningfulWords.length;
+        meaningfulWords.reduce((sum: number, word: string) => sum + word.length, 0) / meaningfulWords.length;
       if (avgWordLength > 5.5) coherence += 0.1; // Sophisticated vocabulary
 
       // Look for conceptual consistency rather than penalizing diversity

@@ -14,23 +14,23 @@ export interface Project {
   directory_path: string;
   project_name: string;
   description?: string;
-  
+
   // Technology metadata
   technology_stack?: string[];
   project_type?: string;
   programming_languages?: string[];
-  
+
   // Lifecycle information
   created_at: Date;
   updated_at: Date;
   last_activity_at: Date;
   is_active: boolean;
   is_archived: boolean;
-  
+
   // Cognitive and custom metadata
   cognitive_settings?: Record<string, any>;
   project_metadata?: Record<string, any>;
-  
+
   // Analytics
   total_sessions?: number;
   total_thoughts?: number;
@@ -400,22 +400,33 @@ export abstract class MemoryStore {
   /**
    * Find similar patterns using semantic similarity
    */
-  abstract findSimilarPatterns(pattern: string, limit?: number, similarityThreshold?: number): Promise<Array<{
-    pattern_name: string;
-    similarity_score: number;
-    pattern_frequency: number;
-    created_at: Date;
-  }>>;
+  abstract findSimilarPatterns(
+    pattern: string,
+    limit?: number,
+    similarityThreshold?: number
+  ): Promise<
+    Array<{
+      pattern_name: string;
+      similarity_score: number;
+      pattern_frequency: number;
+      created_at: Date;
+    }>
+  >;
 
   /**
    * Get all stored patterns with their frequencies
    */
-  abstract getPatterns(limit?: number, minFrequency?: number): Promise<Array<{
-    pattern_name: string;
-    pattern_frequency: number;
-    created_at: Date;
-    has_embedding: boolean;
-  }>>;
+  abstract getPatterns(
+    limit?: number,
+    minFrequency?: number
+  ): Promise<
+    Array<{
+      pattern_name: string;
+      pattern_frequency: number;
+      created_at: Date;
+      has_embedding: boolean;
+    }>
+  >;
 
   /**
    * Update pattern embeddings based on frequency thresholds
@@ -463,22 +474,32 @@ export abstract class MemoryStore {
   /**
    * Get cross-project patterns for personal learning insights
    */
-  abstract getCrossProjectPatterns(limit?: number): Promise<Array<{
-    pattern: string;
-    projects: string[];
-    frequency: number;
-    successRate: number;
-  }>>;
+  abstract getCrossProjectPatterns(limit?: number): Promise<
+    Array<{
+      pattern: string;
+      projects: string[];
+      frequency: number;
+      successRate: number;
+    }>
+  >;
 
   /**
    * Find similar prompts with hybrid project-aware search
    */
-  abstract findSimilarPromptsHybrid(prompt: string, limit?: number, projectId?: string): Promise<StoredPrompt[]>;
+  abstract findSimilarPromptsHybrid(
+    prompt: string,
+    limit?: number,
+    projectId?: string
+  ): Promise<StoredPrompt[]>;
 
   /**
    * Find similar thoughts with hybrid project-aware search
    */
-  abstract findSimilarThoughtsHybrid(thought: string, limit?: number, projectId?: string): Promise<StoredThought[]>;
+  abstract findSimilarThoughtsHybrid(
+    thought: string,
+    limit?: number,
+    projectId?: string
+  ): Promise<StoredThought[]>;
 
   /**
    * Update thought metadata (e.g., after receiving feedback)
@@ -568,16 +589,24 @@ export interface EnhancedMemoryStats extends MemoryStats {
   total_projects: number;
   active_projects: number;
   archived_projects: number;
-  
+
   // Project activity patterns
   most_active_projects: Array<{ project_name: string; activity_score: number }>;
   project_success_rates: Array<{ project_name: string; success_rate: number }>;
-  technology_usage_patterns: Array<{ technology: string; project_count: number; success_rate: number }>;
-  
+  technology_usage_patterns: Array<{
+    technology: string;
+    project_count: number;
+    success_rate: number;
+  }>;
+
   // Cross-project learning insights
-  knowledge_transfer_opportunities: Array<{ from_project: string; to_project: string; similarity_score: number }>;
+  knowledge_transfer_opportunities: Array<{
+    from_project: string;
+    to_project: string;
+    similarity_score: number;
+  }>;
   emerging_patterns: Array<{ pattern: string; growth_rate: number; projects_affected: string[] }>;
-  
+
   // Project lifecycle analytics
   average_project_duration: number;
   project_complexity_trends: Array<{ time_period: string; average_complexity: number }>;
@@ -606,7 +635,7 @@ export interface MemoryConfig {
   // Privacy settings
   anonymizeData?: boolean;
   encryptSensitiveData?: boolean;
-  
+
   // Project-specific settings
   enableProjectIntelligence?: boolean;
   crossProjectLearning?: boolean;
@@ -864,13 +893,13 @@ export class MemoryUtils {
   static calculateProjectSimilarity(project1: Project, project2: Project): number {
     const tech1 = new Set(project1.technology_stack || []);
     const tech2 = new Set(project2.technology_stack || []);
-    
+
     if (tech1.size === 0 && tech2.size === 0) return 0;
     if (tech1.size === 0 || tech2.size === 0) return 0;
 
     const intersection = new Set([...tech1].filter(x => tech2.has(x)));
     const union = new Set([...tech1, ...tech2]);
-    
+
     return intersection.size / union.size;
   }
 
@@ -937,15 +966,24 @@ export class MemoryUtils {
       errors.push('similarityThreshold must be between 0 and 1');
     }
 
-    if (config.enableProjectIntelligence !== undefined && typeof config.enableProjectIntelligence !== 'boolean') {
+    if (
+      config.enableProjectIntelligence !== undefined &&
+      typeof config.enableProjectIntelligence !== 'boolean'
+    ) {
       errors.push('enableProjectIntelligence must be boolean');
     }
 
-    if (config.crossProjectLearning !== undefined && typeof config.crossProjectLearning !== 'boolean') {
+    if (
+      config.crossProjectLearning !== undefined &&
+      typeof config.crossProjectLearning !== 'boolean'
+    ) {
       errors.push('crossProjectLearning must be boolean');
     }
 
-    if (config.projectCachingEnabled !== undefined && typeof config.projectCachingEnabled !== 'boolean') {
+    if (
+      config.projectCachingEnabled !== undefined &&
+      typeof config.projectCachingEnabled !== 'boolean'
+    ) {
       errors.push('projectCachingEnabled must be boolean');
     }
 

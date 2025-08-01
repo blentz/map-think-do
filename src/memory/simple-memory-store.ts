@@ -461,21 +461,25 @@ export class SimpleMemoryStore extends MemoryStore {
     }
   }
 
-  async findSimilarPatterns(): Promise<Array<{
-    pattern_name: string;
-    similarity_score: number;
-    pattern_frequency: number;
-    created_at: Date;
-  }>> {
+  async findSimilarPatterns(): Promise<
+    Array<{
+      pattern_name: string;
+      similarity_score: number;
+      pattern_frequency: number;
+      created_at: Date;
+    }>
+  > {
     throw new Error('Pattern embeddings not supported in SimpleMemoryStore');
   }
 
-  async getPatterns(): Promise<Array<{
-    pattern_name: string;
-    pattern_frequency: number;
-    created_at: Date;
-    has_embedding: boolean;
-  }>> {
+  async getPatterns(): Promise<
+    Array<{
+      pattern_name: string;
+      pattern_frequency: number;
+      created_at: Date;
+      has_embedding: boolean;
+    }>
+  > {
     throw new Error('Pattern embeddings not supported in SimpleMemoryStore');
   }
 
@@ -601,7 +605,9 @@ export class SimpleMemoryStore extends MemoryStore {
       results = results.filter(p => p.directory_path === query.directory_path);
     }
     if (query.project_name) {
-      results = results.filter(p => p.project_name.toLowerCase().includes(query.project_name!.toLowerCase()));
+      results = results.filter(p =>
+        p.project_name.toLowerCase().includes(query.project_name!.toLowerCase())
+      );
     }
     if (query.project_type) {
       results = results.filter(p => p.project_type === query.project_type);
@@ -613,7 +619,7 @@ export class SimpleMemoryStore extends MemoryStore {
       results = results.filter(p => p.is_archived === query.is_archived);
     }
     if (query.technology_stack && query.technology_stack.length > 0) {
-      results = results.filter(p => 
+      results = results.filter(p =>
         query.technology_stack!.every(tech => p.technology_stack?.includes(tech))
       );
     }
@@ -621,16 +627,16 @@ export class SimpleMemoryStore extends MemoryStore {
     // Apply sorting
     const sortBy = query.sort_by || 'last_activity_at';
     const sortOrder = query.sort_order || 'desc';
-    
+
     results.sort((a, b) => {
       const aVal = a[sortBy as keyof Project];
       const bVal = b[sortBy as keyof Project];
-      
+
       // Handle undefined values
       if (aVal === undefined && bVal === undefined) return 0;
       if (aVal === undefined) return sortOrder === 'asc' ? -1 : 1;
       if (bVal === undefined) return sortOrder === 'asc' ? 1 : -1;
-      
+
       if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
       return 0;
@@ -656,24 +662,31 @@ export class SimpleMemoryStore extends MemoryStore {
     mostUsedTechnologies: Array<{ tech: string; usage: number }>;
     recentActivity: Array<{ date: string; sessions: number; thoughts: number }>;
   }> {
-    const projectSessions = Array.from(this.sessions.values()).filter(s => s.project_id === projectId);
-    const projectThoughts = Array.from(this.thoughts.values()).filter(t => t.project_id === projectId);
-    const projectPrompts = Array.from(this.prompts.values()).filter(p => p.project_id === projectId);
-    
+    const projectSessions = Array.from(this.sessions.values()).filter(
+      s => s.project_id === projectId
+    );
+    const projectThoughts = Array.from(this.thoughts.values()).filter(
+      t => t.project_id === projectId
+    );
+    const projectPrompts = Array.from(this.prompts.values()).filter(
+      p => p.project_id === projectId
+    );
+
     const totalSessions = projectSessions.length;
     const totalThoughts = projectThoughts.length;
     const totalPrompts = projectPrompts.length;
-    
-    const averageSessionLength = totalSessions > 0 
-      ? projectSessions.reduce((sum, s) => sum + s.total_thoughts, 0) / totalSessions
-      : 0;
-    
+
+    const averageSessionLength =
+      totalSessions > 0
+        ? projectSessions.reduce((sum, s) => sum + s.total_thoughts, 0) / totalSessions
+        : 0;
+
     const successfulSessions = projectSessions.filter(s => s.goal_achieved).length;
     const successRate = totalSessions > 0 ? successfulSessions / totalSessions : 0;
-    
+
     const project = await this.getProject(projectId);
     const mostUsedTechnologies = project?.technology_stack?.map(tech => ({ tech, usage: 1 })) || [];
-    
+
     return {
       totalSessions,
       totalThoughts,
@@ -681,34 +694,40 @@ export class SimpleMemoryStore extends MemoryStore {
       averageSessionLength,
       successRate,
       mostUsedTechnologies,
-      recentActivity: [] // Simplified for in-memory store
+      recentActivity: [], // Simplified for in-memory store
     };
   }
 
-  async getCrossProjectPatterns(limit = 10): Promise<Array<{
-    pattern: string;
-    projects: string[];
-    frequency: number;
-    successRate: number;
-  }>> {
+  async getCrossProjectPatterns(limit = 10): Promise<
+    Array<{
+      pattern: string;
+      projects: string[];
+      frequency: number;
+      successRate: number;
+    }>
+  > {
     const patternsByProject = new Map<string, Set<string>>();
-    const patternStats = new Map<string, { frequency: number; successCount: number; totalCount: number }>();
-    
+    const patternStats = new Map<
+      string,
+      { frequency: number; successCount: number; totalCount: number }
+    >();
+
     // Collect patterns by project
     for (const thought of this.thoughts.values()) {
       if (thought.project_id && thought.patterns_detected) {
-        const projectName = this.projects.get(thought.project_id)?.project_name || thought.project_id;
-        
+        const projectName =
+          this.projects.get(thought.project_id)?.project_name || thought.project_id;
+
         for (const pattern of thought.patterns_detected) {
           if (!patternsByProject.has(pattern)) {
             patternsByProject.set(pattern, new Set());
           }
           patternsByProject.get(pattern)!.add(projectName);
-          
+
           if (!patternStats.has(pattern)) {
             patternStats.set(pattern, { frequency: 0, successCount: 0, totalCount: 0 });
           }
-          
+
           const stats = patternStats.get(pattern)!;
           stats.frequency++;
           stats.totalCount++;
@@ -718,7 +737,7 @@ export class SimpleMemoryStore extends MemoryStore {
         }
       }
     }
-    
+
     // Filter patterns that appear in multiple projects
     const crossProjectPatterns = Array.from(patternsByProject.entries())
       .filter(([_, projects]) => projects.size > 1)
@@ -728,21 +747,28 @@ export class SimpleMemoryStore extends MemoryStore {
           pattern,
           projects: Array.from(projectsSet),
           frequency: stats.frequency,
-          successRate: stats.totalCount > 0 ? stats.successCount / stats.totalCount : 0
+          successRate: stats.totalCount > 0 ? stats.successCount / stats.totalCount : 0,
         };
       })
       .sort((a, b) => b.frequency - a.frequency)
       .slice(0, limit);
-    
+
     return crossProjectPatterns;
   }
 
-  async findSimilarPromptsHybrid(prompt: string, limit = 5, projectId?: string): Promise<StoredPrompt[]> {
+  async findSimilarPromptsHybrid(
+    prompt: string,
+    limit = 5,
+    projectId?: string
+  ): Promise<StoredPrompt[]> {
     throw new Error('Hybrid similarity search not supported in SimpleMemoryStore');
   }
 
-  async findSimilarThoughtsHybrid(thought: string, limit = 5, projectId?: string): Promise<StoredThought[]> {
+  async findSimilarThoughtsHybrid(
+    thought: string,
+    limit = 5,
+    projectId?: string
+  ): Promise<StoredThought[]> {
     throw new Error('Hybrid similarity search not supported in SimpleMemoryStore');
   }
-
 }
