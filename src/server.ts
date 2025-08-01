@@ -1075,11 +1075,17 @@ export class CodeReasoningServer {
         console.error(`✅ Project context resolved: ${projectId}`);
         // Fetch the full project object for cognitive integration
         try {
-          project = (await (this.memoryStore as any).getProject?.(projectId)) || undefined;
-          if (project) {
-            console.error(
-              `📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`
-            );
+          if (typeof (this.memoryStore as any).getProject === 'function') {
+            project = (await (this.memoryStore as any).getProject(projectId)) || undefined;
+            if (project) {
+              console.error(
+                `📋 Project loaded: ${project.project_name} (${project.technology_stack?.join(', ') || 'No tech stack'})`
+              );
+            } else {
+              console.error(`⚠️ Project ${projectId} not found in database`);
+            }
+          } else {
+            console.error('❌ getProject method not available on memory store');
           }
         } catch (error) {
           console.error('⚠️ Failed to fetch project details:', error);
@@ -1367,16 +1373,28 @@ export class CodeReasoningServer {
    */
   private async findOrCreateProject(directoryPath: string): Promise<string> {
     // Check if project already exists
-    const existingProject = await (this.memoryStore as any).findProjectByPath?.(directoryPath);
-    if (existingProject) {
-      // Update last activity
-      await (this.memoryStore as any).updateProject?.(existingProject.id, {
-        last_activity_at: new Date(),
-      });
-      console.error(
-        `✅ Found existing project: ${existingProject.project_name} (${existingProject.id})`
-      );
-      return existingProject.id;
+    try {
+      if (typeof (this.memoryStore as any).findProjectByPath !== 'function') {
+        console.error('❌ findProjectByPath method not available on memory store');
+        throw new Error('Project management not supported by current memory store');
+      }
+      
+      const existingProject = await (this.memoryStore as any).findProjectByPath(directoryPath);
+      if (existingProject) {
+        // Update last activity
+        if (typeof (this.memoryStore as any).updateProject === 'function') {
+          await (this.memoryStore as any).updateProject(existingProject.id, {
+            last_activity_at: new Date(),
+          });
+        }
+        console.error(
+          `✅ Found existing project: ${existingProject.project_name} (${existingProject.id})`
+        );
+        return existingProject.id;
+      }
+    } catch (error) {
+      console.error('❌ Error checking for existing project:', error);
+      // Continue to create new project
     }
 
     // Create new project with metadata extraction
@@ -1398,21 +1416,31 @@ export class CodeReasoningServer {
       project_metadata: projectMetadata.customMetadata || {},
     };
 
-    const createdProject = await (this.memoryStore as any).createProject?.(project);
-    if (createdProject) {
-      console.error(
-        `🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`
-      );
-      console.error(
-        `🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`
-      );
-      console.error(
-        `🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`
-      );
-      return createdProject.id;
-    }
+    try {
+      if (typeof (this.memoryStore as any).createProject !== 'function') {
+        console.error('❌ createProject method not available on memory store');
+        throw new Error('Project creation not supported by current memory store');
+      }
 
-    throw new Error('Failed to create project');
+      const createdProject = await (this.memoryStore as any).createProject(project);
+      if (createdProject) {
+        console.error(
+          `🎉 Created new project: ${createdProject.project_name} (${createdProject.id})`
+        );
+        console.error(
+          `🏷️ Technology stack: ${createdProject.technology_stack?.join(', ') || 'Unknown'}`
+        );
+        console.error(
+          `🗣️ Languages: ${createdProject.programming_languages?.join(', ') || 'Unknown'}`
+        );
+        return createdProject.id;
+      }
+
+      throw new Error('Failed to create project: createProject returned null/undefined');
+    } catch (error) {
+      console.error('❌ Error creating project:', error);
+      throw new Error(`Failed to create project: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
