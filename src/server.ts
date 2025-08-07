@@ -341,6 +341,7 @@ class CodeReasoningServer {
   // Session tracking for persistence
   private currentSession: Partial<ReasoningSession> | null = null;
   private sessionStartTime: Date = new Date();
+  private sessionStoredInDb: boolean = false;
 
   // Memory management - configurable via performance system
   private memoryConfig: {
@@ -368,7 +369,7 @@ class CodeReasoningServer {
     
     // Initialize session tracking
     this.sessionStartTime = new Date();
-    this.initializeSession();
+    // Session will be initialized asynchronously on first use
 
     // Initialize memory configuration from performance system or defaults
     this.memoryConfig = this.initializeMemoryConfig();
@@ -444,7 +445,7 @@ class CodeReasoningServer {
   /**
    * Initialize session tracking for persistence
    */
-  private initializeSession(): void {
+  private async initializeSession(): Promise<void> {
     this.currentSession = {
       id: this.currentSessionId,
       start_time: this.sessionStartTime,
@@ -461,6 +462,17 @@ class CodeReasoningServer {
       failed_approaches: [],
       tags: []
     };
+    
+    // Store the session immediately to satisfy foreign key constraints
+    try {
+      await this.memoryStore.storeSession(this.currentSession as ReasoningSession);
+      this.sessionStoredInDb = true;
+      console.error(`📝 Session initialized and stored: ${this.currentSessionId}`);
+    } catch (error) {
+      console.error('Failed to initialize session in database:', error);
+      this.sessionStoredInDb = false;
+      // Continue anyway - the session will be stored later
+    }
   }
 
   /**
@@ -469,7 +481,7 @@ class CodeReasoningServer {
   private async updateAndStoreSession(data: ValidatedThoughtData, cognitiveResult: any): Promise<void> {
     if (!this.currentSession) {
       console.error('Warning: Session not initialized, creating new session');
-      this.initializeSession();
+      await this.initializeSession();
     }
 
     // Update session with current thought data
@@ -926,6 +938,11 @@ class CodeReasoningServer {
         outcome_quality: this.assessOutcomeQuality(cognitiveResult),
       };
 
+      // Ensure session exists in database before storing thought (foreign key constraint)
+      if (!this.sessionStoredInDb) {
+        await this.initializeSession();
+      }
+      
       await this.memoryStore.storeThought(storedThought);
 
       // Update and store session information

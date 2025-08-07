@@ -57,17 +57,13 @@ RUN apt-get update && apt-get install -y \
 
 # Create directories for configuration and scripts
 RUN mkdir -p /usr/local/share/postgresql \
-    && mkdir -p /docker-entrypoint-initdb.d \
-    && mkdir -p /usr/local/bin
+    && mkdir -p /docker-entrypoint-initdb.d
 
 # Copy PostgreSQL configuration
 COPY container-files/postgresql/config/postgresql.conf /usr/local/share/postgresql/postgresql.conf
 
 # Copy initialization scripts
 COPY container-files/postgresql/init-scripts/ /docker-entrypoint-initdb.d/
-
-# Copy utility scripts (if available)
-COPY container-files/postgresql/bin/ /usr/local/bin/ || true
 
 # Health check that verifies database is ready
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

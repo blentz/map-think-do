@@ -117,10 +117,44 @@ create_schema() {
 CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
 CREATE EXTENSION IF NOT EXISTS \"pg_trgm\";
 
+-- Create reasoning_sessions table first (needed for foreign key)
+CREATE TABLE IF NOT EXISTS reasoning_sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE,
+    objective TEXT NOT NULL,
+    domain VARCHAR(255),
+    initial_complexity INTEGER,
+    final_complexity INTEGER,
+    
+    -- Session outcomes
+    goal_achieved BOOLEAN NOT NULL DEFAULT false,
+    confidence_level DECIMAL(3,2) NOT NULL DEFAULT 0.0,
+    total_thoughts INTEGER DEFAULT 0,
+    revision_count INTEGER DEFAULT 0,
+    branch_count INTEGER DEFAULT 0,
+    
+    -- Session patterns
+    cognitive_roles_used TEXT[],
+    metacognitive_interventions INTEGER DEFAULT 0,
+    effectiveness_score DECIMAL(3,2),
+    
+    -- Learning insights
+    lessons_learned TEXT[],
+    successful_strategies TEXT[],
+    failed_approaches TEXT[],
+    
+    tags TEXT[],
+    
+    -- Audit fields
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create stored_thoughts table
 CREATE TABLE IF NOT EXISTS stored_thoughts (
     id VARCHAR(255) PRIMARY KEY,
-    session_id VARCHAR(255) NOT NULL,
+    session_id VARCHAR(255) NOT NULL REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
     thought TEXT NOT NULL,
     thought_number INTEGER NOT NULL,
     total_thoughts INTEGER NOT NULL,
@@ -157,40 +191,6 @@ CREATE TABLE IF NOT EXISTS stored_thoughts (
     -- Output for reflection
     output TEXT,
     context_trace TEXT[],
-    
-    -- Audit fields
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create reasoning_sessions table
-CREATE TABLE IF NOT EXISTS reasoning_sessions (
-    id VARCHAR(255) PRIMARY KEY,
-    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    end_time TIMESTAMP WITH TIME ZONE,
-    objective TEXT NOT NULL,
-    domain VARCHAR(255),
-    initial_complexity INTEGER,
-    final_complexity INTEGER,
-    
-    -- Session outcomes
-    goal_achieved BOOLEAN NOT NULL DEFAULT false,
-    confidence_level DECIMAL(3,2) NOT NULL DEFAULT 0.0,
-    total_thoughts INTEGER DEFAULT 0,
-    revision_count INTEGER DEFAULT 0,
-    branch_count INTEGER DEFAULT 0,
-    
-    -- Session patterns
-    cognitive_roles_used TEXT[],
-    metacognitive_interventions INTEGER DEFAULT 0,
-    effectiveness_score DECIMAL(3,2),
-    
-    -- Learning insights
-    lessons_learned TEXT[],
-    successful_strategies TEXT[],
-    failed_approaches TEXT[],
-    
-    tags TEXT[],
     
     -- Audit fields
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
