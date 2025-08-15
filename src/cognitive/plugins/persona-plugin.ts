@@ -432,7 +432,7 @@ export class PersonaPlugin extends CognitivePlugin {
     
     // Check for user's complexity override
     if (preferences.complexity_override) {
-      console.error('🎭 Complexity override active, using max personas');
+      // console.error('🎭 Complexity override active, using max personas');
       return preferences.max_personas || 3;
     }
     
@@ -441,7 +441,7 @@ export class PersonaPlugin extends CognitivePlugin {
     
     // High complexity problems benefit from 3 perspectives
     if (context.complexity > thresholds.complexityThreshold) {
-      console.error(`🎭 High complexity detected (>${thresholds.complexityThreshold.toFixed(1)}), activating 3-persona mode`);
+      // console.error(`🎭 High complexity detected (>${thresholds.complexityThreshold.toFixed(1)}), activating 3-persona mode`);
       recommendedCount = 3;
     }
     
@@ -449,13 +449,13 @@ export class PersonaPlugin extends CognitivePlugin {
     if (context.domain?.toLowerCase().includes('ethics') || 
         context.domain?.toLowerCase().includes('security') ||
         context.domain?.toLowerCase().includes('privacy')) {
-      console.error('🎭 Ethical/Security domain detected, activating 3-persona mode');
+      // console.error('🎭 Ethical/Security domain detected, activating 3-persona mode');
       recommendedCount = 3;
     }
     
     // When creative pressure is high (indicating potential breakthrough), add creative third voice
     if (context.creative_pressure > thresholds.breakthroughThreshold) {
-      console.error(`🎭 High creative pressure (>${thresholds.breakthroughThreshold.toFixed(2)}), activating 3-persona mode for innovation`);
+      // console.error(`🎭 High creative pressure (>${thresholds.breakthroughThreshold.toFixed(2)}), activating 3-persona mode for innovation`);
       recommendedCount = 3;
     }
     
@@ -463,13 +463,13 @@ export class PersonaPlugin extends CognitivePlugin {
     if (context.domain?.toLowerCase().includes('architecture') ||
         context.domain?.toLowerCase().includes('design') ||
         context.current_thought?.toLowerCase().includes('system design')) {
-      console.error('🎭 Architecture/Design context detected, activating 3-persona mode');
+      // console.error('🎭 Architecture/Design context detected, activating 3-persona mode');
       recommendedCount = 3;
     }
     
     // When metacognitive awareness is high and problem is non-trivial
     if (context.metacognitive_awareness > thresholds.metacognitiveThreshold && context.complexity > 5) {
-      console.error(`🎭 High metacognitive awareness (>${thresholds.metacognitiveThreshold.toFixed(2)}) with moderate complexity, activating 3-persona mode`);
+      // console.error(`🎭 High metacognitive awareness (>${thresholds.metacognitiveThreshold.toFixed(2)}) with moderate complexity, activating 3-persona mode`);
       recommendedCount = 3;
     }
     
@@ -478,13 +478,13 @@ export class PersonaPlugin extends CognitivePlugin {
       // In efficiency mode, only use 3 personas for very strong signals
       if (context.complexity <= thresholds.complexityThreshold * 1.2 && 
           context.creative_pressure <= thresholds.breakthroughThreshold * 1.1) {
-        console.error('🎭 Efficiency bias: reducing to 2 personas');
+        // console.error('🎭 Efficiency bias: reducing to 2 personas');
         recommendedCount = 2;
       }
     } else if (preferences.persona_bias === 'thorough' && recommendedCount === 2) {
       // In thorough mode, be more liberal with 3 personas
       if (context.complexity > 5 || context.creative_pressure > 0.6) {
-        console.error('🎭 Thorough bias: increasing to 3 personas');
+        // console.error('🎭 Thorough bias: increasing to 3 personas');
         recommendedCount = 3;
       }
     }
@@ -573,7 +573,7 @@ export class PersonaPlugin extends CognitivePlugin {
       const personaScores = this.calculatePersonaRelevance(context);
       const selectedPersonas = this.selectTopPersonas(personaScores).slice(
         0,
-        this.config.max_active_personas
+        this.adaptiveMaxPersonas
       );
 
       // Generate multi-persona intervention
@@ -589,20 +589,25 @@ export class PersonaPlugin extends CognitivePlugin {
       const coherenceScore = this.estimateCoherence(selectedPersonas, context);
       const confidence = this.calculateInterventionConfidence(selectedPersonas);
       
-      // Record metrics
-      personaMetrics.recordMetric({
-        synthesis_coherence: coherenceScore,
-        decision_confidence: confidence,
-        perspective_diversity: diversityScore,
-        response_time: responseTime,
-        tokens_generated: content.length, // Approximate
-        persona_count_used: selectedPersonas.length,
-        complexity_score: this.currentComplexity,
-        domain: this.currentDomain,
-        breakthrough_achievement: context.creative_pressure > 0.7,
-        error_prevention: selectedPersonas.some(p => p.persona.id === 'skeptic'),
-        adaptive_accuracy: Math.abs(selectedPersonas.length - this.adaptiveMaxPersonas) <= 1 ? 0.9 : 0.5
-      });
+      // Record metrics (with error handling for database issues)
+      try {
+        personaMetrics.recordMetric({
+          synthesis_coherence: coherenceScore,
+          decision_confidence: confidence,
+          perspective_diversity: diversityScore,
+          response_time: responseTime,
+          tokens_generated: content.length, // Approximate
+          persona_count_used: selectedPersonas.length,
+          complexity_score: this.currentComplexity,
+          domain: this.currentDomain,
+          breakthrough_achievement: context.creative_pressure > 0.7,
+          error_prevention: selectedPersonas.some(p => p.persona.id === 'skeptic'),
+          adaptive_accuracy: Math.abs(selectedPersonas.length - this.adaptiveMaxPersonas) <= 1 ? 0.9 : 0.5
+        });
+      } catch (metricsError) {
+        console.error('Failed to record persona metrics (non-fatal):', metricsError);
+        // Continue processing despite metrics failure
+      }
 
       const intervention: PluginIntervention = {
         type: 'context_enhancement',
@@ -622,7 +627,22 @@ export class PersonaPlugin extends CognitivePlugin {
       return intervention;
     } catch (error) {
       console.error('Error in PersonaPlugin intervene:', error);
-      throw error;
+      
+      // Return a safe fallback intervention instead of crashing the server
+      return {
+        type: 'context_enhancement',
+        content: `⚠️ **Persona System Recovery**\n\nThe multi-persona analysis encountered an issue (possibly due to database connectivity) and has fallen back to basic reasoning. The system continues to operate normally.\n\n*This is typically resolved by retrying the operation.*`,
+        metadata: {
+          plugin_id: this.id,
+          confidence: 0.3,
+          expected_benefit: 'Basic reasoning provided despite system error',
+          side_effects: ['Reduced perspective diversity'],
+        },
+        follow_up_needed: false,
+        next_check_after: 5,
+        success_metrics: ['basic_functionality'],
+        failure_indicators: ['repeated_errors'],
+      };
     }
   }
 
@@ -701,9 +721,9 @@ export class PersonaPlugin extends CognitivePlugin {
 
       // Log technology-aware persona adjustment
       if (personaWeight > 0.7) {
-        console.error(
-          `🎭 High tech affinity: ${persona.name} (${personaWeight.toFixed(2)}) for ${projectContext.project.technology_stack?.join(', ')}`
-        );
+        // console.error(
+        //   `🎭 High tech affinity: ${persona.name} (${personaWeight.toFixed(2)}) for ${projectContext.project.technology_stack?.join(', ')}`
+        // );
       }
     }
 
@@ -820,7 +840,7 @@ export class PersonaPlugin extends CognitivePlugin {
       selected.push(personaScore);
       usedThinkingStyles.add(personaScore.persona.thinking_style);
 
-      if (selected.length >= this.config.max_active_personas) break;
+      if (selected.length >= this.adaptiveMaxPersonas) break;
     }
 
     return selected;

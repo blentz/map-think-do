@@ -68,6 +68,9 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   private thoughtAnalyzer: ThoughtQualityAnalyzer;
   private pendingOperations: Set<Promise<any>> = new Set();
 
+  // Connection pool management for async operations
+  private asyncOperationsSemaphore: { count: number; max: number } = { count: 0, max: 3 };
+
   // Project caching for single-user optimization
   private projectCache = new Map<string, Project>();
   private projectPathCache = new Map<string, Project>();
@@ -303,7 +306,7 @@ export class PostgreSQLMemoryStore extends MemoryStore {
   }
 
   /**
-   * Track an async operation and handle its completion
+   * Track an async operation and handle its completion with connection pool limits
    */
   private trackAsyncOperation<T>(operation: Promise<T>): Promise<T> {
     if (this.isShuttingDown) {
@@ -318,6 +321,31 @@ export class PostgreSQLMemoryStore extends MemoryStore {
     });
 
     return cleanupOperation;
+  }
+
+  /**
+   * Track an async operation with connection pool limits to prevent exhaustion
+   */
+  private trackAsyncOperationWithLimit<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.isShuttingDown) {
+      return Promise.resolve(undefined as T);
+    }
+
+    // If we're at the semaphore limit, skip this operation to prevent connection exhaustion
+    if (this.asyncOperationsSemaphore.count >= this.asyncOperationsSemaphore.max) {
+      console.error(`🚦 Skipping async operation (${this.asyncOperationsSemaphore.count}/${this.asyncOperationsSemaphore.max} active)`);
+      return Promise.resolve(undefined as T);
+    }
+
+    // Increment semaphore count
+    this.asyncOperationsSemaphore.count++;
+
+    const wrappedOperation = operation().finally(() => {
+      // Decrement semaphore count when operation completes
+      this.asyncOperationsSemaphore.count--;
+    });
+
+    return this.trackAsyncOperation(wrappedOperation);
   }
 
   /**
@@ -417,46 +445,41 @@ export class PostgreSQLMemoryStore extends MemoryStore {
 
     await this.query(query, params);
 
-    // Generate and store embedding asynchronously but tracked
-    this.trackAsyncOperation(
-      this.generateAndStoreThoughtEmbedding(thought.id, limitedThought)
-        .then(() => {
-          // After thought embedding is stored, update session embeddings
-          return this.trackAsyncOperation(
-            this.updateSessionEmbeddings(thought.session_id).catch(error => {
-              if (this.isInitialized && !this.isShuttingDown) {
-                console.warn(
-                  `Failed to update session embeddings for ${thought.session_id}:`,
-                  error
-                );
-              }
-            })
-          );
-        })
-        .then(() => {
-          // Update pattern embeddings if patterns were detected
-          if (thought.patterns_detected && thought.patterns_detected.length > 0) {
-            // First update pattern frequencies, then generate embeddings
-            this.trackAsyncOperation(
-              this.updatePatternEmbeddings()
-                .then(() => {
-                  // Generate embeddings for new patterns after updating frequencies
-                  return this.generatePatternEmbeddings(thought.patterns_detected!);
-                })
-                .catch(error => {
-                  if (this.isInitialized && !this.isShuttingDown) {
-                    console.warn('Failed to update or generate pattern embeddings:', error);
-                  }
-                })
+    // Generate and store embedding asynchronously with connection pool limits to prevent exhaustion
+    this.trackAsyncOperationWithLimit(async () => {
+      try {
+        // Generate thought embedding
+        await this.generateAndStoreThoughtEmbedding(thought.id, limitedThought);
+        
+        // Update session embeddings
+        await this.updateSessionEmbeddings(thought.session_id).catch(error => {
+          if (this.isInitialized && !this.isShuttingDown) {
+            console.warn(
+              `Failed to update session embeddings for ${thought.session_id}:`,
+              error
             );
           }
-        })
-        .catch(error => {
-          if (this.isInitialized && !this.isShuttingDown) {
-            console.warn(`Failed to generate embedding for thought ${thought.id}:`, error);
-          }
-        })
-    );
+        });
+
+        // Update pattern embeddings if patterns were detected
+        if (thought.patterns_detected && thought.patterns_detected.length > 0) {
+          await this.updatePatternEmbeddings()
+            .then(() => {
+              // Generate embeddings for new patterns after updating frequencies
+              return this.generatePatternEmbeddings(thought.patterns_detected!);
+            })
+            .catch(error => {
+              if (this.isInitialized && !this.isShuttingDown) {
+                console.warn('Failed to update or generate pattern embeddings:', error);
+              }
+            });
+        }
+      } catch (error) {
+        if (this.isInitialized && !this.isShuttingDown) {
+          console.warn(`Failed to generate embedding for thought ${thought.id}:`, error);
+        }
+      }
+    });
   }
 
   /**
@@ -506,14 +529,16 @@ export class PostgreSQLMemoryStore extends MemoryStore {
 
     await this.query(query, params);
 
-    // Generate session objective embedding asynchronously but tracked
-    this.trackAsyncOperation(
-      this.generateAndStoreSessionObjectiveEmbedding(session.id, session.objective).catch(error => {
+    // Generate session objective embedding asynchronously with connection pool limits
+    this.trackAsyncOperationWithLimit(async () => {
+      try {
+        await this.generateAndStoreSessionObjectiveEmbedding(session.id, session.objective);
+      } catch (error) {
         if (this.isInitialized && !this.isShuttingDown) {
           console.warn(`Failed to generate session objective embedding for ${session.id}:`, error);
         }
-      })
-    );
+      }
+    });
   }
 
   /**
@@ -1787,11 +1812,12 @@ export class PostgreSQLMemoryStore extends MemoryStore {
       const embeddingService = getEmbeddingService();
       const result = await embeddingService.generateEmbedding(objective);
 
-      // Store session objective embedding directly in session_embeddings table
-      await this.query(
-        'INSERT INTO session_embeddings (session_id, objective_embedding, embedding_model) VALUES ($1, $2, $3) ON CONFLICT (session_id) DO UPDATE SET objective_embedding = EXCLUDED.objective_embedding, embedding_model = EXCLUDED.embedding_model, updated_at = CURRENT_TIMESTAMP',
-        [sessionId, `[${result.embedding.join(',')}]`, result.model]
-      );
+      // Use stored procedure for safe ARM64-compatible session embedding storage
+      await this.query('SELECT upsert_session_embedding($1, $2, $3)', [
+        sessionId,
+        `[${result.embedding.join(',')}]`,
+        result.model,
+      ]);
       console.error(
         `✅ Generated session objective embedding for ${sessionId} (${result.processingTime}ms)`
       );

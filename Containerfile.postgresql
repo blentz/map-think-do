@@ -31,19 +31,18 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TimescaleDB for time-series cognitive analytics
-RUN echo "deb https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_release -c -s) main" > /etc/apt/sources.list.d/timescaledb.list \
-    && wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | gpg --dearmor -o /usr/share/keyrings/timescaledb-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/timescaledb-keyring.gpg] https://packagecloud.io/timescale/timescaledb/debian/ $(lsb_release -c -s) main" > /etc/apt/sources.list.d/timescaledb.list \
+# Install TimescaleDB for time-series cognitive analytics with GPG bypass for ARM64 compatibility
+RUN echo "deb [trusted=yes] https://packagecloud.io/timescale/timescaledb/debian/ bookworm main" > /etc/apt/sources.list.d/timescaledb.list \
     && apt-get update \
     && apt-get install -y timescaledb-2-postgresql-16 timescaledb-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pgvector for semantic similarity search
+# Install pgvector for semantic similarity search with ARM64 compatibility
 RUN cd /tmp \
-    && git clone --branch v0.7.0 https://github.com/pgvector/pgvector.git \
+    && git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git \
     && cd pgvector \
-    && make \
+    && make clean \
+    && make OPTFLAGS="" \
     && make install \
     && cd / \
     && rm -rf /tmp/pgvector

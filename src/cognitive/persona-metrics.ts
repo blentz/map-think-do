@@ -15,7 +15,7 @@ export interface PersonaMetrics {
   // Efficiency Metrics
   response_time: number; // ms: Total processing time
   tokens_generated: number; // Count of tokens in response
-  persona_activation_rate: Map<number, number>; // How often each count is used
+  persona_activation_rate: Record<number, number>; // How often each count is used
   adaptive_accuracy: number; // 0-1: How well system predicts optimal count
   
   // Outcome Metrics
@@ -66,7 +66,7 @@ export class PersonaMetricsCollector {
       conflict_resolution_time: metric.conflict_resolution_time ?? 0,
       response_time: metric.response_time ?? 0,
       tokens_generated: metric.tokens_generated ?? 0,
-      persona_activation_rate: metric.persona_activation_rate ?? new Map(),
+      persona_activation_rate: metric.persona_activation_rate ?? {},
       adaptive_accuracy: metric.adaptive_accuracy ?? 0.5,
       user_satisfaction: metric.user_satisfaction ?? 0.5,
       revision_rate: metric.revision_rate ?? 0,
@@ -145,40 +145,34 @@ export class PersonaMetricsCollector {
     const avgDiversity = this.calculateAverage(recentMetrics, 'perspective_diversity');
     
     // Count persona usage patterns
-    const personaCountUsage = new Map<number, number>();
+    const personaCountUsage: Record<number, number> = {};
     recentMetrics.forEach(m => {
       const count = m.persona_count_used;
-      personaCountUsage.set(count, (personaCountUsage.get(count) || 0) + 1);
+      personaCountUsage[count] = (personaCountUsage[count] || 0) + 1;
     });
     
     // Calculate breakthrough rate for different persona counts
-    const breakthroughsByCount = new Map<number, number>();
-    const errorPreventionByCount = new Map<number, number>();
+    const breakthroughsByCount: Record<number, number> = {};
+    const errorPreventionByCount: Record<number, number> = {};
     
     recentMetrics.forEach(m => {
       if (m.breakthrough_achievement) {
-        breakthroughsByCount.set(
-          m.persona_count_used,
-          (breakthroughsByCount.get(m.persona_count_used) || 0) + 1
-        );
+        breakthroughsByCount[m.persona_count_used] = (breakthroughsByCount[m.persona_count_used] || 0) + 1;
       }
       if (m.error_prevention) {
-        errorPreventionByCount.set(
-          m.persona_count_used,
-          (errorPreventionByCount.get(m.persona_count_used) || 0) + 1
-        );
+        errorPreventionByCount[m.persona_count_used] = (errorPreventionByCount[m.persona_count_used] || 0) + 1;
       }
     });
     
-    // Log performance insights
-    console.error('📊 Persona Performance Analysis:');
-    console.error(`  Avg Response Time: ${avgResponseTime.toFixed(0)}ms`);
-    console.error(`  Avg Coherence: ${avgCoherence.toFixed(2)}`);
-    console.error(`  Avg Confidence: ${avgConfidence.toFixed(2)}`);
-    console.error(`  Avg Diversity: ${avgDiversity.toFixed(2)}`);
-    console.error(`  Persona Count Usage:`, Array.from(personaCountUsage.entries()));
-    console.error(`  Breakthroughs by Count:`, Array.from(breakthroughsByCount.entries()));
-    console.error(`  Error Prevention by Count:`, Array.from(errorPreventionByCount.entries()));
+    // Log performance insights (disabled in MCP server context)
+    // console.error('📊 Persona Performance Analysis:');
+    // console.error(`  Avg Response Time: ${avgResponseTime.toFixed(0)}ms`);
+    // console.error(`  Avg Coherence: ${avgCoherence.toFixed(2)}`);
+    // console.error(`  Avg Confidence: ${avgConfidence.toFixed(2)}`);
+    // console.error(`  Avg Diversity: ${avgDiversity.toFixed(2)}`);
+    // console.error(`  Persona Count Usage:`, Object.entries(personaCountUsage));
+    // console.error(`  Breakthroughs by Count:`, Object.entries(breakthroughsByCount));
+    // console.error(`  Error Prevention by Count:`, Object.entries(errorPreventionByCount));
     
     // Auto-adjust preferences if patterns emerge
     this.suggestOptimizations(recentMetrics);
@@ -193,12 +187,12 @@ export class PersonaMetricsCollector {
     
     // If response times are too high and coherence is good, suggest efficiency mode
     if (avgResponseTime > 2000 && avgCoherence > 0.7) {
-      console.error('💡 Suggestion: Consider "efficiency" bias - response times are high but quality is good');
+      // console.error('💡 Suggestion: Consider "efficiency" bias - response times are high but quality is good');
     }
     
     // If coherence is low, suggest thorough mode
     if (avgCoherence < 0.5) {
-      console.error('💡 Suggestion: Consider "thorough" bias - coherence could be improved with more perspectives');
+      // console.error('💡 Suggestion: Consider "thorough" bias - coherence could be improved with more perspectives');
     }
     
     // Check if 3-persona mode consistently produces breakthroughs
@@ -206,7 +200,7 @@ export class PersonaMetricsCollector {
     if (threePersonaMetrics.length > 10) {
       const breakthroughRate = threePersonaMetrics.filter(m => m.breakthrough_achievement).length / threePersonaMetrics.length;
       if (breakthroughRate > 0.3) {
-        console.error('💡 Insight: 3-persona mode achieving ${(breakthroughRate * 100).toFixed(0)}% breakthrough rate');
+        // console.error(`💡 Insight: 3-persona mode achieving ${(breakthroughRate * 100).toFixed(0)}% breakthrough rate`);
       }
     }
   }
@@ -226,7 +220,7 @@ export class PersonaMetricsCollector {
     totalMetrics: number;
     avgResponseTime: number;
     avgCoherence: number;
-    personaCountDistribution: Map<number, number>;
+    personaCountDistribution: Record<number, number>;
     breakthroughRate: number;
     errorPreventionRate: number;
   } {
@@ -235,15 +229,15 @@ export class PersonaMetricsCollector {
         totalMetrics: 0,
         avgResponseTime: 0,
         avgCoherence: 0,
-        personaCountDistribution: new Map(),
+        personaCountDistribution: {},
         breakthroughRate: 0,
         errorPreventionRate: 0
       };
     }
     
-    const distribution = new Map<number, number>();
+    const distribution: Record<number, number> = {};
     this.metrics.forEach(m => {
-      distribution.set(m.persona_count_used, (distribution.get(m.persona_count_used) || 0) + 1);
+      distribution[m.persona_count_used] = (distribution[m.persona_count_used] || 0) + 1;
     });
     
     return {
@@ -261,7 +255,7 @@ export class PersonaMetricsCollector {
    */
   updatePreferences(newPreferences: Partial<PersonaPreferences>): void {
     this.preferences = { ...this.preferences, ...newPreferences };
-    console.error('🎯 Persona preferences updated:', this.preferences);
+    // console.error('🎯 Persona preferences updated:', this.preferences);
   }
   
   /**
@@ -283,7 +277,7 @@ export class PersonaMetricsCollector {
    */
   clearMetrics(): void {
     this.metrics = [];
-    console.error('🧹 Persona metrics cleared');
+    // console.error('🧹 Persona metrics cleared');
   }
 }
 

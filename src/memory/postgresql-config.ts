@@ -61,8 +61,8 @@ const DEFAULT_CONFIG: PostgreSQLConfig = {
   // Pool configuration optimized for cognitive workloads and memory usage
   max: 10, // Reduced max connections to prevent OOM
   min: 2, // Minimum connections maintained
-  idleTimeoutMillis: 15000, // 15 seconds idle timeout (reduced)
-  connectionTimeoutMillis: 5000, // 5 seconds connection timeout (reduced)
+  idleTimeoutMillis: 30000, // 30 seconds idle timeout (increased for 3-persona processing)
+  connectionTimeoutMillis: 15000, // 15 seconds connection timeout (increased for 3-persona processing)
 
   // Advanced connection settings
   keepAlive: true,
@@ -74,10 +74,10 @@ const DEFAULT_CONFIG: PostgreSQLConfig = {
   enableVectorSearch: false, // pgvector not available by default
   enableGraphQueries: false, // Apache AGE not available by default
 
-  // Performance settings (in milliseconds) - reduced to prevent long-running queries
-  statementTimeout: 60000, // 1 minute (reduced from 5 minutes)
-  queryTimeout: 30000, // 30 seconds (reduced from 1 minute)
-  lockTimeout: 15000, // 15 seconds (reduced)
+  // Performance settings (in milliseconds) - adjusted for 3-persona processing
+  statementTimeout: 120000, // 2 minutes (increased for 3-persona processing)
+  queryTimeout: 60000, // 1 minute (increased for 3-persona processing) 
+  lockTimeout: 30000, // 30 seconds (increased for 3-persona processing)
 
   // Development settings
   debug: false,

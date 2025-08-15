@@ -440,6 +440,7 @@ export class CodeReasoningServer {
     }
     // Initialize cognitive orchestrator with dependency injection
     this.cognitiveOrchestrator = await createCognitiveOrchestrator({
+      memoryStore: this.memoryStore, // Pass the server's memory store to the orchestrator
       config: {
         max_concurrent_interventions: 5,
         intervention_cooldown_ms: 500,
@@ -1034,15 +1035,83 @@ export class CodeReasoningServer {
   /**
    * Update prompt processing status after thought completion
    */
+  /**
+   * Calculate reasoning improvement based on Bayesian Theory of Mind principles
+   * Inspired by Kleiman-Weiner et al.'s Bayesian Reciprocator model
+   */
+  private calculateBayesianReasoningImprovement(
+    cognitiveState: any,
+    outcomeQuality: 'excellent' | 'good' | 'fair' | 'poor',
+    success: boolean
+  ): number {
+
+    // Extract key Bayesian Theory of Mind metrics
+    const confidenceTrajectory = cognitiveState.confidence_trajectory || [];
+    const metacognitiveAwareness = cognitiveState.metacognitive_awareness || 0;
+    const creativePressure = cognitiveState.creative_pressure || 0;
+    const breakthroughLikelihood = cognitiveState.breakthrough_likelihood || 0;
+    const insightPotential = cognitiveState.insight_potential || 0;
+
+    // 1. Belief Convergence Rate: Measure confidence trajectory stability
+    let confidenceConvergenceRate = 0;
+    if (confidenceTrajectory.length > 1) {
+      // Calculate rate of change in confidence (lower variance = better convergence)
+      const recentConfidence = confidenceTrajectory.slice(-3);
+      const variance = recentConfidence.reduce((acc: number, val: number, idx: number) => {
+        if (idx === 0) return 0;
+        return acc + Math.pow(val - recentConfidence[idx - 1], 2);
+      }, 0) / Math.max(recentConfidence.length - 1, 1);
+      confidenceConvergenceRate = Math.max(0, 1 - variance); // Lower variance = higher convergence
+    }
+
+    // 2. Predictive Accuracy: Use metacognitive awareness as proxy
+    const predictiveAccuracy = metacognitiveAwareness;
+
+    // 3. Adaptation Speed: Rate of belief updating (combination of breakthrough + insight)
+    const adaptationSpeed = (breakthroughLikelihood + insightPotential) / 2;
+
+    // 4. Uncertainty Robustness: Creative pressure stability
+    const uncertaintyRobustness = Math.min(creativePressure, 1.0);
+
+    // Outcome quality modifiers
+    const qualityModifiers = {
+      'excellent': 1.2,
+      'good': 1.0,
+      'fair': 0.8,
+      'poor': 0.6
+    };
+    const qualityModifier = qualityModifiers[outcomeQuality];
+
+    // Bayesian-inspired weighted combination
+    const baseImprovement = 
+      0.3 * confidenceConvergenceRate +
+      0.3 * predictiveAccuracy +
+      0.2 * adaptationSpeed +
+      0.2 * uncertaintyRobustness;
+
+    // Apply outcome quality and success modifiers
+    const reasoningImprovement = baseImprovement * qualityModifier * (success ? 1 : -0.5);
+
+    // Normalize to reasonable range [-0.3, 0.3]
+    return Math.max(-0.3, Math.min(0.3, reasoningImprovement));
+  }
+
   private async updatePromptProcessingStatus(
     promptId: string,
     success: boolean,
-    outcomeQuality: 'excellent' | 'good' | 'fair' | 'poor'
+    outcomeQuality: 'excellent' | 'good' | 'fair' | 'poor',
+    cognitiveState?: any
   ): Promise<void> {
     try {
+      const reasoningImprovement = this.calculateBayesianReasoningImprovement(
+        cognitiveState,
+        outcomeQuality,
+        success
+      );
+
       await this.memoryStore.updatePrompt(promptId, {
         processing_success: success,
-        reasoning_improvement: success ? 0.1 : -0.1, // Simple heuristic
+        reasoning_improvement: reasoningImprovement,
       });
     } catch (error) {
       console.error('⚠️ Error updating prompt processing status:', error);
@@ -1051,11 +1120,13 @@ export class CodeReasoningServer {
 
   /* ------------------------------ Main Handler ----------------------------- */
 
+
   public async processThought(input: unknown): Promise<ServerResult> {
     const t0 = performance.now();
 
     try {
       const data = ThoughtDataSchema.parse(input);
+
 
       // Sanity limits with contextual guidance for AI recovery
       if (data.thought_number > MAX_THOUGHTS) {
@@ -1298,7 +1369,8 @@ export class CodeReasoningServer {
         await this.updatePromptProcessingStatus(
           promptId,
           true,
-          this.assessOutcomeQuality(cognitiveResult)
+          this.assessOutcomeQuality(cognitiveResult),
+          cognitiveResult.cognitiveState
         );
       }
 

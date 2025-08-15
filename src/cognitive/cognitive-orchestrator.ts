@@ -755,11 +755,17 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     context: CognitiveContext,
     interventions: PluginIntervention[]
   ): Promise<CognitiveInsight[]> {
+    console.error(`🔧 DEBUG: emergence_detection_enabled = ${this.config.emergence_detection_enabled}`);
+    
     if (!this.config.emergence_detection_enabled) {
+      console.error('🚫 Insight detection disabled by config, returning empty array');
       return [];
     }
 
+    console.error('🔍 Calling insightDetector.detectInsights...');
     const insights = await this.insightDetector.detectInsights(context, interventions);
+    console.error(`🔍 Received ${insights.length} insights from detector`);
+    
     for (const insight of insights) {
       this.insightHistory.push(insight);
     }
@@ -796,8 +802,12 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Insight-based recommendations
     if (insights.length > 0) {
       recommendations.push(
-        `${insights.length} cognitive insight(s) detected - consider exploring these further`
+        `${insights.length} cognitive insight(s) detected:`
       );
+      // Add the actual insight descriptions to recommendations
+      insights.forEach((insight, index) => {
+        recommendations.push(`${index + 1}. ${insight.type}: ${insight.description}`);
+      });
     }
 
     // Emotional state recommendations
@@ -1237,180 +1247,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     return Object.keys(constraints).length > 0 ? constraints : undefined;
   }
 
-  // Insight detection methods
-  private async detectPatternInsights(context: CognitiveContext): Promise<CognitiveInsight[]> {
-    const insights: CognitiveInsight[] = [];
-
-    if (!this.memoryStore || !this.config.pattern_recognition_threshold) return insights;
-
-    try {
-      // Look for patterns in thought history
-      const recentThoughts = context.thought_history.slice(-10);
-
-      // Detect recurring themes
-      const themes = this.extractThemes(recentThoughts);
-      const recurringThemes = themes.filter(theme => theme.frequency >= 3);
-
-      for (const theme of recurringThemes) {
-        insights.push({
-          type: 'pattern_recognition',
-          description: `Recurring theme detected: "${theme.pattern}" appears ${theme.frequency} times`,
-          confidence: Math.min(0.9, theme.frequency / 5),
-          impact_potential: theme.frequency > 4 ? 0.8 : 0.6,
-          implications: [
-            `The pattern "${theme.pattern}" may represent a core concept in your reasoning`,
-            'This recurring theme could indicate a cognitive bias or valuable insight',
-            'Pattern frequency suggests high relevance to current problem domain',
-          ],
-          evidence: theme.contexts,
-          novelty_score: 0.3,
-        });
-      }
-
-      // Detect progression patterns
-      const progressionInsights = this.detectProgressionPatterns(recentThoughts);
-      insights.push(...progressionInsights);
-
-      // Detect contradiction patterns
-      const contradictionInsights = this.detectContradictionPatterns(recentThoughts);
-      insights.push(...contradictionInsights);
-    } catch (error) {
-      console.error('Error detecting pattern insights:', error);
-    }
-
-    return insights;
-  }
-
-  private async detectBreakthroughs(
-    context: CognitiveContext,
-    interventions: PluginIntervention[]
-  ): Promise<CognitiveInsight[]> {
-    const insights: CognitiveInsight[] = [];
-
-    // Breakthrough indicators
-    const breakthroughScore = this.calculateBreakthroughScore(context, interventions);
-
-    if (breakthroughScore > this.config.breakthrough_detection_sensitivity) {
-      // High confidence level after period of uncertainty
-      const confidenceJump = this.detectConfidenceJump(context);
-      if (confidenceJump > 0.3) {
-        insights.push({
-          type: 'breakthrough',
-          description: `Potential breakthrough detected: confidence increased by ${(confidenceJump * 100).toFixed(1)}%`,
-          confidence: breakthroughScore,
-          impact_potential: 0.9,
-          implications: [
-            'This breakthrough may lead to accelerated problem solving',
-            'Increased confidence suggests resolution of key uncertainties',
-            'Pattern could be applicable to similar future challenges',
-          ],
-          evidence: [context.current_thought || 'current reasoning'],
-          novelty_score: 0.8,
-        });
-      }
-
-      // Sudden complexity reduction
-      const complexityReduction = this.detectComplexityReduction(context);
-      if (complexityReduction > 0.3) {
-        insights.push({
-          type: 'breakthrough',
-          description: `Simplification breakthrough: problem complexity reduced by ${(complexityReduction * 100).toFixed(1)}%`,
-          confidence: breakthroughScore * 0.9,
-          impact_potential: 0.9,
-          implications: [
-            'Complexity reduction indicates deeper understanding of core issues',
-            'Simplified approach may be more maintainable and scalable',
-            'This simplification pattern could apply to other complex problems',
-          ],
-          evidence: [context.current_thought || 'current reasoning'],
-          novelty_score: 0.7,
-        });
-      }
-
-      // Novel connection detection
-      const novelConnections = this.detectNovelConnections(context, interventions);
-      if (novelConnections.length > 0) {
-        insights.push({
-          type: 'breakthrough',
-          description: `Novel connections discovered: ${novelConnections.length} unexpected relationships found`,
-          confidence: breakthroughScore * 0.8,
-          impact_potential: 0.7,
-          implications: [
-            'Cross-domain connections may reveal universal principles',
-            'Novel relationships could lead to innovative solutions',
-            'These connections expand the solution space significantly',
-          ],
-          evidence: novelConnections,
-          novelty_score: 0.9,
-        });
-      }
-    }
-
-    return insights;
-  }
-
-  private async detectSynthesis(
-    context: CognitiveContext,
-    interventions: PluginIntervention[]
-  ): Promise<CognitiveInsight[]> {
-    const insights: CognitiveInsight[] = [];
-
-    // Detect integration of multiple perspectives
-    const perspectiveIntegration = this.analyzeMultiPerspectiveIntegration(interventions);
-    if (perspectiveIntegration.score > 0.7) {
-      insights.push({
-        type: 'synthesis',
-        description: `Successful synthesis of ${perspectiveIntegration.perspectives.length} different perspectives`,
-        confidence: perspectiveIntegration.score,
-        impact_potential: 0.8,
-        implications: [
-          'Multi-perspective synthesis reduces cognitive blind spots',
-          'Integrated approach is more robust than single-perspective solutions',
-          'This synthesis pattern can be applied to future complex problems',
-        ],
-        evidence: perspectiveIntegration.perspectives,
-        novelty_score: 0.6,
-      });
-    }
-
-    // Detect conceptual bridging
-    const conceptualBridges = this.detectConceptualBridging(context, interventions);
-    if (conceptualBridges.length > 0) {
-      insights.push({
-        type: 'synthesis',
-        description: `Conceptual bridging detected: ${conceptualBridges.length} domain connections made`,
-        confidence: 0.8,
-        impact_potential: 0.7,
-        implications: [
-          'Cross-domain bridging reveals transferable principles',
-          'Conceptual connections enable knowledge transfer between fields',
-          'This bridging approach can be systematically applied',
-        ],
-        evidence: conceptualBridges,
-        novelty_score: 0.7,
-      });
-    }
-
-    // Detect emergent understanding
-    const emergentUnderstanding = this.detectEmergentUnderstanding(context);
-    if (emergentUnderstanding.detected) {
-      insights.push({
-        type: 'synthesis',
-        description: `Emergent understanding: new insight emerged from combination of ideas`,
-        confidence: emergentUnderstanding.confidence,
-        impact_potential: 0.9,
-        implications: [
-          'Emergent understanding represents genuine cognitive breakthrough',
-          'This insight may have broader applications beyond current context',
-          'Emergence indicates successful integration of disparate concepts',
-        ],
-        evidence: [emergentUnderstanding.description],
-        novelty_score: 0.9,
-      });
-    }
-
-    return insights;
-  }
+  // Note: Insight detection methods moved to InsightDetector class to eliminate duplication
 
   // Learning and adaptation methods
   private updateCognitiveStateFromFeedback(outcome: string, impact_score: number): void {

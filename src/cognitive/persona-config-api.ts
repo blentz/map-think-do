@@ -94,7 +94,7 @@ export class PersonaConfigAPI {
     }
     
     // Check persona count distribution
-    const distribution = Array.from(summary.personaCountDistribution.entries());
+    const distribution = Object.entries(summary.personaCountDistribution).map(([count, usage]) => [parseInt(count), usage]);
     const mostUsed = distribution.sort((a, b) => b[1] - a[1])[0];
     if (mostUsed && mostUsed[0] !== 2) {
       recommendations.push(`System is naturally gravitating toward ${mostUsed[0]} personas - consider adjusting defaults`);
