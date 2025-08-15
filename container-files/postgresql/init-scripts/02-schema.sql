@@ -108,7 +108,6 @@ CREATE TABLE IF NOT EXISTS stored_thoughts (
     -- Primary identification
     id VARCHAR(50) PRIMARY KEY,
     session_id VARCHAR(50) NOT NULL REFERENCES reasoning_sessions(id) ON DELETE CASCADE,
-    prompt_id VARCHAR(50) REFERENCES stored_prompts(id) ON DELETE SET NULL,
     
     -- Core thought content
     thought TEXT NOT NULL,
@@ -181,10 +180,34 @@ CREATE INDEX IF NOT EXISTS idx_prompts_classification ON stored_prompts(prompt_t
 -- Array indexes for tags and patterns
 CREATE INDEX IF NOT EXISTS idx_thoughts_tags ON stored_thoughts USING GIN (tags) WHERE tags IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_thoughts_patterns ON stored_thoughts USING GIN (patterns_detected) WHERE patterns_detected IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_thoughts_prompt ON stored_thoughts(prompt_id) WHERE prompt_id IS NOT NULL;
 
 -- JSONB index for context
 CREATE INDEX IF NOT EXISTS idx_thoughts_context ON stored_thoughts USING GIN (context) WHERE context IS NOT NULL;
+
+-- =============================================================================
+-- ADD FOREIGN KEY RELATIONSHIPS AFTER ALL TABLES ARE CREATED
+-- =============================================================================
+
+\echo 'Adding foreign key relationships...'
+
+-- Add prompt_id column to stored_thoughts if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'stored_thoughts' 
+        AND column_name = 'prompt_id'
+    ) THEN
+        ALTER TABLE stored_thoughts 
+        ADD COLUMN prompt_id VARCHAR(50) REFERENCES stored_prompts(id) ON DELETE SET NULL;
+        
+        RAISE NOTICE 'Added prompt_id column to stored_thoughts table';
+    END IF;
+END $$;
+
+-- Create index for prompt_id after column is added
+CREATE INDEX IF NOT EXISTS idx_thoughts_prompt ON stored_thoughts(prompt_id) WHERE prompt_id IS NOT NULL;
 
 -- =============================================================================
 -- TIMESCALEDB SETUP (IF AVAILABLE)

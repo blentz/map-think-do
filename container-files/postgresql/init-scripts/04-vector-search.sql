@@ -130,37 +130,83 @@ END $$;
 
 \echo 'Creating vector indexes...';
 
--- Only create vector indexes if pgvector is available
+-- Only create vector indexes if pgvector is available and tables have data
 DO $$
+DECLARE
+    thought_count INTEGER;
+    session_count INTEGER;
+    prompt_count INTEGER;
+    pattern_count INTEGER;
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') THEN
-        RAISE NOTICE 'Creating vector indexes...';
+        RAISE NOTICE 'Checking data availability for vector indexes...';
         
-        -- IVFFlat index for thought embeddings (good for large datasets)
-        CREATE INDEX IF NOT EXISTS idx_thought_embeddings_vector 
-        ON thought_embeddings USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 100);
+        -- Check row counts
+        SELECT COUNT(*) INTO thought_count FROM thought_embeddings;
+        SELECT COUNT(*) INTO session_count FROM session_embeddings;
+        SELECT COUNT(*) INTO prompt_count FROM prompt_embeddings;
+        SELECT COUNT(*) INTO pattern_count FROM pattern_embeddings;
         
-        -- IVFFlat index for session embeddings
-        CREATE INDEX IF NOT EXISTS idx_session_embeddings_objective
-        ON session_embeddings USING ivfflat (objective_embedding vector_cosine_ops)
-        WITH (lists = 50);
+        -- IVFFlat indexes need at least 1000 rows to work properly
+        -- We'll use btree indexes initially and can upgrade to IVFFlat later
         
-        CREATE INDEX IF NOT EXISTS idx_session_embeddings_aggregated
-        ON session_embeddings USING ivfflat (aggregated_embedding vector_cosine_ops)
-        WITH (lists = 50);
+        -- Thought embeddings index
+        IF thought_count >= 1000 THEN
+            CREATE INDEX IF NOT EXISTS idx_thought_embeddings_vector 
+            ON thought_embeddings USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = 100);
+            RAISE NOTICE 'Created IVFFlat index for thought_embeddings';
+        ELSE
+            -- Use btree for small datasets
+            CREATE INDEX IF NOT EXISTS idx_thought_embeddings_id 
+            ON thought_embeddings(thought_id);
+            RAISE NOTICE 'Created btree index for thought_embeddings (% rows, need 1000+ for IVFFlat)', thought_count;
+        END IF;
         
-        -- IVFFlat index for prompt embeddings
-        CREATE INDEX IF NOT EXISTS idx_prompt_embeddings_vector 
-        ON prompt_embeddings USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 50);
+        -- Session embeddings indexes
+        IF session_count >= 500 THEN
+            CREATE INDEX IF NOT EXISTS idx_session_embeddings_objective
+            ON session_embeddings USING ivfflat (objective_embedding vector_cosine_ops)
+            WITH (lists = 50);
+            
+            CREATE INDEX IF NOT EXISTS idx_session_embeddings_aggregated
+            ON session_embeddings USING ivfflat (aggregated_embedding vector_cosine_ops)
+            WITH (lists = 50);
+            RAISE NOTICE 'Created IVFFlat indexes for session_embeddings';
+        ELSE
+            -- Use btree for small datasets
+            CREATE INDEX IF NOT EXISTS idx_session_embeddings_id 
+            ON session_embeddings(session_id);
+            RAISE NOTICE 'Created btree index for session_embeddings (% rows, need 500+ for IVFFlat)', session_count;
+        END IF;
         
-        -- HNSW index for pattern embeddings (good for smaller datasets, faster queries)
-        CREATE INDEX IF NOT EXISTS idx_pattern_embeddings_vector
-        ON pattern_embeddings USING hnsw (embedding vector_cosine_ops)
-        WITH (m = 16, ef_construction = 64);
+        -- Prompt embeddings index
+        IF prompt_count >= 500 THEN
+            CREATE INDEX IF NOT EXISTS idx_prompt_embeddings_vector 
+            ON prompt_embeddings USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = 50);
+            RAISE NOTICE 'Created IVFFlat index for prompt_embeddings';
+        ELSE
+            -- Use btree for small datasets
+            CREATE INDEX IF NOT EXISTS idx_prompt_embeddings_id 
+            ON prompt_embeddings(prompt_id);
+            RAISE NOTICE 'Created btree index for prompt_embeddings (% rows, need 500+ for IVFFlat)', prompt_count;
+        END IF;
         
-        RAISE NOTICE 'Vector indexes created successfully';
+        -- HNSW works better with small datasets, but still needs some data
+        IF pattern_count >= 10 THEN
+            CREATE INDEX IF NOT EXISTS idx_pattern_embeddings_vector
+            ON pattern_embeddings USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
+            RAISE NOTICE 'Created HNSW index for pattern_embeddings';
+        ELSE
+            -- Use btree for very small datasets
+            CREATE INDEX IF NOT EXISTS idx_pattern_embeddings_id 
+            ON pattern_embeddings(pattern_id);
+            RAISE NOTICE 'Created btree index for pattern_embeddings (% rows, need 10+ for HNSW)', pattern_count;
+        END IF;
+        
+        RAISE NOTICE 'Vector index creation completed';
     ELSE
         RAISE NOTICE 'pgvector not available, skipping vector indexes';
     END IF;
