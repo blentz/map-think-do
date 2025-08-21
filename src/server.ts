@@ -458,6 +458,29 @@ export class CodeReasoningServer {
       },
     });
 
+    // Initialize Phoenix metrics bridge if telemetry is enabled
+    if (this.cfg.telemetry?.enabled !== false) {
+      try {
+        const { createPrometheusExporter } = await import('./monitoring/prometheus-metrics.js');
+        const { PhoenixMetricsAdapter } = await import('./monitoring/phoenix-adapter.js');
+        
+        // Create Prometheus exporter
+        const prometheusExporter = createPrometheusExporter(this.memoryStore);
+        
+        // Initialize Phoenix adapter and connect it to Prometheus
+        const phoenixAdapter = PhoenixMetricsAdapter.getInstance();
+        phoenixAdapter.setPrometheusExporter(prometheusExporter);
+        
+        // Start the metrics bridge to export metrics to Phoenix
+        await phoenixAdapter.startMetricsBridge(30000); // Export every 30 seconds
+        
+        console.error('🌉 Phoenix metrics bridge initialized and started');
+      } catch (error) {
+        console.error('⚠️ Failed to initialize Phoenix metrics bridge:', error);
+        // Continue without metrics bridge
+      }
+    }
+
     console.error('🧠 Cognitive orchestrator initialized with dependency injection', {
       sessionId: this.currentSessionId,
       cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC',
@@ -2215,6 +2238,18 @@ export async function runServer(debugFlag = false): Promise<void> {
     await configManager.setValue('debug', true);
   }
 
+  // Initialize telemetry if enabled
+  if (config.telemetry?.enabled !== false) {
+    try {
+      const { initializeTelemetry } = await import('./telemetry/instrumentation.js');
+      await initializeTelemetry();
+      console.error('📊 Telemetry initialized successfully');
+    } catch (error) {
+      console.error('⚠️ Failed to initialize telemetry:', error);
+      // Continue without telemetry
+    }
+  }
+
   const serverMeta = { name: 'sentient-agi-reasoning-server', version: '1.0.0-AGI-MAGIC' } as const;
 
   // Configure server capabilities based on config
@@ -2347,6 +2382,22 @@ export async function runServer(debugFlag = false): Promise<void> {
   srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [CODE_REASONING_TOOL] }));
   srv.setRequestHandler(CallToolRequestSchema, async req => {
     if (req.params.name === CODE_REASONING_TOOL.name) {
+      // Instrument tool handler with telemetry if enabled
+      if (config.telemetry?.enabled !== false) {
+        try {
+          const { MCPInstrumentation } = await import('./telemetry/mcp-instrumentation.js');
+          const instrumentation = MCPInstrumentation.getInstance();
+          const instrumentedHandler = instrumentation.instrumentMCPHandler(
+            logic.processThought.bind(logic),
+            CODE_REASONING_TOOL.name
+          );
+          return await instrumentedHandler(req.params.arguments);
+        } catch (error) {
+          // Fall back to non-instrumented version if telemetry fails
+          console.error('⚠️ Telemetry instrumentation failed, falling back:', error);
+          return logic.processThought(req.params.arguments);
+        }
+      }
       return logic.processThought(req.params.arguments);
     } else {
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${req.params.name}`);
@@ -2393,6 +2444,17 @@ export async function runServer(debugFlag = false): Promise<void> {
       console.error('✅ Health check timer cleared');
     } catch (err) {
       console.error('⚠️ Error clearing health check timer:', err);
+    }
+
+    // Shutdown telemetry if enabled
+    if (config.telemetry?.enabled !== false) {
+      try {
+        const { shutdownTelemetry } = await import('./telemetry/instrumentation.js');
+        await shutdownTelemetry();
+        console.error('✅ Telemetry shutdown complete');
+      } catch (err) {
+        console.error('⚠️ Error shutting down telemetry:', err);
+      }
     }
 
     // Emergency timer cleanup

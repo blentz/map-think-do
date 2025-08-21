@@ -1,0 +1,860 @@
+[
+  {
+    "timestamp": "2025-08-03T01:51:14.846Z",
+    "metrics": {
+      "memory_efficiency": 0.5433428206847944,
+      "total_prompts": 142,
+      "avg_query_time": 1.5,
+      "classification_accuracy": 0.9201408450704225,
+      "intent_extraction_precision": 0.933309859154931,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:54:04.818Z",
+    "metrics": {
+      "memory_efficiency": 0.5496472585802356,
+      "total_prompts": 142,
+      "avg_query_time": 0.5833333333333334,
+      "classification_accuracy": 0.9201408450704225,
+      "intent_extraction_precision": 0.933309859154931,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:54:34.844Z",
+    "metrics": {
+      "memory_efficiency": 0.8218693154516749,
+      "total_prompts": 142,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9201408450704225,
+      "intent_extraction_precision": 0.933309859154931,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:55:04.848Z",
+    "metrics": {
+      "memory_efficiency": 0.8498281764827018,
+      "total_prompts": 142,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9201408450704225,
+      "intent_extraction_precision": 0.933309859154931,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:55:34.869Z",
+    "metrics": {
+      "memory_efficiency": 0.8755330604750138,
+      "total_prompts": 142,
+      "avg_query_time": 0.25,
+      "classification_accuracy": 0.9201408450704225,
+      "intent_extraction_precision": 0.933309859154931,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:56:04.869Z",
+    "metrics": {
+      "memory_efficiency": 0.7926355462737301,
+      "total_prompts": 142,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9201408450704225,
+      "intent_extraction_precision": 0.933309859154931,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:56:34.870Z",
+    "metrics": {
+      "memory_efficiency": 0.8168491854797332,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:57:04.889Z",
+    "metrics": {
+      "memory_efficiency": 0.8314805172355639,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:57:34.894Z",
+    "metrics": {
+      "memory_efficiency": 0.851994126922558,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:58:04.894Z",
+    "metrics": {
+      "memory_efficiency": 0.8209407042633567,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:58:34.902Z",
+    "metrics": {
+      "memory_efficiency": 0.8425842383971938,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:59:04.923Z",
+    "metrics": {
+      "memory_efficiency": 0.8634330308958446,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T01:59:34.930Z",
+    "metrics": {
+      "memory_efficiency": 0.8302920939017809,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:00:04.950Z",
+    "metrics": {
+      "memory_efficiency": 0.8505089930180788,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:00:34.969Z",
+    "metrics": {
+      "memory_efficiency": 0.8708223362452779,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:00:49.630Z",
+    "metrics": {
+      "memory_efficiency": 0.5310812799946676,
+      "total_prompts": 145,
+      "avg_query_time": 0.5833333333333334,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:01:19.656Z",
+    "metrics": {
+      "memory_efficiency": 0.8368272690749021,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:01:49.669Z",
+    "metrics": {
+      "memory_efficiency": 0.8664314692216322,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:02:19.674Z",
+    "metrics": {
+      "memory_efficiency": 0.8937320954443824,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:02:49.675Z",
+    "metrics": {
+      "memory_efficiency": 0.8081994571596244,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:03:19.694Z",
+    "metrics": {
+      "memory_efficiency": 0.8342472368935837,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:03:49.713Z",
+    "metrics": {
+      "memory_efficiency": 0.8510932566241076,
+      "total_prompts": 145,
+      "avg_query_time": 0.25,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:04:19.733Z",
+    "metrics": {
+      "memory_efficiency": 0.8733536260982976,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:04:49.741Z",
+    "metrics": {
+      "memory_efficiency": 0.8414574109349259,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:05:19.760Z",
+    "metrics": {
+      "memory_efficiency": 0.8646289169755629,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:05:49.780Z",
+    "metrics": {
+      "memory_efficiency": 0.8873081196801208,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:06:19.786Z",
+    "metrics": {
+      "memory_efficiency": 0.8530024068163097,
+      "total_prompts": 145,
+      "avg_query_time": 0.25,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:06:49.805Z",
+    "metrics": {
+      "memory_efficiency": 0.8746835958951126,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:07:19.825Z",
+    "metrics": {
+      "memory_efficiency": 0.8405291134678748,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:07:49.846Z",
+    "metrics": {
+      "memory_efficiency": 0.8624425109829764,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:08:19.865Z",
+    "metrics": {
+      "memory_efficiency": 0.8850069501647446,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:08:49.875Z",
+    "metrics": {
+      "memory_efficiency": 0.8509334457372323,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:09:19.894Z",
+    "metrics": {
+      "memory_efficiency": 0.8735954875411862,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:09:49.914Z",
+    "metrics": {
+      "memory_efficiency": 0.8415914804708952,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:10:19.934Z",
+    "metrics": {
+      "memory_efficiency": 0.8637960770181219,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:10:49.954Z",
+    "metrics": {
+      "memory_efficiency": 0.8861765727965404,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:11:19.971Z",
+    "metrics": {
+      "memory_efficiency": 0.8528940786312466,
+      "total_prompts": 145,
+      "avg_query_time": 0.25,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:11:49.987Z",
+    "metrics": {
+      "memory_efficiency": 0.8753464356809445,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:12:20.007Z",
+    "metrics": {
+      "memory_efficiency": 0.8426447307454695,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:12:50.024Z",
+    "metrics": {
+      "memory_efficiency": 0.865260116350906,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:13:20.045Z",
+    "metrics": {
+      "memory_efficiency": 0.8879757859692476,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:13:50.064Z",
+    "metrics": {
+      "memory_efficiency": 0.8551711156301482,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:14:20.085Z",
+    "metrics": {
+      "memory_efficiency": 0.8780321166254805,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:14:50.106Z",
+    "metrics": {
+      "memory_efficiency": 0.8473344831136738,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:15:20.126Z",
+    "metrics": {
+      "memory_efficiency": 0.8703751372872048,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:15:50.146Z",
+    "metrics": {
+      "memory_efficiency": 0.8415930893053267,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:16:20.165Z",
+    "metrics": {
+      "memory_efficiency": 0.8648015985378913,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:16:50.185Z",
+    "metrics": {
+      "memory_efficiency": 0.8892220963756178,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:17:20.206Z",
+    "metrics": {
+      "memory_efficiency": 0.8577425693300385,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:17:50.225Z",
+    "metrics": {
+      "memory_efficiency": 0.8800104466982427,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:18:20.246Z",
+    "metrics": {
+      "memory_efficiency": 0.8463112644151565,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:18:50.265Z",
+    "metrics": {
+      "memory_efficiency": 0.8691636849601867,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:19:20.269Z",
+    "metrics": {
+      "memory_efficiency": 0.8934506495400879,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:19:50.288Z",
+    "metrics": {
+      "memory_efficiency": 0.8606899540087863,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:20:20.309Z",
+    "metrics": {
+      "memory_efficiency": 0.8833042670579352,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:20:50.330Z",
+    "metrics": {
+      "memory_efficiency": 0.8520156550315761,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:21:20.350Z",
+    "metrics": {
+      "memory_efficiency": 0.8748788011394838,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:21:50.369Z",
+    "metrics": {
+      "memory_efficiency": 0.8460066584294343,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:22:20.390Z",
+    "metrics": {
+      "memory_efficiency": 0.8687722019151565,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:22:50.406Z",
+    "metrics": {
+      "memory_efficiency": 0.8918922252539814,
+      "total_prompts": 145,
+      "avg_query_time": 0.4166666666666667,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:23:20.426Z",
+    "metrics": {
+      "memory_efficiency": 0.860569291426414,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:23:50.437Z",
+    "metrics": {
+      "memory_efficiency": 0.8834265384747392,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:24:20.456Z",
+    "metrics": {
+      "memory_efficiency": 0.8497981449066447,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:24:50.476Z",
+    "metrics": {
+      "memory_efficiency": 0.87282002934514,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:25:20.491Z",
+    "metrics": {
+      "memory_efficiency": 0.8965380028143877,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  },
+  {
+    "timestamp": "2025-08-03T02:25:50.510Z",
+    "metrics": {
+      "memory_efficiency": 0.8656730505216914,
+      "total_prompts": 145,
+      "avg_query_time": 0.3333333333333333,
+      "classification_accuracy": 0.9207586206896552,
+      "intent_extraction_precision": 0.9336551724137943,
+      "similarity_detection_recall": 0.45102040816326533
+    },
+    "alerts_count": 2,
+    "error_alerts_count": 1
+  }
+]

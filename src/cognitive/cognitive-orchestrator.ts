@@ -17,6 +17,7 @@ import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex, MutexRegistry } from '../utils/mutex.js';
 import { SecureLogger } from '../utils/secure-logger.js';
+import { trace, SpanKind } from '@opentelemetry/api';
 import {
   CircularBuffer,
   CognitiveCircularBuffer,
@@ -306,6 +307,19 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     recommendations: string[];
   }> {
     const startTime = Date.now();
+    
+    // Create a span for cognitive orchestrator processing
+    const tracer = trace.getTracer('cognitive-orchestrator');
+    const span = tracer.startSpan('cognitive.orchestrator.process', {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'cognitive.thought_number': thoughtData.thought_number,
+        'cognitive.total_thoughts': thoughtData.total_thoughts,
+        'cognitive.session_id': sessionContext?.id,
+        'cognitive.project_id': project?.id,
+        'cognitive.project_name': project?.project_name,
+      }
+    });
 
     try {
       // Update cognitive state with error boundary
@@ -425,6 +439,30 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       // 🚨 MEMORY LEAK FIX: Clean up large objects before returning
       await this.cleanupProcessingMemory(interventions, insights);
 
+      // Add telemetry attributes before ending span
+      span.setAttribute('cognitive.interventions_count', interventions.length);
+      span.setAttribute('cognitive.insights_count', insights.length);
+      span.setAttribute('cognitive.processing_time_ms', processingTime);
+      span.setAttribute('cognitive.metacognitive_awareness', this.cognitiveState.metacognitive_awareness);
+      span.setAttribute('cognitive.breakthrough_likelihood', this.cognitiveState.breakthrough_likelihood);
+      
+      // Add events for key cognitive activities
+      if (interventions.length > 0) {
+        span.addEvent('cognitive.interventions_generated', {
+          count: interventions.length,
+          types: interventions.map(i => i.type).join(','),
+        });
+      }
+      
+      if (insights.length > 0) {
+        span.addEvent('cognitive.insights_detected', {
+          count: insights.length,
+          types: insights.map(i => i.type).join(','),
+        });
+      }
+
+      span.end();
+
       return {
         interventions,
         insights,
@@ -432,6 +470,10 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         recommendations,
       };
     } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ code: 2, message: (error as Error).message }); // 2 = ERROR
+      span.end();
+      
       handleError('CognitiveOrchestrator', 'processThought', error, ErrorSeverity.ERROR, {
         thoughtNumber: thoughtData.thought_number,
         sessionId: this.cognitiveState.session_id,

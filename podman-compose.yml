@@ -18,11 +18,11 @@ services:
       TIMESCALEDB_TELEMETRY: "off"
     volumes:
       # Persistent data storage
-      - postgresql_data:/var/lib/postgresql/data
+      - postgresql_data:/var/lib/postgresql/data:Z
       # Configuration
       - ./container-files/postgresql/config/postgresql.conf:/usr/local/share/postgresql/postgresql.conf:ro
       # Logs volume for monitoring
-      - postgresql_logs:/var/log/postgresql
+      - postgresql_logs:/var/log/postgresql:Z
     networks:
       - sentient-agi-network
     restart: unless-stopped
@@ -41,6 +41,39 @@ services:
         reservations:
           memory: 4G
           cpus: '2.0'
+
+  # Arize Phoenix for observability and tracing
+  phoenix:
+    image: docker.io/arizephoenix/phoenix:latest-nonroot
+    container_name: sentient-agi-phoenix
+    ports:
+      - "6006:6006"
+    environment:
+      # Share PostgreSQL with MCP server
+      PHOENIX_SQL_DATABASE_URL: postgresql://mtd_user:p4ssw0rd@postgresql:5432/map_think_do
+      PHOENIX_SQL_DATABASE_SCHEMA: phoenix  # Use separate schema
+      PHOENIX_WORKING_DIR: /phoenix-data
+    volumes:
+      - phoenix_data:/phoenix-data:Z
+    networks:
+      - sentient-agi-network
+    depends_on:
+      - postgresql
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Optional: pgAdmin for database management (development only)
   pgadmin:
@@ -82,6 +115,14 @@ volumes:
   # pgAdmin data (development only)
   pgadmin_data:
     driver: local
+
+  # Phoenix observability data
+  phoenix_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/phoenix
 
 networks:
   sentient-agi-network:

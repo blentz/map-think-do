@@ -18,6 +18,17 @@ export interface CodeReasoningConfig {
   // Prompt-related configuration
   promptsEnabled: boolean;
 
+  // Telemetry configuration
+  telemetry: {
+    enabled: boolean;
+    endpoint: string;
+    samplingRate: number;
+    serviceName: string;
+    environment: string;
+    exportMetrics: boolean;
+    metricsIntervalMs: number;
+  };
+
   // Any additional custom settings
   [key: string]: unknown;
 }
@@ -61,6 +72,15 @@ class ConfigManager {
       maxThoughts: 20,
       debug: false,
       promptsEnabled: true,
+      telemetry: {
+        enabled: process.env.TELEMETRY_ENABLED !== 'false',
+        endpoint: process.env.PHOENIX_ENDPOINT || 'http://localhost:6006',
+        samplingRate: parseFloat(process.env.TELEMETRY_SAMPLING_RATE || '1.0'),
+        serviceName: process.env.TELEMETRY_SERVICE_NAME || 'sentient-agi-mcp-server',
+        environment: process.env.NODE_ENV || 'development',
+        exportMetrics: process.env.TELEMETRY_EXPORT_METRICS !== 'false',
+        metricsIntervalMs: parseInt(process.env.TELEMETRY_METRICS_INTERVAL || '30000'),
+      },
     };
   }
 

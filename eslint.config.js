@@ -5,9 +5,9 @@ import tsParser from '@typescript-eslint/parser';
 import prettier from 'eslint-plugin-prettier';
 
 export default [
-  // Add an initial configuration that ignores dist
+  // Add an initial configuration that ignores dist and data directories
   {
-    ignores: ['dist/**/*'],
+    ignores: ['dist/**/*', 'data/**/*', 'node_modules/**/*', 'coverage/**/*', '*.log', 'tmp/**/*', 'temp/**/*'],
   },
   js.configs.recommended,
   {

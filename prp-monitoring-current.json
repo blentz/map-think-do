@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-08-03T02:25:50.510Z",
+  "system_health": {
+    "heap_used": 12913792,
+    "heap_total": 14917632,
+    "memory_efficiency": 0.8656730505216914,
+    "external": 2272218,
+    "rss": 108724224
+  },
+  "performance_metrics": {
+    "classification_accuracy": 0.9207586206896552,
+    "intent_extraction_precision": 0.9336551724137943,
+    "similarity_detection_recall": 0.45102040816326533,
+    "reasoning_improvement_average": 0.1,
+    "storage_performance_ms": 100
+  },
+  "database_health": {
+    "total_prompts": 145,
+    "recent_prompts": 145,
+    "unique_sessions": 13,
+    "processing_success_rate": 1,
+    "query_execution_times": [
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "avg_query_time": 0.3333333333333333
+  },
+  "alerts": [
+    {
+      "type": "HIGH_MEMORY_USAGE",
+      "severity": "warning",
+      "message": "Memory efficiency 86.6% exceeds threshold 12.0%",
+      "value": 0.8656730505216914,
+      "threshold": 0.12,
+      "timestamp": "2025-08-03T02:25:50.517Z"
+    },
+    {
+      "type": "LOW_SIMILARITY_RECALL",
+      "severity": "error",
+      "message": "Similarity detection recall 45.1% below threshold 90.0%",
+      "value": 0.45102040816326533,
+      "threshold": 0.9,
+      "timestamp": "2025-08-03T02:25:50.517Z"
+    }
+  ]
+}
