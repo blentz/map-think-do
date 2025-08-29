@@ -78,12 +78,12 @@ services:
   # Optional: pgAdmin for database management (development only)
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: sentient-agi-pgadmin
+    container_name: pgadmin
     ports:
       - "8080:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@sentient-agi.local
-      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_DEFAULT_EMAIL: root@example.com
+      PGADMIN_DEFAULT_PASSWORD: p4ssw0rd
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     volumes:
       - pgadmin_data:/var/lib/pgadmin
