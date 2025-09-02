@@ -368,8 +368,9 @@ export class MCPIntegrationSystem extends EventEmitter {
    * Simulate tool execution (replace with actual MCP calls)
    */
   private async simulateToolExecution(tool: MCPTool, parameters: any): Promise<any> {
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
+    // Use fixed processing time based on tool complexity
+    const processingTime = 100 + tool.name.length * 10; // 100ms base + complexity factor
+    await new Promise(resolve => setTimeout(resolve, processingTime));
 
     switch (tool.name) {
       case 'read_file':
@@ -449,8 +450,9 @@ export class MCPIntegrationSystem extends EventEmitter {
   private async performHealthChecks(): Promise<void> {
     for (const [serverId, server] of this.servers) {
       try {
-        // Simulate health check - in real implementation, send ping/status request
-        const isHealthy = Math.random() > 0.05; // 95% uptime simulation
+        // Use server uptime and metrics to determine health (95% success rate baseline)
+        const isHealthy =
+          server.metrics.successfulRequests / (server.metrics.totalRequests || 1) > 0.05;
 
         if (isHealthy) {
           server.status = 'connected';

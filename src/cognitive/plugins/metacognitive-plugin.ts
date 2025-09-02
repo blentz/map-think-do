@@ -438,7 +438,10 @@ export class MetacognitivePlugin extends CognitivePlugin {
 • Base rates: How often do solutions like this actually work?`,
     ];
 
-    return interventions[Math.floor(Math.random() * interventions.length)];
+    // Select intervention based on complexity and confidence levels
+    const index =
+      Math.floor((context.complexity + context.confidence_level * 10) / 2) % interventions.length;
+    return interventions[index];
   }
 
   /**
