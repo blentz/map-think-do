@@ -452,7 +452,7 @@ export class MCPIntegrationSystem extends EventEmitter {
       try {
         // Use server uptime and metrics to determine health (95% success rate baseline)
         const isHealthy =
-          server.metrics.successfulRequests / (server.metrics.totalRequests || 1) > 0.05;
+          server.metrics.successfulRequests / (server.metrics.totalRequests || 1) > 0.95;
 
         if (isHealthy) {
           server.status = 'connected';

@@ -6,6 +6,7 @@ import {
   SpanKind,
   Histogram,
   metrics,
+  Link,
 } from '@opentelemetry/api';
 import { TelemetryConfig } from './telemetry-config.js';
 import {
@@ -25,6 +26,9 @@ export class MCPInstrumentation {
   private config = TelemetryConfig.getInstance();
   private activeSpans = new Map<string, Span>();
   private sessionMetrics = new Map<string, any>();
+
+  // Track span contexts for linking related thoughts
+  private thoughtSpanContexts = new Map<string, any>();
 
   // Histogram metrics for latency distributions
   private thoughtLatencyHistogram: Histogram;
@@ -85,6 +89,10 @@ export class MCPInstrumentation {
       const memoryBefore = process.memoryUsage();
       const cpuBefore = process.cpuUsage();
 
+      // Create links for related thoughts (branches and revisions)
+      const thoughtLinks =
+        args[0] && typeof args[0] === 'object' ? this.getLinksForThought(args[0]) : [];
+
       const span = this.tracer.startSpan(spanName, {
         kind: SpanKind.SERVER,
         attributes: {
@@ -98,6 +106,7 @@ export class MCPInstrumentation {
           'resource.memory.external_mb': memoryBefore.external / 1048576,
           'resource.memory.rss_mb': memoryBefore.rss / 1048576,
         },
+        links: thoughtLinks,
       });
 
       this.activeSpans.set(requestId, span);
@@ -128,17 +137,41 @@ export class MCPInstrumentation {
               span.setAttribute('cognitive.chain_complete', !args[0].next_thought_needed);
             }
 
-            // Track branching and revisions
+            // Track branching and revisions with span links
             if (args[0].branch_from_thought !== undefined) {
               span.setAttribute('cognitive.is_branch', true);
               span.setAttribute('cognitive.branch_from', args[0].branch_from_thought);
               span.setAttribute('cognitive.branch_id', args[0].branch_id || 'unknown');
               this.branchCounter.add(1, { tool: toolName });
+
+              // Add span event for branch creation
+              span.addEvent('cognitive.branch.created', {
+                branch_from_thought: args[0].branch_from_thought,
+                branch_id: args[0].branch_id || 'unknown',
+                branch_reason: 'Alternative exploration path',
+              });
             }
             if (args[0].is_revision !== undefined && args[0].is_revision) {
               span.setAttribute('cognitive.is_revision', true);
               span.setAttribute('cognitive.revises_thought', args[0].revises_thought);
               this.revisionCounter.add(1, { tool: toolName });
+
+              // Add span event for revision
+              span.addEvent('cognitive.revision.created', {
+                revises_thought: args[0].revises_thought,
+                revision_reason: 'Thought improvement iteration',
+              });
+            }
+
+            // Store span context for potential linking in future thoughts
+            if (args[0].thought_number !== undefined) {
+              const thoughtKey = `thought_${args[0].thought_number}`;
+              this.thoughtSpanContexts.set(thoughtKey, {
+                spanContext: span.spanContext(),
+                thoughtNumber: args[0].thought_number,
+                sessionId: args[0].session_id,
+                timestamp: Date.now(),
+              });
             }
 
             // Track session context
@@ -372,6 +405,137 @@ export class MCPInstrumentation {
     return span;
   }
 
+  /**
+   * Start a cognitive plugin span as child of current span
+   */
+  public startPluginSpan(pluginName: string, attributes?: Record<string, any>): Span {
+    const span = this.tracer.startSpan(`cognitive.plugin.${pluginName}`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'cognitive.plugin.name': pluginName,
+        'cognitive.plugin.type': 'cognitive_plugin',
+        ...attributes,
+      },
+    });
+    return span;
+  }
+
+  /**
+   * Start a memory operation span as child of current span
+   */
+  public startMemorySpan(operation: string, attributes?: Record<string, any>): Span {
+    const span = this.tracer.startSpan(`memory.${operation}`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'memory.operation': operation,
+        'memory.operation.type': 'memory_store',
+        ...attributes,
+      },
+    });
+    return span;
+  }
+
+  /**
+   * Start a cognitive processing phase span as child of current span
+   */
+  public startCognitivePhaseSpan(phase: string, attributes?: Record<string, any>): Span {
+    const span = this.tracer.startSpan(`cognitive.phase.${phase}`, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'cognitive.phase.name': phase,
+        'cognitive.phase.type': 'processing_phase',
+        ...attributes,
+      },
+    });
+    return span;
+  }
+
+  /**
+   * Execute function within a child span context
+   */
+  public async withChildSpan<T>(
+    spanName: string,
+    attributes: Record<string, any> | undefined,
+    fn: (span: Span) => Promise<T>
+  ): Promise<T> {
+    const span = this.tracer.startSpan(spanName, {
+      kind: SpanKind.INTERNAL,
+      attributes,
+    });
+
+    try {
+      const result = await context.with(trace.setSpan(context.active(), span), () => fn(span));
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    } finally {
+      span.end();
+    }
+  }
+
+  /**
+   * Create links to related thought spans for branches and revisions
+   */
+  public getLinksForThought(thoughtData: {
+    branch_from_thought?: number;
+    revises_thought?: number;
+    session_id?: string;
+  }): Link[] {
+    const links: Link[] = [];
+
+    // Create link to parent thought for branches
+    if (thoughtData.branch_from_thought !== undefined) {
+      const parentKey = `thought_${thoughtData.branch_from_thought}`;
+      const parentSpanData = this.thoughtSpanContexts.get(parentKey);
+      if (parentSpanData) {
+        links.push({
+          context: parentSpanData.spanContext,
+          attributes: {
+            'link.type': 'branch_from',
+            'link.relationship': 'parent_thought',
+            'cognitive.branch.parent_thought': thoughtData.branch_from_thought,
+          },
+        });
+      }
+    }
+
+    // Create link to original thought for revisions
+    if (thoughtData.revises_thought !== undefined) {
+      const originalKey = `thought_${thoughtData.revises_thought}`;
+      const originalSpanData = this.thoughtSpanContexts.get(originalKey);
+      if (originalSpanData) {
+        links.push({
+          context: originalSpanData.spanContext,
+          attributes: {
+            'link.type': 'revision_of',
+            'link.relationship': 'original_thought',
+            'cognitive.revision.original_thought': thoughtData.revises_thought,
+          },
+        });
+      }
+    }
+
+    return links;
+  }
+
+  /**
+   * Clean up old span contexts to prevent memory leaks
+   */
+  public cleanupOldSpanContexts(maxAgeMs: number = 300000): void {
+    const now = Date.now();
+    for (const [key, data] of this.thoughtSpanContexts.entries()) {
+      if (now - data.timestamp > maxAgeMs) {
+        this.thoughtSpanContexts.delete(key);
+      }
+    }
+  }
+
   public addEventToCurrentSpan(eventName: string, attributes?: Record<string, any>): void {
     const currentSpan = trace.getActiveSpan();
     if (currentSpan) {
@@ -498,5 +662,8 @@ export class MCPInstrumentation {
 
     span.end();
     this.sessionMetrics.delete(sessionId);
+
+    // Cleanup span contexts related to this session
+    this.cleanupOldSpanContexts();
   }
 }
