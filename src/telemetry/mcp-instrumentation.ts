@@ -14,6 +14,7 @@ import {
   PromptTemplate,
   PromptVariables,
 } from './prompt-tracking.js';
+import { extractSpanAttributes, getUserInfo, getSessionInfo } from './context-attributes.js';
 import { randomBytes } from 'crypto';
 import { performance } from 'perf_hooks';
 
@@ -74,11 +75,10 @@ export class MCPInstrumentation {
 
   public instrumentMCPHandler<T extends (...args: any[]) => any>(handler: T, toolName: string): T {
     const instrumented = async (...args: any[]): Promise<any> => {
-      if (!this.config.isEnabled() || !this.config.shouldSample()) {
+      const requestId = this.generateRequestId();
+      if (!this.config.isEnabled() || !this.config.shouldSample(requestId)) {
         return handler.apply(this, args);
       }
-
-      const requestId = this.generateRequestId();
       const spanName = `mcp.tool.${toolName}`;
 
       // Capture initial resource state
@@ -181,6 +181,28 @@ export class MCPInstrumentation {
               span.addEvent('prompt.variables.applied', {
                 variable_names: Object.keys(promptVariables).join(', '),
                 variable_count: Object.keys(promptVariables).length,
+              });
+            }
+
+            // Add user, session, and context attributes from OpenTelemetry context
+            const contextAttributes = extractSpanAttributes(currentContext);
+            Object.entries(contextAttributes).forEach(([key, value]) => {
+              span.setAttribute(key, value);
+            });
+
+            // Add events for user and session tracking
+            const userInfo = getUserInfo(currentContext);
+            const sessionInfo = getSessionInfo(currentContext);
+            if (userInfo) {
+              span.addEvent('user.identified', {
+                user_id: userInfo.userId,
+                session_id: userInfo.sessionId,
+              });
+            }
+            if (sessionInfo) {
+              span.addEvent('session.tracked', {
+                session_id: sessionInfo.sessionId,
+                session_duration_ms: Date.now() - sessionInfo.startTime,
               });
             }
           }

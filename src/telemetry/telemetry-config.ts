@@ -1,8 +1,10 @@
 import { PhoenixConfig } from './types.js';
+import { createHash } from 'crypto';
 
 export class TelemetryConfig {
   private static instance: TelemetryConfig;
   private config: PhoenixConfig;
+  private samplingCounter: number = 0;
 
   private constructor() {
     this.config = {
@@ -49,8 +51,29 @@ export class TelemetryConfig {
     this.config = { ...this.config, ...updates };
   }
 
-  public shouldSample(): boolean {
+  public shouldSample(identifier?: string): boolean {
     if (!this.isEnabled()) return false;
-    return Math.random() < this.getSamplingRate();
+
+    const samplingRate = this.getSamplingRate();
+
+    // If sampling rate is 1.0, always sample
+    if (samplingRate >= 1.0) return true;
+
+    // If sampling rate is 0.0, never sample
+    if (samplingRate <= 0.0) return false;
+
+    // Use deterministic sampling based on identifier or counter
+    if (identifier) {
+      // Hash-based deterministic sampling for consistent decisions on same input
+      const hash = createHash('md5').update(identifier).digest('hex');
+      const hashValue = parseInt(hash.substring(0, 8), 16);
+      const normalizedValue = (hashValue % 1000000) / 1000000;
+      return normalizedValue < samplingRate;
+    } else {
+      // Counter-based deterministic sampling for sequential decisions
+      this.samplingCounter++;
+      const threshold = Math.floor(1 / samplingRate);
+      return this.samplingCounter % threshold === 0;
+    }
   }
 }
