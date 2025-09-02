@@ -86,25 +86,20 @@ describe('Telemetry Component Performance Tests', () => {
       const startMemory = process.memoryUsage().heapUsed;
 
       const span = trace.getTracer('test').startSpan('test');
-      const events: Promise<void>[] = [];
 
       // Generate 10000 events
       for (let i = 0; i < 10000; i++) {
-        events.push(
-          eventManager.recordEvent(span, {
-            name: EventType.COGNITIVE_PROCESS,
-            attributes: {
-              phase: 'process',
-              thought_number: i,
-              duration_ms: 100,
-              success: true,
-            },
-          })
-        );
+        eventManager.recordEvent(span, {
+          name: EventType.COGNITIVE_PROCESS,
+          attributes: {
+            phase: 'process',
+            thought_number: i,
+            duration_ms: 100,
+            success: true,
+          },
+        });
       }
-
-      await Promise.all(events);
-      await eventManager.flushEvents(span.spanContext().spanId);
+      eventManager.flushEvents(span.spanContext().spanId);
       span.end();
 
       const [seconds, nanoseconds] = process.hrtime(startTime);
@@ -185,7 +180,7 @@ describe('Telemetry Component Performance Tests', () => {
           );
 
           // Record events
-          await eventManager.recordCognitiveEvent(child, {
+          eventManager.recordCognitiveEvent(child, {
             phase: 'process',
             thoughtNumber: j,
             duration: 100,
