@@ -2412,9 +2412,22 @@ export async function runServer(debugFlag = false): Promise<void> {
         try {
           const { MCPInstrumentation } = await import('./telemetry/mcp-instrumentation.js');
           const instrumentation = MCPInstrumentation.getInstance();
-          const instrumentedHandler = instrumentation.instrumentMCPHandler(
+          const instrumentedHandler = instrumentation.instrumentRequestWithHierarchy(
             logic.processThought.bind(logic),
-            CODE_REASONING_TOOL.name
+            'code-reasoning',
+            {
+              model: 'claude-3-sonnet',
+              prompts: req.params.arguments?.thought
+                ? [
+                    {
+                      role: 'user',
+                      content: String(req.params.arguments.thought || ''),
+                      tokens: Math.ceil(String(req.params.arguments.thought || '').length / 4),
+                    },
+                  ]
+                : [],
+              completions: [],
+            }
           );
           return await instrumentedHandler(req.params.arguments);
         } catch (error) {
