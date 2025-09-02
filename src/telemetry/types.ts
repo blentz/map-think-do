@@ -46,3 +46,34 @@ export interface InstrumentationOptions {
   samplingRate: number;
   captureDetails: boolean;
 }
+
+export interface LLMImpactMetrics {
+  thoughtLatency: number;
+  tokenCount: number;
+  cost: number;
+  confidenceScore: number;
+  breakthroughLikelihood: number;
+  cognitiveEfficiency: number;
+  thoughtQuality: number;
+  learningVelocity: number;
+  conceptualDepth: number;
+  problemSolvingEffectiveness: number;
+}
+
+export interface CognitiveState {
+  thought_count?: number;
+  current_complexity?: number;
+  confidence_trajectory?: number[];
+  metacognitive_awareness?: number;
+  creative_pressure?: number;
+  analytical_depth?: number;
+  self_doubt_level?: number;
+  curiosity_level?: number;
+  frustration_level?: number;
+  engagement_level?: number;
+  cognitive_efficiency?: number;
+  insight_potential?: number;
+  breakthrough_likelihood?: number;
+  recent_success_rate?: number;
+  improvement_trajectory?: number;
+}
