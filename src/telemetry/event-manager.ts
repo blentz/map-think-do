@@ -16,28 +16,136 @@ export interface EventData {
   timestamp?: number;
 }
 
+interface EventBatch {
+  events: EventData[];
+  lastFlush: number;
+  size: number;
+}
+
 export class EventManager {
   private eventQueue: Map<string, EventData[]> = new Map();
   private eventHandlers: Map<EventType, ((data: EventData) => void)[]> = new Map();
+  private batchedEvents: Map<string, EventBatch> = new Map();
+  private batchFlushInterval: NodeJS.Timeout | null = null;
+
+  // Configuration for batching
+  private readonly MAX_BATCH_SIZE = 50;
+  private readonly BATCH_TIMEOUT = 1000; // 1 second
+  private readonly MAX_QUEUE_SIZE = 1000;
+
+  constructor() {
+    // Periodic batch flushing to prevent memory buildup
+    this.batchFlushInterval = setInterval(() => this.flushOldBatches(), this.BATCH_TIMEOUT);
+  }
 
   /**
-   * Records an event to a span
+   * Records an event to a span with batching optimization
    */
   recordEvent(span: Span, event: EventData): void {
     const timestamp = event.timestamp || Date.now();
+    const spanId = span.spanContext().spanId;
 
-    // Add to span
+    // Add to span immediately for real-time observability
     span.addEvent(event.name, event.attributes, timestamp);
 
-    // Queue for batch processing
-    const spanId = span.spanContext().spanId;
+    // Queue for batch processing with size limits
+    this.addToQueue(spanId, { ...event, timestamp });
+
+    // Trigger handlers asynchronously
+    setImmediate(() => this.triggerHandlers(event));
+  }
+
+  private addToQueue(spanId: string, event: EventData): void {
     if (!this.eventQueue.has(spanId)) {
       this.eventQueue.set(spanId, []);
     }
-    this.eventQueue.get(spanId)?.push(event);
 
-    // Trigger handlers
-    this.triggerHandlers(event);
+    const queue = this.eventQueue.get(spanId)!;
+
+    // Prevent unbounded queue growth
+    if (queue.length >= this.MAX_QUEUE_SIZE) {
+      queue.shift(); // Remove oldest event
+    }
+
+    queue.push(event);
+
+    // Add to batch for processing
+    this.addToBatch(spanId, event);
+  }
+
+  private addToBatch(spanId: string, event: EventData): void {
+    if (!this.batchedEvents.has(spanId)) {
+      this.batchedEvents.set(spanId, {
+        events: [],
+        lastFlush: Date.now(),
+        size: 0,
+      });
+    }
+
+    const batch = this.batchedEvents.get(spanId)!;
+    batch.events.push(event);
+    batch.size += JSON.stringify(event).length; // Approximate size
+
+    // Flush batch if it's large enough
+    if (batch.events.length >= this.MAX_BATCH_SIZE || batch.size > 10000) {
+      this.processBatch(spanId, batch);
+    }
+  }
+
+  private processBatch(_spanId: string, batch: EventBatch): void {
+    // Compress events with similar patterns
+    const compressedEvents = this.compressEvents(batch.events);
+
+    // Update batch
+    batch.events = compressedEvents;
+    batch.lastFlush = Date.now();
+    batch.size = compressedEvents.reduce((sum, e) => sum + JSON.stringify(e).length, 0);
+  }
+
+  private compressEvents(events: EventData[]): EventData[] {
+    // Group similar events by type and attributes
+    const eventGroups = new Map<string, EventData[]>();
+
+    events.forEach(event => {
+      const key = `${event.name}:${JSON.stringify(event.attributes)}`;
+      if (!eventGroups.has(key)) {
+        eventGroups.set(key, []);
+      }
+      eventGroups.get(key)!.push(event);
+    });
+
+    const compressed: EventData[] = [];
+
+    eventGroups.forEach((groupEvents, _key) => {
+      if (groupEvents.length === 1) {
+        compressed.push(groupEvents[0]);
+      } else {
+        // Compress multiple similar events into one with count
+        const firstEvent = groupEvents[0];
+        compressed.push({
+          ...firstEvent,
+          attributes: {
+            ...firstEvent.attributes,
+            event_count: groupEvents.length,
+            first_timestamp: groupEvents[0].timestamp,
+            last_timestamp: groupEvents[groupEvents.length - 1].timestamp,
+            compressed: true,
+          },
+        });
+      }
+    });
+
+    return compressed;
+  }
+
+  private flushOldBatches(): void {
+    const now = Date.now();
+
+    for (const [spanId, batch] of this.batchedEvents.entries()) {
+      if (now - batch.lastFlush > this.BATCH_TIMEOUT) {
+        this.processBatch(spanId, batch);
+      }
+    }
   }
 
   /**
@@ -157,11 +265,62 @@ export class EventManager {
   }
 
   /**
-   * Flush events for a span
+   * Flush events for a span with batching cleanup
    */
   flushEvents(spanId: string): EventData[] {
     const events = this.eventQueue.get(spanId) || [];
     this.eventQueue.delete(spanId);
+
+    // Also clean up batched events
+    this.batchedEvents.delete(spanId);
+
     return events;
+  }
+
+  /**
+   * Get performance metrics for monitoring
+   */
+  getMetrics(): {
+    queuedSpans: number;
+    totalEvents: number;
+    batchedSpans: number;
+    memoryUsage: number;
+  } {
+    const totalEvents = Array.from(this.eventQueue.values()).reduce(
+      (sum, queue) => sum + queue.length,
+      0
+    );
+
+    const memoryUsage = Array.from(this.batchedEvents.values()).reduce(
+      (sum, batch) => sum + batch.size,
+      0
+    );
+
+    return {
+      queuedSpans: this.eventQueue.size,
+      totalEvents,
+      batchedSpans: this.batchedEvents.size,
+      memoryUsage,
+    };
+  }
+
+  /**
+   * Cleanup method for graceful shutdown
+   */
+  cleanup(): void {
+    // Clear interval to prevent Jest hanging
+    if (this.batchFlushInterval) {
+      clearInterval(this.batchFlushInterval);
+      this.batchFlushInterval = null;
+    }
+
+    // Flush all remaining batches
+    for (const [spanId, batch] of this.batchedEvents.entries()) {
+      this.processBatch(spanId, batch);
+    }
+
+    this.eventQueue.clear();
+    this.batchedEvents.clear();
+    this.eventHandlers.clear();
   }
 }

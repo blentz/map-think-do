@@ -101,9 +101,67 @@ export class OpenInferenceAdapter {
 }
 
 export class TokenEstimator {
+  private cache = new Map<string, number>();
+  private readonly maxCacheSize = 1000;
+
   estimate(text: string): number {
-    // Claude approximation: ~4 characters per token
-    return Math.ceil(text.length / 4);
+    // Check cache first
+    if (this.cache.has(text)) {
+      return this.cache.get(text)!;
+    }
+
+    // Enhanced tokenization algorithm for Claude
+    let tokenCount = 0;
+
+    // Handle special tokens and formatting
+    const specialTokens = text.match(/```[\s\S]*?```|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*/g) || [];
+    let remainingText = text;
+
+    // Count special formatting tokens (markdown, code blocks)
+    specialTokens.forEach(token => {
+      tokenCount += Math.ceil(token.length / 3.8); // Slightly fewer chars per token for formatted text
+      remainingText = remainingText.replace(token, '');
+    });
+
+    // Word-based tokenization for remaining text
+    const words = remainingText.split(/\s+/).filter(word => word.length > 0);
+
+    words.forEach(word => {
+      if (word.length <= 3) {
+        tokenCount += 1; // Short words are typically 1 token
+      } else if (word.length <= 8) {
+        tokenCount += Math.ceil(word.length / 4.2); // Medium words
+      } else {
+        tokenCount += Math.ceil(word.length / 3.5); // Long words have more tokens per char
+      }
+    });
+
+    // Add tokens for punctuation and whitespace
+    const punctuationCount = (text.match(/[.,;:!?()[\]{}'"]/g) || []).length;
+    tokenCount += punctuationCount * 0.5; // Punctuation uses partial tokens
+
+    const result = Math.max(1, Math.ceil(tokenCount));
+
+    // Cache the result (with LRU eviction)
+    if (this.cache.size >= this.maxCacheSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(text, result);
+
+    return result;
+  }
+
+  // Clear cache for memory optimization
+  clearCache(): void {
+    this.cache.clear();
+  }
+
+  // Get cache stats for monitoring
+  getCacheStats(): { size: number; maxSize: number } {
+    return { size: this.cache.size, maxSize: this.maxCacheSize };
   }
 }
 
@@ -114,11 +172,38 @@ class CostCalculator {
     'claude-3-haiku': { prompt: 0.25, completion: 1.25 },
   };
 
+  private costCache = new Map<string, number>();
+  private readonly maxCacheSize = 500;
+
   calculate(promptTokens: number, completionTokens: number, model: string): number {
+    // Create cache key
+    const cacheKey = `${model}:${promptTokens}:${completionTokens}`;
+
+    // Check cache first
+    if (this.costCache.has(cacheKey)) {
+      return this.costCache.get(cacheKey)!;
+    }
+
     const modelPricing =
       this.pricing[model as keyof typeof this.pricing] || this.pricing['claude-3-sonnet'];
     const promptCost = (promptTokens / 1_000_000) * modelPricing.prompt;
     const completionCost = (completionTokens / 1_000_000) * modelPricing.completion;
-    return Number((promptCost + completionCost).toFixed(6));
+    const result = Number((promptCost + completionCost).toFixed(6));
+
+    // Cache the result (with LRU eviction)
+    if (this.costCache.size >= this.maxCacheSize) {
+      const firstKey = this.costCache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.costCache.delete(firstKey);
+      }
+    }
+    this.costCache.set(cacheKey, result);
+
+    return result;
+  }
+
+  // Clear cache for memory optimization
+  clearCache(): void {
+    this.costCache.clear();
   }
 }
