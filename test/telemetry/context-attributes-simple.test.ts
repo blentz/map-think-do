@@ -6,13 +6,13 @@
 import {
   createUserInfo,
   createSessionInfo,
-  withFullContextReliable,
+  withFullContext,
   extractSpanAttributes,
   validateUserInfo,
   validateSessionInfo,
   ContextMetadata,
 } from '../../src/telemetry/context-attributes.js';
-import { ROOT_CONTEXT } from '@opentelemetry/api';
+import { ROOT_CONTEXT, context } from '@opentelemetry/api';
 
 interface TestResult {
   name: string;
@@ -169,10 +169,10 @@ export async function runContextAttributesTests(): Promise<void> {
     let contextCaptured = false;
     let capturedAttributes: Record<string, any> = {};
 
-    // Use withFullContextReliable to work around context propagation issues
-    withFullContextReliable(userInfo, sessionInfo, metadata, (ctx: any) => {
+    // Use withFullContext with context parameter to work around propagation issues
+    withFullContext(userInfo, sessionInfo, metadata, ctx => {
       contextCaptured = true;
-      capturedAttributes = extractSpanAttributes(ctx);
+      capturedAttributes = extractSpanAttributes(ctx || context.active());
     });
 
     SimpleAssertions.assert(contextCaptured, 'Context function should have been executed');
@@ -222,8 +222,8 @@ export async function runContextAttributesTests(): Promise<void> {
         environment: 'test',
       };
 
-      withFullContextReliable(userInfo, sessionInfo, metadata, (ctx: any) => {
-        const attributes = extractSpanAttributes(ctx);
+      withFullContext(userInfo, sessionInfo, metadata, ctx => {
+        const attributes = extractSpanAttributes(ctx || context.active());
         SimpleAssertions.assertDefined(attributes['user.id']);
         SimpleAssertions.assertDefined(attributes['session.start_time']);
         SimpleAssertions.assertDefined(attributes['context.tags']);

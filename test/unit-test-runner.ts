@@ -5,10 +5,10 @@
  */
 
 import { runCircularBufferTests } from './circular-buffer.test.js';
-import { runErrorBoundaryTests } from './error-boundary.test.js';
 import { runSecureLoggerTests } from './secure-logger.test.js';
 import { runStateManagerTests } from './state-manager.test.js';
 import { runContextAttributesTests } from './telemetry/context-attributes-simple.test.js';
+import { runContextPropagationTests } from './telemetry/context-propagation.test.js';
 
 interface TestSuite {
   name: string;
@@ -21,6 +21,7 @@ const testSuites: TestSuite[] = [
   { name: 'SecureLogger', runner: runSecureLoggerTests },
   { name: 'StateManager', runner: runStateManagerTests },
   { name: 'ContextAttributes', runner: runContextAttributesTests },
+  { name: 'ContextPropagation', runner: runContextPropagationTests },
 ];
 
 async function runAllUnitTests() {

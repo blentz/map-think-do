@@ -103,29 +103,13 @@ export function withContextMetadata<T>(metadata: ContextMetadata, fn: () => T): 
 
 /**
  * Execute a function within a full context (user, session, metadata)
+ * Supports both callback styles: fn() relying on context.active() and fn(ctx) with explicit context
  */
 export function withFullContext<T>(
   userInfo: UserInfo,
   sessionInfo: SessionInfo,
   metadata: ContextMetadata,
-  fn: () => T
-): T {
-  const activeContext = context.active();
-  let newContext = setUserInfo(activeContext, userInfo);
-  newContext = setSessionInfo(newContext, sessionInfo);
-  newContext = setContextMetadata(newContext, metadata);
-  return context.with(newContext, fn);
-}
-
-/**
- * Execute a function within a full context with reliable context access
- * This version provides the context directly to work around context propagation issues
- */
-export function withFullContextReliable<T>(
-  userInfo: UserInfo,
-  sessionInfo: SessionInfo,
-  metadata: ContextMetadata,
-  fn: (ctx: Context) => T
+  fn: ((ctx?: Context) => T) | (() => T)
 ): T {
   const activeContext = context.active();
   let newContext = setUserInfo(activeContext, userInfo);
@@ -133,8 +117,14 @@ export function withFullContextReliable<T>(
   newContext = setContextMetadata(newContext, metadata);
 
   return context.with(newContext, () => {
-    // Pass the constructed context directly to work around context.active() issues
-    return fn(newContext);
+    // Check if callback expects a context parameter by looking at function length
+    if (fn.length > 0) {
+      // Callback expects context parameter - pass the constructed context
+      return (fn as (ctx: Context) => T)(newContext);
+    } else {
+      // Callback expects context.active() to work - call without parameters
+      return (fn as () => T)();
+    }
   });
 }
 
@@ -258,15 +248,6 @@ export function withTags<T>(tags: string[], fn: () => T): T {
   const activeContext = context.active();
   const newContext = setTags(activeContext, tags);
   return context.with(newContext, fn);
-}
-
-/**
- * Extract user/session attributes for span attribution with automatic fallback
- */
-export function extractSpanAttributesReliable(ctx?: Context): Record<string, any> {
-  // Use provided context or fallback to active context
-  const contextToUse = ctx || context.active();
-  return extractSpanAttributes(contextToUse);
 }
 
 /**
