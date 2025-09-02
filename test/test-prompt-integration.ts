@@ -5,10 +5,10 @@
  * Demonstrates the working prompt integration without external test dependencies
  */
 
-import { PostgreSQLMemoryStore } from './memory/postgresql-memory-store.js';
-import { StoredPrompt, MemoryUtils } from './memory/memory-store.js';
-import { PromptIntelligenceSystem } from './cognitive/prompt-intelligence.js';
-import { PromptValidationFramework } from './cognitive/prompt-validation.js';
+import { PostgreSQLMemoryStore } from '../src/memory/postgresql-memory-store.js';
+import { StoredPrompt, MemoryUtils } from '../src/memory/memory-store.js';
+import { PromptIntelligenceSystem } from '../src/cognitive/prompt-intelligence.js';
+import { PromptValidationFramework } from '../src/cognitive/prompt-validation.js';
 
 async function runTests() {
   console.log('🚀 PROMPT INTEGRATION SYSTEM DEMONSTRATION\n');
@@ -201,7 +201,7 @@ async function runTests() {
     const similarPrompts = await promptIntelligence.findSimilarPrompts(queryPrompt, allPrompts, 5);
 
     console.log(`✅ Found ${similarPrompts.length} similar prompts:`);
-    similarPrompts.forEach((similar, index) => {
+    similarPrompts.forEach((similar: any, index: number) => {
       console.log(
         `   ${index + 1}. Score: ${similar.similarity_score.toFixed(3)} (${similar.similarity_type})`
       );
@@ -260,7 +260,7 @@ async function runTests() {
     console.log(`   ✅ Tests Passed: ${report.passed_tests}/${report.total_tests}\n`);
 
     console.log('📋 Individual Test Results:');
-    report.results.forEach(result => {
+    report.results.forEach((result: any) => {
       const status = result.passed ? '✅' : '❌';
       const score = Math.round(result.score * 100);
       const target = Math.round(result.target * 100);
@@ -269,7 +269,7 @@ async function runTests() {
 
     if (report.recommendations.length > 0) {
       console.log('\n💡 Recommendations:');
-      report.recommendations.forEach(rec => console.log(`   ${rec}`));
+      report.recommendations.forEach((rec: string) => console.log(`   ${rec}`));
     }
 
     // Final Summary

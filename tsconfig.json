@@ -14,6 +14,6 @@
     "rootDir": ".",
     "declaration": true
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts", "index.ts", "globals.d.ts"],
-  "exclude": ["test/**/*", "tests/**/*"]
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "index.ts", "globals.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }
