@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**PHASE 1: ENHANCED SPAN ATTRIBUTES** - ✅ COMPLETED - All tests passing with proper context propagation
+**PHASE 2: IMPROVED TRACE STRUCTURE** - Session 1 SPECIFY requirements
 
 ## Current Session
 
-Session 22: **COMPLETED** - Fix OpenTelemetry context propagation issue properly
+Session 23: **COMPLETED** - SPECIFY Phase 2 requirements using requirements-analyst
 
 ## Critical Issues Found
 
@@ -87,6 +87,16 @@ The previous "EXCEPTIONAL SUCCESS" claims were incorrect:
 - Known limitation, workaround in place
 
 ## Completed Sessions
+
+- **Session 23**: **COMPLETED** - SPECIFY Phase 2 requirements using requirements-analyst ✅
+  - 🎯 **PHASE 2 REQUIREMENTS DEFINED**: Detailed specification for Improved Trace Structure
+  - 📋 **SCOPE ANALYSIS**: Analyzed current telemetry implementation in mcp-instrumentation.ts, instrumentation.ts, cognitive-orchestrator.ts, server.ts
+  - 🏗️ **PARENT-CHILD RELATIONSHIPS**: Specified proper span hierarchy reflecting MCP operation nesting with cognitive orchestrator and plugin relationships
+  - 📐 **SEMANTIC CONVENTIONS**: Defined OpenInference standard attributes for AI operations (llm._, tool._, span._, openinference._)
+  - ⚡ **EVENTS & STATUS CODES**: Specified structured event system and comprehensive error handling patterns
+  - 🎯 **PERFORMANCE TARGETS**: <2% overhead, <100ms span creation latency, <1MB memory per trace
+  - 📋 **IMPLEMENTATION ROADMAP**: Clear task breakdown for system-architect design phase
+  - 🔍 **TECHNICAL ANALYSIS**: Requirements based on actual cognitive architecture and MCP protocol structure
 
 - **Session 22**: **COMPLETED** - Fix OpenTelemetry context propagation issue properly ✅
   - 🚨 **CRITICAL ISSUE IDENTIFIED**: Session 21's fn.length hack fails - 3/5 context propagation tests still failing (60% failure rate)
@@ -294,22 +304,24 @@ The previous "EXCEPTIONAL SUCCESS" claims were incorrect:
 
 ## Next Steps
 
-**READY FOR PHASE 2**: Enhanced Span Attributes phase legitimately complete with 100% working functionality
+**PHASE 2 SESSION 2**: DESIGN - Use system-architect to design the implementation
 
-Priority for next session:
+Priority for Session 24:
 
-- 🎯 **BEGIN PHASE 2**: Improved Trace Structure (according to PRP specification)
-  - Enhance parent-child span relationships in MCP instrumentation
-  - Add semantic conventions for OpenInference interoperability
-  - Implement events and status codes for better trace structure
-- 📋 **FOUNDATION SOLID**: Phase 1 provides robust foundation for Phase 2
-  - ✅ Context propagation working reliably with explicit context passing
-  - ✅ All tests passing: 5/5 context propagation, 7/7 context attributes, full test suite
-  - ✅ Phoenix observability receiving proper span attributes
-  - ✅ Production-ready implementation without JavaScript hacks
-- 🔍 **Optional future work**: Continue Math.random() elimination in cognitive modules
-  - Focus on modules that feed into Phoenix observability metrics
-  - Session 19's algorithms still need improvement for meaningful data generation
+- 🏗️ **DESIGN PHASE**: Use system-architect subagent to create detailed technical design
+  - Architecture for enhanced parent-child span relationships
+  - Implementation design for OpenInference semantic conventions
+  - Event and status code system design
+  - Performance optimization strategy
+- 📋 **REQUIREMENTS COMPLETE**: Phase 2 requirements fully specified in Session 23
+  - ✅ Parent-child span relationships defined
+  - ✅ Semantic conventions mapped to OpenInference standards
+  - ✅ Events and status codes structure specified
+  - ✅ Performance targets established (<2% overhead, <100ms latency, <1MB per trace)
+- 🎯 **FOUNDATION**: Phase 1 provides solid base for Phase 2
+  - ✅ Context propagation working with explicit passing workaround
+  - ✅ All telemetry infrastructure operational
+  - ✅ Phoenix observability receiving data successfully
 
 **Major Achievement**:
 
@@ -323,7 +335,7 @@ Priority for next session:
 
 ## Context Usage
 
-Approximately 75% - Session 20 context attributes tests fixed, Phase 1 complete, ready for Phase 2 or remaining cleanup
+Approximately 50% - Session 23 Phase 2 requirements specification complete, ready for Session 24 design phase
 
 ## Session 11 Work Completed - BULLSHIT CLEANUP
 
