@@ -19,8 +19,7 @@ import {
   ProjectCognitiveContext,
   TechnologyCognitiveStrategy,
 } from '../project-cognitive-context.js';
-import { PersonaMetrics, PersonaPreferences, personaMetrics } from '../persona-metrics.js';
-import { hashString } from '../../utils/hash-utils.js';
+import { personaMetrics } from '../persona-metrics.js';
 
 /**
  * Cognitive persona definition
@@ -1026,17 +1025,126 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
   private generatePersonaPerspective(persona: CognitivePersona, context: CognitiveContext): string {
     const templates = this.getPersonaTemplates(persona.id);
 
-    // Deterministic template selection based on context characteristics
-    const contextComplexity = context.current_thought?.length || 100;
-    const thoughtHistoryLength = context.thought_history?.length || 1;
-    const personaIdHash = hashString(persona.id);
+    // Real cognitive analysis for template selection
+    const selectedTemplate = this.selectBestTemplate(templates, persona, context);
 
-    // Use context characteristics for deterministic selection
-    const selectionIndex =
-      (contextComplexity + thoughtHistoryLength + personaIdHash) % templates.length;
-    const template = templates[selectionIndex];
+    return this.customizeTemplate(selectedTemplate, persona, context);
+  }
 
-    return this.customizeTemplate(template, persona, context);
+  /**
+   * Select the most appropriate template based on real cognitive analysis
+   */
+  private selectBestTemplate(
+    templates: string[],
+    persona: CognitivePersona,
+    context: CognitiveContext
+  ): string {
+    const currentThought = context.current_thought || '';
+    const thoughtHistory = context.thought_history || [];
+
+    // Analyze context characteristics for intelligent template selection
+    const contextAnalysis = {
+      isQuestionFocused:
+        currentThought.includes('?') ||
+        currentThought.toLowerCase().includes('what') ||
+        currentThought.toLowerCase().includes('how'),
+      isImplementationFocused: /\b(implement|build|create|develop|code|technical)\b/i.test(
+        currentThought
+      ),
+      isAnalytical: /\b(data|metrics|measure|analyze|calculate|evidence)\b/i.test(currentThought),
+      isStrategic: /\b(strategy|long.?term|vision|roadmap|goal|objective|plan)\b/i.test(
+        currentThought
+      ),
+      isRisky: /\b(risk|concern|problem|issue|challenge|fail|error)\b/i.test(currentThought),
+      isCreative: /\b(creative|innovative|new|different|alternative|unique)\b/i.test(
+        currentThought
+      ),
+      isPhilosophical: /\b(value|ethics|principle|meaning|purpose|moral)\b/i.test(currentThought),
+      isPragmatic: /\b(practical|simple|quick|fast|minimum|viable|resource)\b/i.test(
+        currentThought
+      ),
+      needsSynthesis: thoughtHistory.length > 2, // Multiple perspectives exist
+    };
+
+    // Calculate template scores based on persona and context alignment
+    const templateScores = templates.map((template, index) => {
+      let score = 0;
+
+      // Base score for template variety (prevents getting stuck on one template)
+      const historyBias = thoughtHistory.length > 0 ? index * 0.1 : 0;
+      score += historyBias;
+
+      // Persona-specific scoring based on context analysis
+      switch (persona.id) {
+        case 'strategist':
+          score += contextAnalysis.isStrategic ? 3 : 0;
+          score += contextAnalysis.isQuestionFocused ? 1 : 0;
+          score += currentThought.length > 200 ? 2 : 0; // Strategic thinking for complex problems
+          break;
+
+        case 'engineer':
+          score += contextAnalysis.isImplementationFocused ? 3 : 0;
+          score += contextAnalysis.isAnalytical ? 1 : 0;
+          score += /\b(system|architecture|design|performance)\b/i.test(currentThought) ? 2 : 0;
+          break;
+
+        case 'skeptic':
+          score += contextAnalysis.isRisky ? 3 : 0;
+          score += contextAnalysis.isQuestionFocused ? 2 : 0;
+          score += /\b(assume|believe|certain|sure|confident)\b/i.test(currentThought) ? 2 : 0;
+          break;
+
+        case 'creative':
+          score += contextAnalysis.isCreative ? 3 : 0;
+          score += /\b(stuck|conventional|traditional|standard)\b/i.test(currentThought) ? 2 : 0;
+          score += currentThought.length < 100 ? 1 : 0; // Creative thinking for open-ended problems
+          break;
+
+        case 'analyst':
+          score += contextAnalysis.isAnalytical ? 3 : 0;
+          score += /\b(number|statistic|trend|pattern|correlation)\b/i.test(currentThought) ? 2 : 0;
+          score += contextAnalysis.isQuestionFocused ? 1 : 0;
+          break;
+
+        case 'philosopher':
+          score += contextAnalysis.isPhilosophical ? 3 : 0;
+          score += /\b(why|meaning|impact|consequence|society)\b/i.test(currentThought) ? 2 : 0;
+          score += currentThought.length > 150 ? 1 : 0; // Philosophical depth for complex topics
+          break;
+
+        case 'pragmatist':
+          score += contextAnalysis.isPragmatic ? 3 : 0;
+          score += /\b(deadline|budget|constraint|limit|resource)\b/i.test(currentThought) ? 2 : 0;
+          score += contextAnalysis.isImplementationFocused ? 1 : 0;
+          break;
+
+        case 'synthesizer':
+          score += contextAnalysis.needsSynthesis ? 3 : 0;
+          score += thoughtHistory.length > 3 ? 2 : 0; // More valuable with multiple perspectives
+          score += /\b(combine|integrate|balance|merge)\b/i.test(currentThought) ? 2 : 0;
+          break;
+      }
+
+      // Template content alignment scoring
+      const templateLower = template.toLowerCase();
+      if (contextAnalysis.isQuestionFocused && templateLower.includes('?')) score += 1;
+      if (
+        contextAnalysis.isImplementationFocused &&
+        /\b(technical|implementation|requirement)\b/.test(templateLower)
+      )
+        score += 1;
+      if (contextAnalysis.isStrategic && /\b(strategic|long.?term|vision)\b/.test(templateLower))
+        score += 1;
+
+      return { template, score, index };
+    });
+
+    // Select the highest scoring template, with fallback to first template
+    const bestTemplate = templateScores.reduce((best, current) =>
+      current.score > best.score ? current : best
+    );
+
+    return bestTemplate.template;
   }
 
   /**

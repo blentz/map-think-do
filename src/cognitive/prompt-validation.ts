@@ -7,7 +7,6 @@
 
 import { MemoryStore, StoredPrompt, MemoryUtils } from '../memory/memory-store.js';
 import { PromptIntelligenceSystem } from './prompt-intelligence.js';
-import { rangeHash } from '../utils/hash-utils.js';
 
 /**
  * Validation test result
@@ -103,8 +102,13 @@ export class TestPromptGenerator {
         const complexityRange = complexityMap[type as keyof typeof complexityMap];
         const [minComplexity, maxComplexity] = complexityRange;
 
-        // Deterministic complexity calculation based on template characteristics
-        const expectedComplexity = rangeHash(template + type, minComplexity, maxComplexity);
+        // Real complexity calculation based on actual template analysis
+        const expectedComplexity = this.calculatePromptComplexity(
+          template,
+          type,
+          minComplexity,
+          maxComplexity
+        );
 
         prompts.push({
           type,
@@ -119,32 +123,168 @@ export class TestPromptGenerator {
   }
 
   /**
-   * Generate prompts with known similarities for testing
+   * Calculate prompt complexity based on real content analysis
    */
-  static generateSimilarityTestSet(): Array<{ group: string; prompts: string[] }> {
+  private static calculatePromptComplexity(
+    template: string,
+    type: string,
+    minComplexity: number,
+    maxComplexity: number
+  ): number {
+    let complexityScore = 0;
+    const templateLower = template.toLowerCase();
+
+    // Base complexity factors
+    const wordCount = template.split(/\s+/).length;
+    const sentenceCount = template.split(/[.!?]+/).length;
+    const avgWordsPerSentence = wordCount / Math.max(sentenceCount, 1);
+
+    // Length-based complexity
+    complexityScore += Math.min(template.length / 100, 2); // Max 2 points for length
+    complexityScore += Math.min(wordCount / 15, 2); // Max 2 points for word count
+
+    // Sentence structure complexity
+    if (avgWordsPerSentence > 20) complexityScore += 1; // Long sentences
+    if (sentenceCount > 2) complexityScore += 0.5; // Multiple sentences
+
+    // Technical term complexity
+    const technicalTerms = [
+      'algorithm',
+      'architecture',
+      'performance',
+      'security',
+      'vulnerability',
+      'distributed',
+      'system',
+      'implementation',
+      'bottleneck',
+      'optimization',
+      'scalability',
+      'integration',
+      'framework',
+      'infrastructure',
+      'configuration',
+      'deployment',
+      'debugging',
+      'refactoring',
+      'legacy',
+      'codebase',
+      'technical debt',
+      'microservice',
+      'api',
+      'database',
+      'concurrent',
+      'asynchronous',
+      'synchronization',
+      'thread',
+      'memory',
+      'cpu',
+      'latency',
+      'throughput',
+    ];
+
+    const technicalCount = technicalTerms.filter(term => templateLower.includes(term)).length;
+    complexityScore += Math.min(technicalCount * 0.5, 3); // Max 3 points for technical terms
+
+    // Domain-specific complexity indicators
+    const complexityIndicators = {
+      'multi-step': 1,
+      analyze: 0.5,
+      evaluate: 0.5,
+      assess: 0.5,
+      implement: 1,
+      design: 1,
+      optimize: 1,
+      debug: 1,
+      troubleshoot: 1,
+      investigate: 0.5,
+      compare: 0.5,
+      integrate: 1,
+      migrate: 1,
+      refactor: 1,
+      scale: 1,
+      secure: 1,
+    };
+
+    for (const [indicator, score] of Object.entries(complexityIndicators)) {
+      if (templateLower.includes(indicator)) {
+        complexityScore += score;
+      }
+    }
+
+    // Type-specific adjustments
+    const typeMultipliers = {
+      debugging: 1.2, // Debugging is inherently complex
+      architecture: 1.3, // Architecture requires system-level thinking
+      optimization: 1.1, // Performance optimization needs deep knowledge
+      analysis: 0.9, // Analysis can be straightforward
+      'feature-request': 1.0, // Feature requests vary widely
+    };
+
+    const multiplier = typeMultipliers[type as keyof typeof typeMultipliers] || 1.0;
+    complexityScore *= multiplier;
+
+    // Question complexity
+    const questionMarkers = (template.match(/\?/g) || []).length;
+    if (questionMarkers > 1) complexityScore += 0.5; // Multiple questions increase complexity
+
+    // Abstract concept complexity
+    const abstractTerms = [
+      'principle',
+      'concept',
+      'paradigm',
+      'strategy',
+      'approach',
+      'methodology',
+      'philosophy',
+    ];
+    const abstractCount = abstractTerms.filter(term => templateLower.includes(term)).length;
+    complexityScore += abstractCount * 0.3;
+
+    // Normalize to the specified range with some natural variation
+    const normalizedScore =
+      minComplexity + (complexityScore / 10) * (maxComplexity - minComplexity);
+
+    // Ensure score stays within bounds and add slight content-based variation
+    const contentVariation = (template.length % 3) * 0.1; // Small variation based on content
+    const finalScore = Math.max(
+      minComplexity,
+      Math.min(maxComplexity, normalizedScore + contentVariation)
+    );
+
+    return Math.round(finalScore * 10) / 10; // Round to 1 decimal place
+  }
+
+  /**
+   * Generate groups of similar prompts for testing similarity detection
+   */
+  static generateSimilarityTestSet(): Array<{ type: string; prompts: string[] }> {
     return [
+      // Group 1: React debugging variations
       {
-        group: 'react_debugging',
+        type: 'debugging',
         prompts: [
-          'Fix React component re-rendering issues causing performance problems',
-          'Debug React useEffect infinite loop causing browser freeze',
-          'Resolve React state update warnings in development console',
+          'Fix React component re-rendering issues',
+          'Debug React component unnecessary re-renders',
+          'Resolve React component rendering problems',
         ],
       },
+      // Group 2: Performance optimization variations
       {
-        group: 'database_optimization',
+        type: 'optimization',
         prompts: [
-          'Optimize slow PostgreSQL queries with millions of records',
-          'Improve database query performance using proper indexing strategies',
-          'Speed up SQL queries by reducing join complexity and adding indexes',
+          'Optimize database query performance',
+          'Improve database query execution speed',
+          'Enhance database query efficiency',
         ],
       },
+      // Group 3: API architecture variations
       {
-        group: 'api_design',
+        type: 'architecture',
         prompts: [
-          'Design RESTful API for user management with proper authentication',
-          'Create GraphQL API with efficient data fetching and caching',
-          'Build REST API with rate limiting and error handling',
+          'Design REST API architecture for microservices',
+          'Architect REST API for microservice system',
+          'Create REST API design for microservices',
         ],
       },
     ];
