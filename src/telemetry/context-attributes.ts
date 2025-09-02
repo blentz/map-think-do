@@ -179,6 +179,67 @@ export function validateSessionInfo(sessionInfo: SessionInfo): boolean {
 }
 
 /**
+ * Set metadata in the current context (convenience function)
+ */
+export function setMetadata(ctx: Context, metadata: Record<string, any>): Context {
+  const existingMetadata = getContextMetadata(ctx) || {};
+  const updatedMetadata: ContextMetadata = {
+    ...existingMetadata,
+    ...metadata,
+  };
+  return setContextMetadata(ctx, updatedMetadata);
+}
+
+/**
+ * Get metadata from the current context
+ */
+export function getMetadata(ctx: Context): Record<string, any> {
+  const contextMetadata = getContextMetadata(ctx);
+  if (!contextMetadata) return {};
+
+  const { tags, environment, version, ...metadata } = contextMetadata;
+  return metadata;
+}
+
+/**
+ * Set tags in the current context
+ */
+export function setTags(ctx: Context, tags: string[]): Context {
+  const existingMetadata = getContextMetadata(ctx) || {};
+  const updatedMetadata: ContextMetadata = {
+    ...existingMetadata,
+    tags,
+  };
+  return setContextMetadata(ctx, updatedMetadata);
+}
+
+/**
+ * Get tags from the current context
+ */
+export function getTags(ctx: Context): string[] {
+  const contextMetadata = getContextMetadata(ctx);
+  return contextMetadata?.tags || [];
+}
+
+/**
+ * Execute a function with specific metadata
+ */
+export function withMetadata<T>(metadata: Record<string, any>, fn: () => T): T {
+  const activeContext = context.active();
+  const newContext = setMetadata(activeContext, metadata);
+  return context.with(newContext, fn);
+}
+
+/**
+ * Execute a function with specific tags
+ */
+export function withTags<T>(tags: string[], fn: () => T): T {
+  const activeContext = context.active();
+  const newContext = setTags(activeContext, tags);
+  return context.with(newContext, fn);
+}
+
+/**
  * Extract user/session attributes for span attribution
  */
 export function extractSpanAttributes(ctx: Context): Record<string, any> {
