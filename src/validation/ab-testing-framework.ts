@@ -11,6 +11,7 @@ import {
   StoredThought,
   ReasoningSession,
 } from '../memory/memory-store.js';
+import { generateResourceId } from '../utils/id-generator.js';
 
 export interface TestResult {
   prompt_id: string;
@@ -50,6 +51,53 @@ export class ABTestFramework {
   constructor(private memoryStore: MemoryStore) {}
 
   /**
+   * Create deterministic hash from test context
+   */
+  private createTestHash(contextKey: string): number {
+    // Create a deterministic but varied hash based on the test context
+    let hash = 5381;
+    for (let i = 0; i < contextKey.length; i++) {
+      hash = ((hash << 5) + hash + contextKey.charCodeAt(i)) & 0xffffffff;
+    }
+    return hash;
+  }
+
+  /**
+   * Generate deterministic value in range based on context
+   */
+  private deterministicRange(min: number, max: number, contextKey: string): number {
+    const hash = this.createTestHash(contextKey);
+    const normalized = (hash & 0xffffffff) / 0xffffffff;
+    return min + normalized * (max - min);
+  }
+
+  /**
+   * Generate deterministic boolean decision based on context
+   */
+  private deterministicBool(threshold: number, contextKey: string): boolean {
+    const hash = this.createTestHash(contextKey);
+    const normalized = (hash & 0xffffffff) / 0xffffffff;
+    return normalized > threshold;
+  }
+
+  /**
+   * Deterministic array shuffle based on context
+   */
+  private deterministicShuffle<T>(array: T[], contextKey: string): T[] {
+    const shuffled = [...array];
+    const hash = this.createTestHash(contextKey);
+
+    // Fisher-Yates shuffle with deterministic randomness
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const seedValue = hash + i;
+      const j = Math.abs(seedValue * 2654435761) % (i + 1); // Using Knuth's multiplicative hash
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
+  }
+
+  /**
    * Run comprehensive A/B test comparing baseline vs enhanced reasoning
    */
   async runABTest(config: ABTestConfig): Promise<ABTestResult> {
@@ -58,8 +106,8 @@ export class ABTestFramework {
       `📊 Control Group: ${config.control_group_size}, Treatment Group: ${config.treatment_group_size}`
     );
 
-    // Split prompts randomly into control and treatment groups
-    const shuffled = [...config.prompt_set].sort(() => Math.random() - 0.5);
+    // Split prompts deterministically into control and treatment groups
+    const shuffled = this.deterministicShuffle(config.prompt_set, 'ab-test-shuffle');
     const controlPrompts = shuffled.slice(0, config.control_group_size);
     const treatmentPrompts = shuffled.slice(
       config.control_group_size,
@@ -116,7 +164,7 @@ export class ABTestFramework {
         const endTime = Date.now();
 
         results.push({
-          prompt_id: `control_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          prompt_id: `control_${Date.now()}_${generateResourceId('control').slice(-9)}`,
           prompt_type: prompt.type,
           reasoning_time: endTime - startTime,
           confidence_score: result.confidence || 0.5,
@@ -152,7 +200,7 @@ export class ABTestFramework {
         const endTime = Date.now();
 
         results.push({
-          prompt_id: `treatment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          prompt_id: `treatment_${Date.now()}_${generateResourceId('treatment').slice(-9)}`,
           prompt_type: prompt.type,
           reasoning_time: endTime - startTime,
           confidence_score: result.confidence || 0.7,
@@ -181,13 +229,14 @@ export class ABTestFramework {
     intent_precision: number;
   }> {
     // Simulate baseline processing with reduced capabilities
-    await this.simulateProcessingDelay(200 + Math.random() * 300); // 200-500ms
+    const context = `baseline-${prompt.type}-${prompt.content.length}`;
+    await this.simulateProcessingDelay(this.deterministicRange(200, 500, `${context}-delay`)); // 200-500ms
 
     return {
-      confidence: 0.4 + Math.random() * 0.3, // 40-70% confidence
-      success: Math.random() > 0.3, // 70% success rate
-      complexity: 3 + Math.random() * 4, // 3-7 complexity
-      intent_precision: 0.5 + Math.random() * 0.2, // 50-70% precision
+      confidence: this.deterministicRange(0.4, 0.7, `${context}-confidence`), // 40-70% confidence
+      success: this.deterministicBool(0.3, `${context}-success`), // 70% success rate
+      complexity: this.deterministicRange(3, 7, `${context}-complexity`), // 3-7 complexity
+      intent_precision: this.deterministicRange(0.5, 0.7, `${context}-intent`), // 50-70% precision
     };
   }
 
@@ -202,14 +251,15 @@ export class ABTestFramework {
     intent_precision: number;
   }> {
     // Simulate enhanced processing with AI algorithms
-    await this.simulateProcessingDelay(150 + Math.random() * 200); // 150-350ms (faster)
+    const context = `enhanced-${prompt.type}-${prompt.content.length}`;
+    await this.simulateProcessingDelay(this.deterministicRange(150, 350, `${context}-delay`)); // 150-350ms (faster)
 
     return {
-      confidence: 0.6 + Math.random() * 0.35, // 60-95% confidence (higher)
-      success: Math.random() > 0.15, // 85% success rate (higher)
-      complexity: 2 + Math.random() * 3, // 2-5 complexity (lower due to better understanding)
-      classification_accuracy: 0.85 + Math.random() * 0.1, // 85-95% accuracy
-      intent_precision: 0.75 + Math.random() * 0.2, // 75-95% precision
+      confidence: this.deterministicRange(0.6, 0.95, `${context}-confidence`), // 60-95% confidence (higher)
+      success: this.deterministicBool(0.15, `${context}-success`), // 85% success rate (higher)
+      complexity: this.deterministicRange(2, 5, `${context}-complexity`), // 2-5 complexity (lower due to better understanding)
+      classification_accuracy: this.deterministicRange(0.85, 0.95, `${context}-classification`), // 85-95% accuracy
+      intent_precision: this.deterministicRange(0.75, 0.95, `${context}-intent`), // 75-95% precision
     };
   }
 

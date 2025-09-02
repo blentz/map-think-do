@@ -925,6 +925,33 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   // Deterministic helper methods to replace Math.random() usage
 
   /**
+   * Create deterministic hash based on current system state
+   */
+  private createStateBasedHash(contextKey: string): number {
+    // Include key system state values in hash
+    const stateString = [
+      contextKey,
+      this.state.consciousness_level.toFixed(3),
+      this.state.mcp_status.integration_health.toFixed(3),
+      this.state.architectural_evolution.stability_score.toFixed(3),
+      this.state.quantum_coherence.toFixed(3),
+      this.state.ethical_alignment.toFixed(3),
+      // Include counts for additional variance
+      this.recursivePrompts.length.toString(),
+      this.temporalPredictions.length.toString(),
+      this.ethicalEvaluations.length.toString(),
+      this.quantumStates.length.toString(),
+    ].join('|');
+
+    // Simple hash function (djb2)
+    let hash = 5381;
+    for (let i = 0; i < stateString.length; i++) {
+      hash = ((hash << 5) + hash + stateString.charCodeAt(i)) & 0xffffffff;
+    }
+    return hash;
+  }
+
+  /**
    * Calculate deterministic probability based on system state
    */
   private calculateStateProbability(baseChance: number, stateFactors: string[]): boolean {
@@ -944,10 +971,10 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       probability *= 0.5 + this.state.quantum_coherence;
     }
 
-    // Use consciousness level cycling for deterministic decision
-    const cycle = Math.floor(Date.now() / 10000) % 100; // 10-second cycles
-    const threshold = probability * 100;
-    return cycle < threshold;
+    // Use deterministic hash of system state for decision
+    const stateHash = this.createStateBasedHash(stateFactors.join(','));
+    const normalizedHash = (stateHash & 0xffffffff) / 0xffffffff;
+    return normalizedHash < probability;
   }
 
   /**
