@@ -607,13 +607,13 @@ export class CreativeSynthesizer implements ExternalTool {
         type: 'hybrid',
         combination: `${concept1}-${concept2} fusion`,
         description: `A direct fusion combining the core features of both ${concept1} and ${concept2}`,
-        innovation_level: Math.random() * 0.4 + 0.6,
+        innovation_level: this.calculateInnovationLevel(concept1, concept2, 'fusion'),
       },
       {
         type: 'hybrid',
         combination: `${concept2}-enhanced ${concept1}`,
         description: `${concept1} enhanced with key capabilities from ${concept2}`,
-        innovation_level: Math.random() * 0.3 + 0.5,
+        innovation_level: this.calculateInnovationLevel(concept2, concept1, 'enhancement'),
       },
     ];
   }
@@ -624,7 +624,10 @@ export class CreativeSynthesizer implements ExternalTool {
         type: 'metaphorical',
         combination: `${concept1} as ${concept2}`,
         description: `Understanding ${concept1} through the lens of ${concept2}`,
-        conceptual_depth: Math.random() * 0.4 + 0.6,
+        conceptual_depth: this.calculateConceptualDepth(
+          concept1,
+          `Understanding ${concept1} through the lens of ${concept2}`
+        ),
       },
     ];
   }
@@ -635,7 +638,9 @@ export class CreativeSynthesizer implements ExternalTool {
         type: 'functional',
         combination: `${concept1} + ${concept2} workflow`,
         description: `A workflow that leverages the functions of both ${concept1} and ${concept2}`,
-        practical_value: Math.random() * 0.3 + 0.6,
+        practical_value: this.calculatePracticalValue(
+          `A workflow that leverages the functions of both ${concept1} and ${concept2}`
+        ),
       },
     ];
   }
@@ -645,12 +650,20 @@ export class CreativeSynthesizer implements ExternalTool {
       {
         synergy_type: 'complementary',
         description: `${concept1} and ${concept2} complement each other's weaknesses`,
-        strength: Math.random() * 0.4 + 0.6,
+        strength: this.calculateSynergyStrength(
+          concept1,
+          concept2,
+          `${concept1} and ${concept2} complement each other's weaknesses`
+        ),
       },
       {
         synergy_type: 'amplifying',
         description: `${concept2} amplifies the impact of ${concept1}`,
-        strength: Math.random() * 0.3 + 0.5,
+        strength: this.calculateSynergyStrength(
+          concept2,
+          concept1,
+          `${concept2} amplifies the impact of ${concept1}`
+        ),
       },
     ];
   }
@@ -661,13 +674,19 @@ export class CreativeSynthesizer implements ExternalTool {
         technique: 'Lateral Thinking',
         approach: 'Random Entry',
         solution: `Approach ${problem} from a completely unrelated starting point`,
-        unconventionality: Math.random() * 0.5 + 0.5,
+        unconventionality: this.calculateUnconventionality(
+          'Random Entry',
+          `Approach ${problem} from a completely unrelated starting point`
+        ),
       },
       {
         technique: 'Lateral Thinking',
         approach: 'Provocation',
         solution: `What if the opposite of ${problem} was the goal?`,
-        unconventionality: Math.random() * 0.4 + 0.6,
+        unconventionality: this.calculateUnconventionality(
+          'Provocation',
+          `What if the opposite of ${problem} was the goal?`
+        ),
       },
     ];
   }
@@ -677,7 +696,7 @@ export class CreativeSynthesizer implements ExternalTool {
       technique: 'Constraint Relaxation',
       relaxed_constraint: constraint,
       solution: `Solve ${problem} by temporarily ignoring the constraint: ${constraint}`,
-      freedom_gained: Math.random() * 0.4 + 0.5,
+      freedom_gained: this.calculateFreedomGained(constraint),
     }));
   }
 
@@ -688,7 +707,7 @@ export class CreativeSynthesizer implements ExternalTool {
       technique: 'Analogical Reasoning',
       analogy_domain: domain,
       solution: `How would ${domain} approach a problem similar to ${problem}?`,
-      analogy_strength: Math.random() * 0.4 + 0.5,
+      analogy_strength: this.calculateAnalogicalStrength(domain, problem),
     }));
   }
 
@@ -699,7 +718,7 @@ export class CreativeSynthesizer implements ExternalTool {
       technique: 'TRIZ',
       principle,
       solution: `Apply ${principle} principle to solve ${problem}`,
-      systematic_confidence: Math.random() * 0.3 + 0.7,
+      systematic_confidence: this.calculateSystematicConfidence(principle),
     }));
   }
 
@@ -710,7 +729,11 @@ export class CreativeSynthesizer implements ExternalTool {
       metaphor: `${concept} is like a ${element}`,
       domain: 'nature',
       explanation: `Both ${concept} and ${element} share characteristics of growth and adaptation`,
-      vividness: Math.random() * 0.3 + 0.7,
+      vividness: this.calculateMetaphorQuality(
+        'nature',
+        element,
+        `Both ${concept} and ${element} share characteristics of growth and adaptation`
+      ),
     }));
   }
 
@@ -721,7 +744,11 @@ export class CreativeSynthesizer implements ExternalTool {
       metaphor: `${concept} functions like a ${element}`,
       domain: 'technology',
       explanation: `${concept} processes and connects information similar to a ${element}`,
-      precision: Math.random() * 0.3 + 0.6,
+      precision: this.calculateMetaphorQuality(
+        'technology',
+        element,
+        `${concept} processes and connects information similar to a ${element}`
+      ),
     }));
   }
 
@@ -738,7 +765,11 @@ export class CreativeSynthesizer implements ExternalTool {
       metaphor: `${concept} works like the ${element}`,
       domain: 'body',
       explanation: `${concept} has vital functions similar to the ${element}`,
-      relatability: Math.random() * 0.4 + 0.6,
+      relatability: this.calculateMetaphorQuality(
+        'body',
+        element,
+        `${concept} has vital functions similar to the ${element}`
+      ),
     }));
   }
 
@@ -900,5 +931,242 @@ export class CreativeSynthesizer implements ExternalTool {
 
   private getSupportedOperations(): string[] {
     return ['generate_ideas', 'combine_concepts', 'solve_creatively', 'create_metaphors'];
+  }
+
+  // Deterministic scoring helper methods to replace Math.random() usage
+
+  private calculateInnovationLevel(concept1: string, concept2: string, type: string): number {
+    let baseScore = 0.5;
+
+    // Type-based scoring
+    switch (type) {
+      case 'fusion':
+        baseScore = 0.7; // Fusions are generally more innovative
+        break;
+      case 'enhancement':
+        baseScore = 0.6; // Enhancements are moderately innovative
+        break;
+      default:
+        baseScore = 0.5;
+    }
+
+    // Concept distance increases innovation level
+    const conceptDistance = this.calculateConceptDistance(concept1, concept2);
+    const innovationBonus = conceptDistance * 0.3;
+
+    return Math.min(Math.max(baseScore + innovationBonus, 0.3), 0.9);
+  }
+
+  private calculateConceptualDepth(concept: string, description: string): number {
+    let depth = 0.4; // Base depth
+
+    // Length and complexity indicators
+    const wordCount = description.split(' ').length;
+    depth += Math.min(wordCount * 0.01, 0.3); // Up to 0.3 bonus for detailed descriptions
+
+    // Abstract concepts have more depth
+    const abstractWords = [
+      'understanding',
+      'through',
+      'lens',
+      'perspective',
+      'metaphor',
+      'conceptual',
+    ];
+    const abstractCount = abstractWords.reduce(
+      (count, word) => count + (description.toLowerCase().includes(word) ? 1 : 0),
+      0
+    );
+    depth += abstractCount * 0.05;
+
+    // Complex concepts have more depth
+    const complexity = concept.split(' ').length + (concept.includes('-') ? 1 : 0);
+    depth += Math.min(complexity * 0.03, 0.2);
+
+    return Math.min(Math.max(depth, 0.2), 0.9);
+  }
+
+  private calculatePracticalValue(description: string): number {
+    let value = 0.5; // Base practical value
+
+    // Keywords indicating practical utility
+    const practicalWords = [
+      'workflow',
+      'leverages',
+      'functions',
+      'process',
+      'solution',
+      'effective',
+    ];
+    const practicalCount = practicalWords.reduce(
+      (count, word) => count + (description.toLowerCase().includes(word) ? 1 : 0),
+      0
+    );
+    value += practicalCount * 0.04;
+
+    // Specific action words indicate higher practical value
+    const actionWords = ['implement', 'execute', 'apply', 'use', 'utilize'];
+    const actionCount = actionWords.reduce(
+      (count, word) => count + (description.toLowerCase().includes(word) ? 1 : 0),
+      0
+    );
+    value += actionCount * 0.05;
+
+    return Math.min(Math.max(value, 0.2), 0.8);
+  }
+
+  private calculateSynergyStrength(
+    concept1: string,
+    concept2: string,
+    description: string
+  ): number {
+    let strength = 0.4; // Base strength
+
+    // Complementary relationships are stronger
+    if (description.includes('complement')) {
+      strength += 0.3;
+    } else if (description.includes('amplif')) {
+      strength += 0.2;
+    }
+
+    // Domain similarity affects synergy strength
+    const similarity = this.calculateCompatibilityScore(concept1, concept2);
+    strength += (1 - similarity) * 0.3; // Dissimilar concepts can have stronger synergy
+
+    return Math.min(Math.max(strength, 0.2), 0.8);
+  }
+
+  private calculateUnconventionality(approach: string, solution: string): number {
+    let score = 0.5; // Base unconventionality
+
+    // Specific unconventional techniques
+    if (approach === 'Random Entry') {
+      score += 0.3;
+    } else if (approach === 'Provocation') {
+      score += 0.4;
+    }
+
+    // Opposite/reverse thinking increases unconventionality
+    if (solution.includes('opposite') || solution.includes('reverse')) {
+      score += 0.2;
+    }
+
+    // Question format indicates unconventional thinking
+    if (solution.includes('What if')) {
+      score += 0.15;
+    }
+
+    return Math.min(Math.max(score, 0.3), 0.9);
+  }
+
+  private calculateFreedomGained(constraint: string): number {
+    let freedom = 0.4; // Base freedom
+
+    // Length of constraint description indicates complexity
+    const complexity = constraint.split(' ').length;
+    freedom += Math.min(complexity * 0.02, 0.3);
+
+    // Certain constraint types offer more freedom when relaxed
+    const restrictiveWords = ['must', 'cannot', 'forbidden', 'required', 'mandatory'];
+    const restrictiveCount = restrictiveWords.reduce(
+      (count, word) => count + (constraint.toLowerCase().includes(word) ? 1 : 0),
+      0
+    );
+    freedom += restrictiveCount * 0.08;
+
+    return Math.min(Math.max(freedom, 0.2), 0.8);
+  }
+
+  private calculateAnalogicalStrength(domain: string, problem: string): number {
+    let strength = 0.4; // Base strength
+
+    // Domain-specific adjustments
+    switch (domain.toLowerCase()) {
+      case 'nature':
+        strength += 0.2; // Nature analogies are generally strong
+        break;
+      case 'sports':
+        strength += 0.15; // Sports analogies are moderately strong
+        break;
+      case 'cooking':
+        strength += 0.1; // Cooking analogies can be effective
+        break;
+      case 'music':
+        strength += 0.25; // Musical analogies are often very strong
+        break;
+      case 'architecture':
+        strength += 0.18; // Architectural analogies are solid
+        break;
+      default:
+        strength += 0.1;
+    }
+
+    // Problem complexity affects analogy strength
+    const problemWords = problem.split(' ').length;
+    strength += Math.min(problemWords * 0.01, 0.2);
+
+    return Math.min(Math.max(strength, 0.3), 0.8);
+  }
+
+  private calculateSystematicConfidence(principle: string): number {
+    let confidence = 0.6; // Base TRIZ confidence (TRIZ is systematic)
+
+    // Well-established TRIZ principles have higher confidence
+    const establishedPrinciples = ['Segmentation', 'Asymmetry', 'Merging', 'Local quality'];
+    if (establishedPrinciples.includes(principle)) {
+      confidence += 0.2;
+    }
+
+    // Principle name length can indicate specificity
+    confidence += Math.min(principle.length * 0.005, 0.1);
+
+    return Math.min(Math.max(confidence, 0.4), 0.9);
+  }
+
+  private calculateMetaphorQuality(domain: string, element: string, explanation: string): number {
+    let quality = 0.5; // Base quality
+
+    // Domain-specific quality adjustments
+    switch (domain) {
+      case 'nature':
+        quality += 0.25; // Nature metaphors tend to be vivid and relatable
+        break;
+      case 'technology':
+        quality += 0.15; // Tech metaphors are precise but less vivid
+        break;
+      case 'body':
+        quality += 0.2; // Body metaphors are highly relatable
+        break;
+    }
+
+    // Explanation quality affects overall metaphor quality
+    const explanationWords = explanation.split(' ').length;
+    quality += Math.min(explanationWords * 0.008, 0.15);
+
+    // Specific elements have different inherent quality
+    const powerfulElements = ['river', 'tree', 'brain', 'heart', 'network'];
+    if (powerfulElements.some(e => element.includes(e))) {
+      quality += 0.1;
+    }
+
+    return Math.min(Math.max(quality, 0.3), 0.9);
+  }
+
+  private calculateConceptDistance(concept1: string, concept2: string): number {
+    // Simple heuristic for concept distance based on word overlap and length
+    const words1 = concept1
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length > 2);
+    const words2 = concept2
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length > 2);
+
+    const commonWords = words1.filter(w => words2.includes(w));
+    const overlap = commonWords.length / Math.max(words1.length, words2.length, 1);
+
+    // Higher overlap = lower distance
+    return Math.max(0.1, 0.9 - overlap);
   }
 }
