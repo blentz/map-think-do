@@ -175,6 +175,95 @@ describe('Phoenix Integration Tests', () => {
     expect(config.getEnvironment()).toBe('development');
   });
 
+  test('should export LLM impact metrics to Phoenix metrics bridge', async () => {
+    // Test that LLM impact metrics are properly exported to Phoenix
+    const testRequest = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'code-reasoning',
+        arguments: {
+          thought: 'LLM impact metrics test - measuring cognitive effectiveness and performance',
+          thought_number: 1,
+          total_thoughts: 2,
+          next_thought_needed: true,
+        },
+      },
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (serverProcess) serverProcess.kill('SIGTERM');
+        reject(new Error('LLM impact metrics test timeout'));
+      }, 15000);
+
+      serverProcess = spawn('npm', ['start'], {
+        cwd: process.cwd(),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stdoutData = '';
+      let stderrData = '';
+
+      serverProcess.stdout.on('data', (data: Buffer) => {
+        stdoutData += data.toString();
+      });
+
+      serverProcess.stderr.on('data', (data: Buffer) => {
+        stderrData += data.toString();
+      });
+
+      serverProcess.stdin.write(testRequest + '\n');
+      serverProcess.stdin.end();
+
+      serverProcess.on('exit', () => {
+        clearTimeout(timeout);
+
+        try {
+          // Verify that LLM impact metrics were exported
+          expect(stderrData).toContain('📈 Exported LLM impact metrics:');
+          expect(stderrData).toContain('efficiency=');
+          expect(stderrData).toContain('quality=');
+
+          // Verify Phoenix metrics bridge started and exported metrics
+          expect(stderrData).toContain('🌉 Starting Phoenix metrics bridge');
+          expect(stderrData).toContain('📊 Exported');
+          expect(stderrData).toContain('metrics to Phoenix');
+
+          // Verify cognitive processing occurred with impact metrics
+          const responseLines = stdoutData.split('\n').filter(line => line.trim());
+          const mcpResponse = responseLines.find(line => {
+            try {
+              const parsed = JSON.parse(line);
+              return parsed.result?.content?.[0]?.text;
+            } catch {
+              return false;
+            }
+          });
+
+          expect(mcpResponse).toBeDefined();
+
+          const parsedResponse = JSON.parse(mcpResponse!);
+          const cognitiveResult = JSON.parse(parsedResponse.result.content[0].text);
+
+          // Validate cognitive state includes metrics needed for LLM impact calculation
+          expect(cognitiveResult.cognitive_state).toBeDefined();
+          expect(typeof cognitiveResult.cognitive_state.metacognitive_awareness).toBe('number');
+          expect(typeof cognitiveResult.cognitive_state.creative_pressure).toBe('number');
+          expect(typeof cognitiveResult.cognitive_state.breakthrough_likelihood).toBe('number');
+          expect(typeof cognitiveResult.cognitive_state.cognitive_efficiency).toBe('number');
+
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      serverProcess.on('error', reject);
+    });
+  }, 20000);
+
   test('should generate proper span attributes for cognitive operations', async () => {
     // Test that cognitive operations generate the expected span attributes
     // This is validated through the tool execution response structure
