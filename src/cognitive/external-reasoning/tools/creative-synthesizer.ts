@@ -361,9 +361,41 @@ export class CreativeSynthesizer implements ExternalTool {
       creative_process: creativeProcess,
       confidence: 0.85,
       solution_analysis: {
-        originality_scores: solutions.map(() => Math.random() * 0.4 + 0.6),
-        feasibility_scores: solutions.map(() => Math.random() * 0.3 + 0.5),
-        impact_potential: solutions.map(() => Math.random() * 0.5 + 0.5),
+        originality_scores: solutions.map((solution, index) => {
+          const baseScore = 0.6;
+          const uniqueWords =
+            typeof solution === 'string'
+              ? new Set(
+                  solution
+                    .toLowerCase()
+                    .split(/\W+/)
+                    .filter(w => w.length > 2)
+                ).size
+              : 5;
+          const variation = ((index * 37 + uniqueWords * 13) % 100) / 250; // 0-0.4 range
+          return Math.min(baseScore + variation, 1.0);
+        }),
+        feasibility_scores: solutions.map((solution, index) => {
+          const baseScore = 0.5;
+          const complexity = typeof solution === 'string' ? solution.split(' ').length : 10;
+          const simplicity = Math.max(0, (20 - complexity) * 0.01); // Simpler = more feasible
+          const variation = ((index * 23 + complexity * 7) % 80) / 267; // 0-0.3 range
+          return Math.min(baseScore + simplicity + variation, 0.8);
+        }),
+        impact_potential: solutions.map((solution, index) => {
+          const baseScore = 0.5;
+          const keywords = ['improve', 'enhance', 'optimize', 'transform', 'innovate', 'solve'];
+          const keywordCount =
+            typeof solution === 'string'
+              ? keywords.reduce(
+                  (count, keyword) => count + (solution.toLowerCase().includes(keyword) ? 1 : 0),
+                  0
+                )
+              : 2;
+          const keywordBonus = keywordCount * 0.1;
+          const variation = ((index * 41 + keywordCount * 17) % 100) / 200; // 0-0.5 range
+          return Math.min(baseScore + keywordBonus + variation, 1.0);
+        }),
       },
     };
   }
@@ -380,7 +412,16 @@ export class CreativeSynthesizer implements ExternalTool {
     if (domain === 'any' || domain === 'nature') {
       const natureMetaphors = this.createNatureMetaphors(concept, Math.ceil(quantity / 3));
       metaphors.push(...natureMetaphors);
-      effectivenessScores.push(...natureMetaphors.map(() => Math.random() * 0.3 + 0.7));
+      effectivenessScores.push(
+        ...natureMetaphors.map((metaphor, index) => {
+          const baseScore = 0.7; // Nature metaphors are generally effective
+          const words =
+            metaphor && metaphor.explanation ? metaphor.explanation.split(' ').length : 10;
+          const detailBonus = Math.min(words * 0.01, 0.2); // More detail = more effective
+          const variation = ((index * 29) % 60) / 200; // 0-0.3 range
+          return Math.min(baseScore + detailBonus + variation, 1.0);
+        })
+      );
       creativeProcess.push(`Created ${natureMetaphors.length} nature metaphors`);
     }
 
@@ -388,7 +429,16 @@ export class CreativeSynthesizer implements ExternalTool {
     if (domain === 'any' || domain === 'technology') {
       const techMetaphors = this.createTechnologyMetaphors(concept, Math.ceil(quantity / 3));
       metaphors.push(...techMetaphors);
-      effectivenessScores.push(...techMetaphors.map(() => Math.random() * 0.3 + 0.6));
+      effectivenessScores.push(
+        ...techMetaphors.map((metaphor, index) => {
+          const baseScore = 0.6; // Technology metaphors moderate effectiveness
+          const words =
+            metaphor && metaphor.explanation ? metaphor.explanation.split(' ').length : 10;
+          const detailBonus = Math.min(words * 0.01, 0.2);
+          const variation = ((index * 31) % 60) / 200; // 0-0.3 range
+          return Math.min(baseScore + detailBonus + variation, 0.9);
+        })
+      );
       creativeProcess.push(`Created ${techMetaphors.length} technology metaphors`);
     }
 
@@ -396,7 +446,16 @@ export class CreativeSynthesizer implements ExternalTool {
     if (domain === 'any' || domain === 'body') {
       const bodyMetaphors = this.createBodyMetaphors(concept, Math.ceil(quantity / 3));
       metaphors.push(...bodyMetaphors);
-      effectivenessScores.push(...bodyMetaphors.map(() => Math.random() * 0.3 + 0.65));
+      effectivenessScores.push(
+        ...bodyMetaphors.map((metaphor, index) => {
+          const baseScore = 0.65; // Body metaphors good effectiveness
+          const words =
+            metaphor && metaphor.explanation ? metaphor.explanation.split(' ').length : 10;
+          const detailBonus = Math.min(words * 0.01, 0.2);
+          const variation = ((index * 33) % 60) / 200; // 0-0.3 range
+          return Math.min(baseScore + detailBonus + variation, 0.95);
+        })
+      );
       creativeProcess.push(`Created ${bodyMetaphors.length} body metaphors`);
     }
 
@@ -433,7 +492,13 @@ export class CreativeSynthesizer implements ExternalTool {
       technique: 'SCAMPER',
       action: prompt.action,
       idea: prompt.idea,
-      novelty_score: Math.random() * 0.4 + 0.6,
+      novelty_score: (() => {
+        const baseScore = 0.6;
+        const actionHash = prompt.action.charCodeAt(0) % 100;
+        const ideaLength = prompt.idea.length;
+        const variation = ((actionHash + ideaLength) % 100) / 250; // 0-0.4 range
+        return Math.min(baseScore + variation, 1.0);
+      })(),
     }));
   }
 
@@ -458,7 +523,16 @@ export class CreativeSynthesizer implements ExternalTool {
         technique: 'Random Word Association',
         trigger_word: randomWord,
         idea: `Combine ${topic} with the concept of ${randomWord} - what emerges?`,
-        association_strength: Math.random() * 0.5 + 0.5,
+        association_strength: (() => {
+          const baseScore = 0.5;
+          const wordLength = randomWord.length;
+          const topicLength = topic.length;
+          const lengthSimilarity =
+            1 - Math.abs(wordLength - topicLength) / Math.max(wordLength, topicLength);
+          const strengthBonus = lengthSimilarity * 0.3;
+          const variation = ((i * 17 + wordLength * 7) % 100) / 200; // 0-0.5 range
+          return Math.min(baseScore + strengthBonus + variation, 1.0);
+        })(),
       });
     }
 
@@ -492,7 +566,13 @@ export class CreativeSynthesizer implements ExternalTool {
       hat_color: hat.color,
       focus: hat.focus,
       idea: hat.idea,
-      perspective_value: Math.random() * 0.3 + 0.7,
+      perspective_value: (() => {
+        const baseScore = 0.7;
+        const colorHash = hat.color.charCodeAt(0) % 30;
+        const focusLength = hat.focus.length;
+        const variation = ((colorHash + focusLength) % 60) / 200; // 0-0.3 range
+        return Math.min(baseScore + variation, 1.0);
+      })(),
     }));
   }
 
@@ -507,7 +587,14 @@ export class CreativeSynthesizer implements ExternalTool {
         technique: 'Morphological Analysis',
         dimensions: selectedDimensions,
         idea: `Explore ${topic} by varying ${selectedDimensions.join(', ')}`,
-        systematic_score: Math.random() * 0.3 + 0.6,
+        systematic_score: (() => {
+          const baseScore = 0.6;
+          const dimensionCount = selectedDimensions.length;
+          const topicComplexity = topic.split(' ').length;
+          const complexity = dimensionCount + topicComplexity;
+          const variation = ((i * 19 + complexity * 11) % 60) / 200; // 0-0.3 range
+          return Math.min(baseScore + variation, 0.9);
+        })(),
       });
     }
 

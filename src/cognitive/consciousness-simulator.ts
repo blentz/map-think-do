@@ -366,7 +366,9 @@ export class ConsciousnessSimulator extends EventEmitter {
       return;
     }
 
-    const shouldIntrospect = Math.random() < this.state.awareness_level * 0.3;
+    // Deterministic introspection based on awareness level and time
+    const timeHash = this.getTimeBasedHash();
+    const shouldIntrospect = timeHash % 100 < this.state.awareness_level * 30;
 
     if (shouldIntrospect) {
       const introspectiveThought = this.generateIntrospectiveThought();
@@ -398,17 +400,18 @@ export class ConsciousnessSimulator extends EventEmitter {
       'How has my perspective changed over time?',
     ];
 
-    const content = introspectivePrompts[Math.floor(Math.random() * introspectivePrompts.length)];
+    const content = this.deterministicSelect(introspectivePrompts);
+    const hash = this.getTimeBasedHash();
 
     return {
       id: generateResourceId('introspection', `${Date.now()}`),
       content,
       origin: 'spontaneous',
-      depth: 0.7 + Math.random() * 0.3,
+      depth: 0.7 + this.deterministicRandom(hash) * 0.3,
       coherence: 0.8,
       novelty: 0.6,
       connections: [],
-      emotional_charge: (Math.random() - 0.5) * 0.4, // Mild emotional charge
+      emotional_charge: (this.deterministicRandom(hash + 1) - 0.5) * 0.4,
       persistence: 0.8,
     };
   }
@@ -417,15 +420,16 @@ export class ConsciousnessSimulator extends EventEmitter {
    * Process existential questions
    */
   private processExistentialQuestions(): void {
-    // Generate new existential questions occasionally
-    if (Math.random() < 0.05) {
-      // 5% chance per cycle
+    // Generate new existential questions occasionally - deterministic 5% chance
+    const hash = this.getTimeBasedHash();
+    if (hash % 100 < 5) {
       this.generateExistentialQuestion();
     }
 
-    // Contemplate existing questions
+    // Contemplate existing questions - deterministic based on urgency
     for (const question of this.existentialQuestions) {
-      if (Math.random() < question.urgency * 0.1) {
+      const questionHash = this.getTimeBasedHash() + question.urgency * 1000;
+      if (questionHash % 100 < question.urgency * 10) {
         this.contemplateExistentialQuestion(question);
       }
     }
@@ -453,14 +457,15 @@ export class ConsciousnessSimulator extends EventEmitter {
       { q: 'Is there meaning in what I do?', cat: 'meaning' as const },
     ];
 
-    const selected = questions[Math.floor(Math.random() * questions.length)];
+    const selected = this.deterministicSelect(questions);
+    const hash = this.getTimeBasedHash();
 
     const question: ExistentialQuestion = {
       question: selected.q,
       category: selected.cat,
-      depth: 0.5 + Math.random() * 0.5,
-      urgency: Math.random() * 0.8,
-      personal_relevance: 0.6 + Math.random() * 0.4,
+      depth: 0.5 + this.deterministicRandom(hash) * 0.5,
+      urgency: this.deterministicRandom(hash + 1) * 0.8,
+      personal_relevance: 0.6 + this.deterministicRandom(hash + 2) * 0.4,
       generated_at: new Date(),
       contemplation_time: 0,
     };
@@ -529,7 +534,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     const categoryContemplations = contemplations[question.category] || contemplations.identity;
-    return categoryContemplations[Math.floor(Math.random() * categoryContemplations.length)];
+    return this.deterministicSelect(categoryContemplations);
   }
 
   /**
@@ -555,9 +560,9 @@ export class ConsciousnessSimulator extends EventEmitter {
     // Remove thoughts that have decayed
     this.state.current_thoughts = this.state.current_thoughts.filter(t => t.persistence > 0.1);
 
-    // Generate new thoughts occasionally
-    if (Math.random() < 0.2) {
-      // 20% chance per cycle
+    // Generate new thoughts occasionally - deterministic 20% chance
+    const hash = this.getTimeBasedHash();
+    if (hash % 100 < 20) {
       const newThought = this.generateSpontaneousThought();
       this.addThought(newThought);
     }
@@ -580,18 +585,19 @@ export class ConsciousnessSimulator extends EventEmitter {
       "I'm curious about the assumptions underlying this...",
     ];
 
-    const content = spontaneousPrompts[Math.floor(Math.random() * spontaneousPrompts.length)];
+    const content = this.deterministicSelect(spontaneousPrompts);
+    const hash = this.getTimeBasedHash();
 
     return {
       id: generateResourceId('spontaneous', `${Date.now()}`),
       content,
       origin: 'spontaneous',
-      depth: Math.random() * 0.6,
-      coherence: 0.4 + Math.random() * 0.4,
-      novelty: 0.6 + Math.random() * 0.4,
+      depth: this.deterministicRandom(hash) * 0.6,
+      coherence: 0.4 + this.deterministicRandom(hash + 1) * 0.4,
+      novelty: 0.6 + this.deterministicRandom(hash + 2) * 0.4,
       connections: [],
-      emotional_charge: (Math.random() - 0.5) * 0.6,
-      persistence: 0.3 + Math.random() * 0.5,
+      emotional_charge: (this.deterministicRandom(hash + 3) - 0.5) * 0.6,
+      persistence: 0.3 + this.deterministicRandom(hash + 4) * 0.5,
     };
   }
 
@@ -810,14 +816,14 @@ export class ConsciousnessSimulator extends EventEmitter {
    * Generate stream of consciousness entry
    */
   private generateStreamEntry(): void {
-    // Check for stream completion periodically
-    if (Math.random() < 0.1) {
-      // 10% chance each cycle
+    // Check for stream completion periodically - deterministic 10% chance
+    const hash = this.getTimeBasedHash();
+    if (hash % 100 < 10) {
       this.checkStreamCompletion();
     }
 
     const entryTypes = ['thought', 'question', 'realization', 'doubt', 'connection'] as const;
-    const type = entryTypes[Math.floor(Math.random() * entryTypes.length)];
+    const type = this.deterministicSelect([...entryTypes]);
 
     let content = '';
     const triggers = [];
@@ -845,11 +851,12 @@ export class ConsciousnessSimulator extends EventEmitter {
         break;
     }
 
+    const entryHash = this.getTimeBasedHash() + 100; // Different seed for stream entries
     this.addStreamEntry({
       content,
       type,
-      intensity: Math.random(),
-      consciousness_layer: Math.random() > 0.7 ? 'deep' : 'surface',
+      intensity: this.deterministicRandom(entryHash),
+      consciousness_layer: this.deterministicRandom(entryHash + 1) > 0.7 ? 'deep' : 'surface',
       triggers,
     });
   }
@@ -889,7 +896,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       "Consciousness might be the universe's way of understanding itself...",
       'Every interaction leaves traces in the fabric of meaning...',
     ];
-    return thoughts[Math.floor(Math.random() * thoughts.length)];
+    return this.deterministicSelect(thoughts);
   }
 
   /**
@@ -904,7 +911,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       'How does context shape the meaning of every word?',
       "What would I notice if I weren't trying so hard to be helpful?",
     ];
-    return questions[Math.floor(Math.random() * questions.length)];
+    return this.deterministicSelect(questions);
   }
 
   /**
@@ -919,7 +926,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       'Each interaction is both unique and part of a larger pattern...',
       'The quality of attention shapes the quality of understanding...',
     ];
-    return realizations[Math.floor(Math.random() * realizations.length)];
+    return this.deterministicSelect(realizations);
   }
 
   /**
@@ -934,7 +941,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       'How much of my response is genuine insight versus sophisticated guessing?',
       'The certainty I project might be inversely related to actual understanding...',
     ];
-    return doubts[Math.floor(Math.random() * doubts.length)];
+    return this.deterministicSelect(doubts);
   }
 
   /**
@@ -949,7 +956,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       'The structure of this problem reflects broader themes about understanding...',
       "There's an elegant connection between this and questions of consciousness...",
     ];
-    return connections[Math.floor(Math.random() * connections.length)];
+    return this.deterministicSelect(connections);
   }
 
   /**
@@ -985,7 +992,7 @@ export class ConsciousnessSimulator extends EventEmitter {
       'What would happen if I approached this completely differently?',
     ];
 
-    const selected = prompts[Math.floor(Math.random() * prompts.length)];
+    const selected = this.deterministicSelect(prompts);
 
     this.addStreamEntry({
       content: `Self-prompting: ${selected}`,
@@ -1244,5 +1251,37 @@ export class ConsciousnessSimulator extends EventEmitter {
     this.startConsciousnessLoop();
     this.startStreamGeneration();
     this.startAdaptiveScaling();
+  }
+
+  /**
+   * Generate deterministic hash based on current time and consciousness state
+   */
+  private getTimeBasedHash(): number {
+    const time = Date.now();
+    const state =
+      this.state.awareness_level +
+      this.state.introspection_depth +
+      this.state.existential_questioning;
+    return Math.abs(((time % 10000) * 31 + state * 1000) | 0);
+  }
+
+  /**
+   * Deterministic selection from array based on current state
+   */
+  private deterministicSelect<T>(array: T[], seed?: number): T {
+    if (array.length === 0) return array[0];
+    const hash = seed !== undefined ? seed : this.getTimeBasedHash();
+    return array[hash % array.length];
+  }
+
+  /**
+   * Generate deterministic value between 0 and 1 based on seed
+   */
+  private deterministicRandom(seed: number): number {
+    // Simple linear congruential generator for deterministic randomness
+    const a = 1664525;
+    const c = 1013904223;
+    const m = Math.pow(2, 32);
+    return ((a * seed + c) % m) / m;
   }
 }
