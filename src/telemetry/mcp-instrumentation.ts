@@ -16,6 +16,10 @@ import {
   PromptVariables,
 } from './prompt-tracking.js';
 import { extractSpanAttributes, getUserInfo, getSessionInfo } from './context-attributes.js';
+import { SpanHierarchyManager } from './span-hierarchy-manager.js';
+import { OpenInferenceAdapter } from './openinference-adapter.js';
+import { EventManager, EventType } from './event-manager.js';
+import { StatusMapper, MCPStatusCode } from './status-mapper.js';
 import { randomBytes } from 'crypto';
 import { performance } from 'perf_hooks';
 
@@ -29,6 +33,12 @@ export class MCPInstrumentation {
 
   // Track span contexts for linking related thoughts
   private thoughtSpanContexts = new Map<string, any>();
+
+  // Phoenix Phase 2 Components
+  private hierarchyManager: SpanHierarchyManager;
+  private openInferenceAdapter: OpenInferenceAdapter;
+  private eventManager: EventManager;
+  private statusMapper: StatusMapper;
 
   // Histogram metrics for latency distributions
   private thoughtLatencyHistogram: Histogram;
@@ -64,6 +74,12 @@ export class MCPInstrumentation {
       description: 'Latency of tool execution',
       unit: 'ms',
     });
+
+    // Initialize Phoenix Phase 2 Components
+    this.hierarchyManager = new SpanHierarchyManager();
+    this.openInferenceAdapter = new OpenInferenceAdapter();
+    this.eventManager = new EventManager();
+    this.statusMapper = new StatusMapper();
   }
 
   public static getInstance(): MCPInstrumentation {
@@ -106,6 +122,9 @@ export class MCPInstrumentation {
     return Number((promptCost + completionCost).toFixed(6));
   }
 
+  /**
+   * Enhanced MCP handler instrumentation with Phoenix Phase 2 components
+   */
   public instrumentMCPHandler<T extends (...args: any[]) => any>(handler: T, toolName: string): T {
     const instrumented = async (...args: any[]): Promise<any> => {
       const requestId = this.generateRequestId();
@@ -649,6 +668,106 @@ export class MCPInstrumentation {
     metrics.thoughtCount++;
     if (args.branch_from_thought) metrics.branchCount++;
     if (args.is_revision) metrics.revisionCount++;
+  }
+
+  /**
+   * Phoenix Phase 2: Enhanced request instrumentation with hierarchy management
+   */
+  public instrumentRequestWithHierarchy<T extends (...args: any[]) => any>(
+    handler: T,
+    requestType: string,
+    options?: {
+      model?: string;
+      prompts?: Array<{ role: string; content: string; tokens: number }>;
+      completions?: Array<{ role: string; content: string; tokens: number; finish_reason: string }>;
+    }
+  ): T {
+    const instrumented = async (...args: any[]): Promise<any> => {
+      const requestId = this.generateRequestId();
+
+      if (!this.config.isEnabled() || !this.config.shouldSample(requestId)) {
+        return handler.apply(this, args);
+      }
+
+      // Create root span with hierarchy manager
+      const rootSpan = this.hierarchyManager.createRootSpan(
+        requestId,
+        `mcp.request.${requestType}`
+      );
+
+      // Apply OpenInference conventions
+      this.openInferenceAdapter.applyConventions(rootSpan, {
+        spanKind: 'REQUEST',
+        operation: requestType,
+        model: options?.model,
+        prompts: options?.prompts,
+        completions: options?.completions,
+        metadata: {
+          'mcp.request_type': requestType,
+          'mcp.request_id': requestId,
+        },
+      });
+
+      try {
+        // Record start event
+        this.eventManager.recordEvent(rootSpan, {
+          name: EventType.COGNITIVE_PROCESS,
+          attributes: {
+            phase: 'start',
+            request_type: requestType,
+            request_id: requestId,
+          },
+        });
+
+        // Execute with context
+        const result = await context.with(
+          this.hierarchyManager.getCurrentContext(requestId),
+          async () => {
+            return await handler.apply(this, args);
+          }
+        );
+
+        // Set success status
+        const status = this.statusMapper.mapCognitiveStatus({ success: true });
+        rootSpan.setStatus({
+          code: this.statusMapper.mapToOTelStatus(status),
+          message: this.statusMapper.getStatusMessage(status),
+        });
+
+        // Record completion event
+        this.eventManager.recordEvent(rootSpan, {
+          name: EventType.COGNITIVE_PROCESS,
+          attributes: {
+            phase: 'complete',
+            request_type: requestType,
+            success: true,
+          },
+        });
+
+        return result;
+      } catch (error) {
+        // Record error event
+        this.eventManager.recordErrorEvent(rootSpan, error as Error, 'error');
+
+        // Set error status
+        const status = this.statusMapper.mapCognitiveStatus({
+          success: false,
+          error: error as Error,
+        });
+        rootSpan.setStatus({
+          code: this.statusMapper.mapToOTelStatus(status),
+          message: this.statusMapper.getStatusMessage(status),
+        });
+
+        throw error;
+      } finally {
+        // Cleanup
+        this.hierarchyManager.cleanupRequest(requestId);
+        rootSpan.end();
+      }
+    };
+
+    return instrumented as T;
   }
 
   public createSessionSummarySpan(sessionId: string): void {
