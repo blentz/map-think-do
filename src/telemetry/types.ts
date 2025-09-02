@@ -3,6 +3,7 @@ import { Tracer, Attributes } from '@opentelemetry/api';
 export interface PhoenixConfig {
   endpoint: string;
   serviceName: string;
+  projectName: string;
   environment: string;
   samplingRate: number;
   enabled: boolean;

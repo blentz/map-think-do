@@ -10,6 +10,7 @@ export class TelemetryConfig {
     this.config = {
       endpoint: process.env.PHOENIX_ENDPOINT || 'http://localhost:6006',
       serviceName: process.env.TELEMETRY_SERVICE_NAME || 'sentient-agi-mcp-server',
+      projectName: process.env.PHOENIX_PROJECT_NAME || 'sentient-agi-reasoning',
       environment: process.env.NODE_ENV || 'development',
       samplingRate: parseFloat(process.env.TELEMETRY_SAMPLING_RATE || '1.0'),
       enabled: process.env.TELEMETRY_ENABLED !== 'false',
@@ -45,6 +46,10 @@ export class TelemetryConfig {
 
   public getEnvironment(): string {
     return this.config.environment;
+  }
+
+  public getProjectName(): string {
+    return this.config.projectName;
   }
 
   public updateConfig(updates: Partial<PhoenixConfig>): void {

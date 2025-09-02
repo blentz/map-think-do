@@ -32,7 +32,7 @@ export async function initializeTelemetry(): Promise<void> {
     const resource = resourceFromAttributes({
       [SEMRESATTRS_SERVICE_NAME]: config.getServiceName(),
       [SEMRESATTRS_SERVICE_VERSION]: '1.0.0',
-      [SEMRESATTRS_PROJECT_NAME]: 'sentient-agi-reasoning',
+      [SEMRESATTRS_PROJECT_NAME]: config.getProjectName(),
       'service.environment': config.getEnvironment(),
       'service.instance.id': `${config.getServiceName()}-${Date.now()}`,
       'telemetry.sdk.name': 'opentelemetry',
@@ -77,6 +77,7 @@ export async function initializeTelemetry(): Promise<void> {
     mcpLog.info('✅ OpenTelemetry initialized successfully');
     mcpLog.info(`📡 Sending traces to: ${config.getEndpoint()}`);
     mcpLog.info(`🏷️  Service name: ${config.getServiceName()}`);
+    mcpLog.info(`📋 Project name: ${config.getProjectName()}`);
     mcpLog.info(`📊 Sampling rate: ${config.getSamplingRate()}`);
   } catch (error) {
     mcpLog.error('❌ Failed to initialize OpenTelemetry:', error);
