@@ -12,7 +12,7 @@ import {
   validateSessionInfo,
   ContextMetadata,
 } from '../../src/telemetry/context-attributes.js';
-import { ROOT_CONTEXT, context } from '@opentelemetry/api';
+import { ROOT_CONTEXT } from '@opentelemetry/api';
 
 interface TestResult {
   name: string;
@@ -169,10 +169,10 @@ export async function runContextAttributesTests(): Promise<void> {
     let contextCaptured = false;
     let capturedAttributes: Record<string, any> = {};
 
-    // Use withFullContext with context parameter to work around propagation issues
+    // Use withFullContext with explicit context parameter
     withFullContext(userInfo, sessionInfo, metadata, ctx => {
       contextCaptured = true;
-      capturedAttributes = extractSpanAttributes(ctx || context.active());
+      capturedAttributes = extractSpanAttributes(ctx);
     });
 
     SimpleAssertions.assert(contextCaptured, 'Context function should have been executed');
@@ -223,7 +223,7 @@ export async function runContextAttributesTests(): Promise<void> {
       };
 
       withFullContext(userInfo, sessionInfo, metadata, ctx => {
-        const attributes = extractSpanAttributes(ctx || context.active());
+        const attributes = extractSpanAttributes(ctx);
         SimpleAssertions.assertDefined(attributes['user.id']);
         SimpleAssertions.assertDefined(attributes['session.start_time']);
         SimpleAssertions.assertDefined(attributes['context.tags']);

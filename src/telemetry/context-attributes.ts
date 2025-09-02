@@ -103,13 +103,13 @@ export function withContextMetadata<T>(metadata: ContextMetadata, fn: () => T): 
 
 /**
  * Execute a function within a full context (user, session, metadata)
- * Supports both callback styles: fn() relying on context.active() and fn(ctx) with explicit context
+ * Always passes the constructed context explicitly to avoid context.active() propagation issues
  */
 export function withFullContext<T>(
   userInfo: UserInfo,
   sessionInfo: SessionInfo,
   metadata: ContextMetadata,
-  fn: ((ctx?: Context) => T) | (() => T)
+  fn: (ctx: Context) => T
 ): T {
   const activeContext = context.active();
   let newContext = setUserInfo(activeContext, userInfo);
@@ -117,14 +117,8 @@ export function withFullContext<T>(
   newContext = setContextMetadata(newContext, metadata);
 
   return context.with(newContext, () => {
-    // Check if callback expects a context parameter by looking at function length
-    if (fn.length > 0) {
-      // Callback expects context parameter - pass the constructed context
-      return (fn as (ctx: Context) => T)(newContext);
-    } else {
-      // Callback expects context.active() to work - call without parameters
-      return (fn as () => T)();
-    }
+    // Always pass the constructed context explicitly to ensure reliable access
+    return fn(newContext);
   });
 }
 
