@@ -96,11 +96,21 @@ export class MCPInstrumentation {
       const span = this.tracer.startSpan(spanName, {
         kind: SpanKind.SERVER,
         attributes: {
+          // Required OpenInference semantic convention
+          'openinference.span.kind': 'TOOL',
+
+          // OpenInference tool attributes
+          'tool.name': toolName,
+          'tool.description': `MCP ${toolName} tool execution`,
+
+          // MCP-specific attributes (keep for compatibility)
           'mcp.tool': toolName,
           'mcp.request_id': requestId,
           'mcp.timestamp': new Date().toISOString(),
           'mcp.node_version': process.version,
           'mcp.pid': process.pid,
+
+          // Resource attributes following OpenTelemetry conventions
           'resource.memory.heap_used_mb': memoryBefore.heapUsed / 1048576,
           'resource.memory.heap_total_mb': memoryBefore.heapTotal / 1048576,
           'resource.memory.external_mb': memoryBefore.external / 1048576,
@@ -118,7 +128,13 @@ export class MCPInstrumentation {
           if (args[0] && typeof args[0] === 'object') {
             const argKeys = Object.keys(args[0]);
             const requestSizeBytes = JSON.stringify(args[0]).length;
+            const inputValue = JSON.stringify(args[0]);
 
+            // OpenInference input conventions
+            span.setAttribute('input.value', inputValue);
+            span.setAttribute('input.mime_type', 'application/json');
+
+            // MCP-specific attributes (keep for compatibility)
             span.setAttribute('mcp.args.count', argKeys.length);
             span.setAttribute('mcp.request.size_bytes', requestSizeBytes);
 
@@ -174,8 +190,10 @@ export class MCPInstrumentation {
               });
             }
 
-            // Track session context
+            // Track session context using OpenInference conventions
             if (args[0].session_id) {
+              span.setAttribute('session.id', args[0].session_id);
+              // Keep MCP compatibility attribute
               span.setAttribute('mcp.session_id', args[0].session_id);
               this.updateSessionMetrics(args[0].session_id, args[0]);
             }
@@ -274,6 +292,13 @@ export class MCPInstrumentation {
 
           if (result && typeof result === 'object') {
             const responseSizeBytes = JSON.stringify(result).length;
+            const outputValue = JSON.stringify(result);
+
+            // OpenInference output conventions
+            span.setAttribute('output.value', outputValue);
+            span.setAttribute('output.mime_type', 'application/json');
+
+            // MCP-specific attributes (keep for compatibility)
             span.setAttribute('mcp.response.size_bytes', responseSizeBytes);
 
             // Enhanced cognitive metrics
@@ -398,6 +423,14 @@ export class MCPInstrumentation {
     const span = this.tracer.startSpan(`mcp.tool.${toolName}`, {
       kind: SpanKind.INTERNAL,
       attributes: {
+        // Required OpenInference semantic convention
+        'openinference.span.kind': 'TOOL',
+
+        // OpenInference tool attributes
+        'tool.name': toolName,
+        'tool.description': `MCP ${toolName} internal tool operation`,
+
+        // MCP-specific attributes (keep for compatibility)
         'mcp.tool': toolName,
         ...attributes,
       },

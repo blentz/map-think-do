@@ -281,6 +281,9 @@ export function extractSpanAttributes(ctx: Context): Record<string, any> {
   const contextMetadata = getContextMetadata(ctx);
   if (contextMetadata) {
     if (contextMetadata.tags && Array.isArray(contextMetadata.tags)) {
+      // OpenInference semantic convention for tags
+      attributes['tag.tags'] = JSON.stringify(contextMetadata.tags);
+      // Keep compatibility attributes
       attributes['context.tags'] = contextMetadata.tags.join(',');
       attributes['context.tags.count'] = contextMetadata.tags.length;
     }
@@ -292,6 +295,7 @@ export function extractSpanAttributes(ctx: Context): Record<string, any> {
     }
 
     // Add other metadata with proper prefixing
+    const otherMetadata: Record<string, any> = {};
     Object.entries(contextMetadata).forEach(([key, value]) => {
       if (
         !['tags', 'environment', 'version'].includes(key) &&
@@ -299,8 +303,14 @@ export function extractSpanAttributes(ctx: Context): Record<string, any> {
         value !== undefined
       ) {
         attributes[`context.metadata.${key}`] = String(value);
+        otherMetadata[key] = value;
       }
     });
+
+    // OpenInference semantic convention for general metadata
+    if (Object.keys(otherMetadata).length > 0) {
+      attributes['metadata'] = JSON.stringify(otherMetadata);
+    }
   }
 
   return attributes;
