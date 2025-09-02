@@ -749,7 +749,7 @@ export class CodeAnalyzer implements ExternalTool {
       overall,
       per_function: this.extractFunctions(code, 'auto').map(func => ({
         name: func,
-        complexity: Math.floor(Math.random() * 10) + 1, // Simplified
+        complexity: this.calculateFunctionComplexity(func, code),
       })),
     };
   }
@@ -769,12 +769,19 @@ export class CodeAnalyzer implements ExternalTool {
   private identifyComplexityHotspots(code: string, metrics: any): any[] {
     const functions = this.extractFunctions(code, 'auto');
     return functions
-      .filter(() => Math.random() > 0.7)
+      .map(func => ({
+        name: func,
+        complexity: this.calculateFunctionComplexity(func, code),
+      }))
+      .filter(func => func.complexity > 8) // Only report high complexity functions
       .map(func => ({
         type: 'function',
-        name: func,
-        complexity_score: Math.floor(Math.random() * 20) + 10,
-        recommendation: 'Consider refactoring this function',
+        name: func.name,
+        complexity_score: func.complexity,
+        recommendation:
+          func.complexity > 12
+            ? 'Urgent: Consider breaking down this complex function'
+            : 'Consider refactoring this function for better maintainability',
       }));
   }
 
@@ -918,6 +925,30 @@ export class CodeAnalyzer implements ExternalTool {
     }
 
     return recommendations;
+  }
+
+  private calculateFunctionComplexity(functionName: string, code: string): number {
+    // Calculate actual complexity based on function characteristics
+    const functionCode = this.extractFunctionCode(code, functionName);
+    if (!functionCode) return 1;
+
+    let complexity = 1; // Base complexity
+
+    // Count decision points (if, while, for, switch, etc.)
+    const decisionPoints = (functionCode.match(/\b(if|while|for|switch|case|catch)\b/g) || [])
+      .length;
+    complexity += decisionPoints;
+
+    // Count logical operators
+    const logicalOps = (functionCode.match(/(\&\&|\|\|)/g) || []).length;
+    complexity += logicalOps;
+
+    // Penalize for length (more lines = higher complexity)
+    const lineCount = functionCode.split('\n').length;
+    if (lineCount > 20) complexity += Math.floor(lineCount / 20);
+
+    // Cap at reasonable maximum
+    return Math.min(complexity, 15);
   }
 
   // Utility methods

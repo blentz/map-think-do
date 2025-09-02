@@ -672,7 +672,34 @@ export class CreativeSynthesizer implements ExternalTool {
   }
 
   private calculateFeasibilityScore(ideas: any[]): number {
-    return Math.random() * 0.3 + 0.6; // Simplified
+    // Calculate feasibility based on actual idea characteristics
+    let totalFeasibility = 0;
+    let validIdeas = 0;
+
+    for (const idea of ideas) {
+      // Base feasibility on complexity and resource requirements
+      let feasibility = 0.6; // Base score
+
+      // Lower complexity = higher feasibility
+      if (idea.complexity !== undefined) {
+        feasibility += (10 - Math.min(idea.complexity, 10)) * 0.02;
+      }
+
+      // Higher novelty slightly reduces feasibility
+      if (idea.novelty_score !== undefined) {
+        feasibility -= idea.novelty_score * 0.1;
+      }
+
+      // Known techniques are more feasible
+      if (idea.technique && ['SCAMPER', 'analogical'].includes(idea.technique)) {
+        feasibility += 0.1;
+      }
+
+      totalFeasibility += Math.min(Math.max(feasibility, 0.3), 0.9);
+      validIdeas++;
+    }
+
+    return validIdeas > 0 ? totalFeasibility / validIdeas : 0.6;
   }
 
   private calculateDiversityScore(ideas: any[]): number {
@@ -681,7 +708,27 @@ export class CreativeSynthesizer implements ExternalTool {
   }
 
   private calculateCompatibilityScore(concept1: string, concept2: string): number {
-    return Math.random() * 0.4 + 0.5; // Simplified compatibility assessment
+    // Calculate compatibility based on concept similarity and domain overlap
+    let compatibility = 0.5; // Base score
+
+    // Analyze concept length and complexity as rough similarity measure
+    const lengthDiff = Math.abs(concept1.length - concept2.length);
+    compatibility += (20 - Math.min(lengthDiff, 20)) / 40; // 0 to 0.5 bonus
+
+    // Check for common words (simple approach)
+    const words1 = concept1
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length > 2);
+    const words2 = concept2
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length > 2);
+    const commonWords = words1.filter(w => words2.includes(w));
+    const wordOverlap = commonWords.length / Math.max(words1.length, words2.length, 1);
+    compatibility += wordOverlap * 0.3; // Up to 0.3 bonus for word overlap
+
+    return Math.min(Math.max(compatibility, 0.2), 0.9);
   }
 
   private calculateInnovationPotential(combinations: any[]): number {
@@ -690,11 +737,78 @@ export class CreativeSynthesizer implements ExternalTool {
   }
 
   private calculateMarketPotential(combinations: any[]): number {
-    return Math.random() * 0.5 + 0.4; // Simplified market assessment
+    // Calculate market potential based on combination characteristics
+    let totalPotential = 0;
+    let validCombinations = 0;
+
+    for (const combo of combinations) {
+      let potential = 0.4; // Base market potential
+
+      // Higher innovation level suggests better market potential
+      if (combo.innovation_level !== undefined) {
+        potential += combo.innovation_level * 0.3;
+      }
+
+      // Practical combinations have better market potential
+      if (combo.practical_value !== undefined) {
+        potential += combo.practical_value * 0.2;
+      }
+
+      // Direct fusion typically has moderate market potential
+      if (combo.combination && combo.combination.includes('fusion')) {
+        potential += 0.1;
+      }
+
+      totalPotential += Math.min(Math.max(potential, 0.2), 0.9);
+      validCombinations++;
+    }
+
+    return validCombinations > 0 ? totalPotential / validCombinations : 0.6;
   }
 
   private calculateConceptualDistance(concept: string, metaphors: any[]): number {
-    return Math.random() * 0.4 + 0.3; // Simplified conceptual distance
+    // Calculate average conceptual distance based on domain diversity
+    if (!metaphors || metaphors.length === 0) return 0.5;
+
+    let totalDistance = 0;
+    const conceptWords = concept
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length > 2);
+
+    for (const metaphor of metaphors) {
+      let distance = 0.3; // Base distance
+
+      // Domain-based distance scoring
+      switch (metaphor.domain) {
+        case 'nature':
+          distance += 0.4; // Nature metaphors are typically more distant
+          break;
+        case 'technology':
+          distance += 0.2; // Technology metaphors are moderately distant
+          break;
+        case 'body':
+          distance += 0.3; // Body metaphors are fairly distant
+          break;
+        default:
+          distance += 0.25;
+      }
+
+      // Check for word overlap to adjust distance
+      if (metaphor.explanation) {
+        const metaphorWords = metaphor.explanation
+          .toLowerCase()
+          .split(/\W+/)
+          .filter((w: string) => w.length > 2);
+        const commonWords = conceptWords.filter((w: string) => metaphorWords.includes(w));
+        const overlap = commonWords.length / Math.max(conceptWords.length, 1);
+        distance -= overlap * 0.2; // Reduce distance for word overlap
+      }
+
+      totalDistance += Math.min(Math.max(distance, 0.1), 0.7);
+    }
+
+    return totalDistance / metaphors.length;
   }
 
   private getSupportedOperations(): string[] {

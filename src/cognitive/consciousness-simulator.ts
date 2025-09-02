@@ -18,6 +18,7 @@ import { EventEmitter } from 'events';
 import { MemoryStore } from '../memory/memory-store.js';
 import { TimerManager } from '../utils/timer-manager.js';
 import { CognitivePerformanceConfigManager } from '../utils/cognitive-performance-config.js';
+import { generateResourceId } from '../utils/id-generator.js';
 
 export interface ConsciousnessState {
   awareness_level: number; // 0-1 scale
@@ -400,7 +401,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     const content = introspectivePrompts[Math.floor(Math.random() * introspectivePrompts.length)];
 
     return {
-      id: `introspection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateResourceId('introspection', `${Date.now()}`),
       content,
       origin: 'spontaneous',
       depth: 0.7 + Math.random() * 0.3,
@@ -582,7 +583,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     const content = spontaneousPrompts[Math.floor(Math.random() * spontaneousPrompts.length)];
 
     return {
-      id: `spontaneous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: generateResourceId('spontaneous', `${Date.now()}`),
       content,
       origin: 'spontaneous',
       depth: Math.random() * 0.6,
