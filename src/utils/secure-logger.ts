@@ -183,6 +183,7 @@ export class SecureLogger {
 
   /**
    * Output log entry to console with appropriate formatting
+   * NOTE: All output uses console.error for MCP protocol compatibility (stderr only)
    */
   private outputToConsole(entry: SecureLogEntry): void {
     const prefix = `[${entry.component}::${entry.method}]`;
@@ -192,15 +193,16 @@ export class SecureLogger {
 
     const message = `${prefix}${redactedFlag} ${entry.message}${hashInfo}${metadata}`;
 
+    // All output goes to stderr via console.error for MCP protocol compatibility
     switch (entry.level) {
       case LogLevel.DEBUG:
-        console.debug(`🔍 ${message}`);
+        console.error(`🔍 ${message}`);
         break;
       case LogLevel.INFO:
-        console.info(`ℹ️  ${message}`);
+        console.error(`ℹ️  ${message}`);
         break;
       case LogLevel.WARN:
-        console.warn(`⚠️  ${message}`);
+        console.error(`⚠️  ${message}`);
         break;
       case LogLevel.ERROR:
         console.error(`❌ ${message}`);

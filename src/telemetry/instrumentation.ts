@@ -2,25 +2,33 @@ import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+import {
+  BatchSpanProcessor,
+  ConsoleSpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
+import {
+  SEMRESATTRS_SERVICE_NAME,
+  SEMRESATTRS_SERVICE_VERSION,
+} from '@opentelemetry/semantic-conventions';
 import { SEMRESATTRS_PROJECT_NAME } from '@arizeai/openinference-semantic-conventions';
 import { TelemetryConfig } from './telemetry-config.js';
 import { PhoenixTelemetryService } from './phoenix-client.js';
+import { mcpLog } from '../utils/mcp-logger.js';
 
 let tracerProvider: NodeTracerProvider | null = null;
 
 export async function initializeTelemetry(): Promise<void> {
   const config = TelemetryConfig.getInstance();
-  
+
   if (!config.isEnabled()) {
-    console.error('📊 Telemetry is disabled');
+    mcpLog.info('📊 Telemetry is disabled');
     return;
   }
 
   try {
-    console.error('🔧 Initializing OpenTelemetry...');
-    
+    mcpLog.info('🔧 Initializing OpenTelemetry...');
+
     const resource = resourceFromAttributes({
       [SEMRESATTRS_SERVICE_NAME]: config.getServiceName(),
       [SEMRESATTRS_SERVICE_VERSION]: '1.0.0',
@@ -51,7 +59,7 @@ export async function initializeTelemetry(): Promise<void> {
     });
 
     if (config.getEnvironment() === 'development') {
-      console.error('🔍 Adding console exporter for development');
+      mcpLog.debug('🔍 Adding console exporter for development');
       const consoleExporter = new ConsoleSpanExporter();
       const consoleProcessor = new SimpleSpanProcessor(consoleExporter);
       (tracerProvider as any).addSpanProcessor?.(consoleProcessor);
@@ -66,32 +74,31 @@ export async function initializeTelemetry(): Promise<void> {
     const phoenixService = PhoenixTelemetryService.getInstance();
     await phoenixService.initialize();
 
-    console.error('✅ OpenTelemetry initialized successfully');
-    console.error(`📡 Sending traces to: ${config.getEndpoint()}`);
-    console.error(`🏷️  Service name: ${config.getServiceName()}`);
-    console.error(`📊 Sampling rate: ${config.getSamplingRate()}`);
-    
+    mcpLog.info('✅ OpenTelemetry initialized successfully');
+    mcpLog.info(`📡 Sending traces to: ${config.getEndpoint()}`);
+    mcpLog.info(`🏷️  Service name: ${config.getServiceName()}`);
+    mcpLog.info(`📊 Sampling rate: ${config.getSamplingRate()}`);
   } catch (error) {
-    console.error('❌ Failed to initialize OpenTelemetry:', error);
+    mcpLog.error('❌ Failed to initialize OpenTelemetry:', error);
     throw error;
   }
 }
 
 export async function shutdownTelemetry(): Promise<void> {
-  console.error('🛑 Shutting down telemetry...');
-  
+  mcpLog.info('🛑 Shutting down telemetry...');
+
   try {
     const phoenixService = PhoenixTelemetryService.getInstance();
     await phoenixService.shutdown();
-    
+
     if (tracerProvider) {
       await tracerProvider.shutdown();
       tracerProvider = null;
     }
-    
-    console.error('✅ Telemetry shutdown complete');
+
+    mcpLog.info('✅ Telemetry shutdown complete');
   } catch (error) {
-    console.error('❌ Error during telemetry shutdown:', error);
+    mcpLog.error('❌ Error during telemetry shutdown:', error);
   }
 }
 
