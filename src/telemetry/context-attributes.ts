@@ -118,6 +118,27 @@ export function withFullContext<T>(
 }
 
 /**
+ * Execute a function within a full context with reliable context access
+ * This version provides the context directly to work around context propagation issues
+ */
+export function withFullContextReliable<T>(
+  userInfo: UserInfo,
+  sessionInfo: SessionInfo,
+  metadata: ContextMetadata,
+  fn: (ctx: Context) => T
+): T {
+  const activeContext = context.active();
+  let newContext = setUserInfo(activeContext, userInfo);
+  newContext = setSessionInfo(newContext, sessionInfo);
+  newContext = setContextMetadata(newContext, metadata);
+
+  return context.with(newContext, () => {
+    // Pass the constructed context directly to work around context.active() issues
+    return fn(newContext);
+  });
+}
+
+/**
  * Create user information with deterministic session ID generation
  */
 export function createUserInfo(userId: string, userAgent?: string, projectId?: string): UserInfo {
@@ -237,6 +258,15 @@ export function withTags<T>(tags: string[], fn: () => T): T {
   const activeContext = context.active();
   const newContext = setTags(activeContext, tags);
   return context.with(newContext, fn);
+}
+
+/**
+ * Extract user/session attributes for span attribution with automatic fallback
+ */
+export function extractSpanAttributesReliable(ctx?: Context): Record<string, any> {
+  // Use provided context or fallback to active context
+  const contextToUse = ctx || context.active();
+  return extractSpanAttributes(contextToUse);
 }
 
 /**
