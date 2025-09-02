@@ -414,7 +414,7 @@ class Phase5AGIDemo {
       total_thoughts: Math.min(this.thoughtCounter + 2, 10),
       next_thought_needed: this.thoughtCounter < 8,
       complexity: complexity,
-      confidence: 0.3 + Math.random() * 0.4,
+      confidence: 0.3 + (this.thoughtCounter % 10) * 0.04, // Deterministic confidence based on thought counter
       domain: this.inferDomain(thought),
       urgency: this.calculateUrgency(complexity),
       session_id: this.sessionId,

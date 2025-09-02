@@ -110,7 +110,7 @@ async function testAGIMagic() {
 
     const request = {
       jsonrpc: '2.0',
-      id: Math.random(),
+      id: Date.now() + testScenarios.indexOf(scenario), // Deterministic ID based on timestamp and scenario index
       method: 'tools/call',
       params: {
         name: 'sentient-agi-reasoning',

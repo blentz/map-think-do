@@ -17,6 +17,7 @@
 import { EventEmitter } from 'events';
 import { MemoryStore } from '../memory/memory-store.js';
 import { generateSecureId } from '../utils/id-generator.js';
+import { normalizedHash } from '../utils/hash-utils.js';
 
 export interface ArchitecturalComponent {
   id: string;
@@ -831,9 +832,8 @@ export class SelfModifyingArchitecture extends EventEmitter {
   private updateComponentMetrics(): void {
     for (const [id, component] of this.components) {
       // Deterministic usage simulation based on component characteristics
-      const componentHash = this.hashString(component.id + component.type);
-      const normalizedHash = (componentHash % 1000) / 10000; // 0-0.1 range
-      component.performance_metrics.usage_frequency += normalizedHash;
+      const componentHash = normalizedHash(component.id + component.type);
+      component.performance_metrics.usage_frequency += componentHash / 100; // 0-0.01 range for realistic values
 
       // Gradual improvement through usage
       if (component.performance_metrics.usage_frequency > 0) {
@@ -994,18 +994,5 @@ export class SelfModifyingArchitecture extends EventEmitter {
       emergencyStop: this.emergencyStopTriggered,
       consecutiveFailures: this.consecutiveFailures,
     };
-  }
-
-  /**
-   * Simple hash function for deterministic string-to-number conversion
-   */
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
   }
 }

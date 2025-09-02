@@ -20,6 +20,7 @@ import {
   TechnologyCognitiveStrategy,
 } from '../project-cognitive-context.js';
 import { PersonaMetrics, PersonaPreferences, personaMetrics } from '../persona-metrics.js';
+import { hashString } from '../../utils/hash-utils.js';
 
 /**
  * Cognitive persona definition
@@ -1028,7 +1029,7 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     // Deterministic template selection based on context characteristics
     const contextComplexity = context.current_thought?.length || 100;
     const thoughtHistoryLength = context.thought_history?.length || 1;
-    const personaIdHash = this.hashString(persona.id);
+    const personaIdHash = hashString(persona.id);
 
     // Use context characteristics for deterministic selection
     const selectionIndex =
@@ -1277,19 +1278,6 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
 
     // Weighted average of diversity dimensions
     return styleDiv * 0.5 + riskDiv * 0.25 + timeDiv * 0.25;
-  }
-
-  /**
-   * Simple hash function for deterministic string-to-number conversion
-   */
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
   }
 
   /**

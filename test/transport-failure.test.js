@@ -186,15 +186,19 @@ async function testRapidConnections() {
         console.log(`Process ${i} failed to write:`, err.message);
       }
 
-      // Kill some randomly to simulate network failures
-      if (Math.random() > 0.5) {
-        setTimeout(() => {
-          try {
-            serverProcess.kill('SIGKILL');
-          } catch (err) {
-            // Process might already be dead
-          }
-        }, Math.random() * 500);
+      // Kill some deterministically to simulate network failures
+      if (i % 2 === 0) {
+        // Every other process fails
+        setTimeout(
+          () => {
+            try {
+              serverProcess.kill('SIGKILL');
+            } catch (err) {
+              // Process might already be dead
+            }
+          },
+          (i % 5) * 100
+        ); // Deterministic delay based on process index
       }
     }
 

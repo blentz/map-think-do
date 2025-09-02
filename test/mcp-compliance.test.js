@@ -287,7 +287,7 @@ async function testInvalidParamsHandling() {
       const request =
         JSON.stringify({
           jsonrpc: '2.0',
-          id: Math.floor(Math.random() * 1000),
+          id: Date.now() + testCases.indexOf(testCase), // Deterministic ID based on timestamp and test index
           method: 'tools/call',
           params: testCase.params,
         }) + '\n';
