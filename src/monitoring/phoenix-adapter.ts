@@ -2,6 +2,13 @@ import { trace, context, Span, SpanKind } from '@opentelemetry/api';
 import { PrometheusMetricsExporter, CognitiveMetrics } from './prometheus-metrics.js';
 import { PhoenixTelemetryService } from '../telemetry/phoenix-client.js';
 import { TelemetryConfig } from '../telemetry/telemetry-config.js';
+import {
+  calculateLLMImpactMetrics,
+  createImpactMetricAttributes,
+  createImpactMetricsEvent,
+  MetricsInput,
+} from '../telemetry/llm-impact-metrics.js';
+import { CognitiveState } from '../telemetry/types.js';
 
 export class PhoenixMetricsAdapter {
   private static instance: PhoenixMetricsAdapter;
@@ -68,7 +75,7 @@ export class PhoenixMetricsAdapter {
 
     try {
       const metrics = await this.prometheusExporter.collectCognitiveMetrics();
-      
+
       // Run exports within the span context so child spans are properly linked
       await context.with(trace.setSpan(context.active(), span), async () => {
         this.exportCoreMetrics(metrics, span);
@@ -78,14 +85,15 @@ export class PhoenixMetricsAdapter {
         this.exportPatternMetrics(metrics, span);
         this.exportAlertMetrics(metrics, span);
         this.exportDomainMetrics(metrics, span);
+        await this.exportImpactMetrics(metrics, span);
       });
 
       const exportCount = Object.keys(metrics).length;
       span.setAttribute('metrics.exported_count', exportCount);
       span.setAttribute('metrics.export_timestamp', new Date().toISOString());
-      
+
       this.lastExportTime = Date.now();
-      
+
       console.error(`📊 Exported ${exportCount} metrics to Phoenix`);
     } catch (error) {
       span.recordException(error as Error);
@@ -322,6 +330,125 @@ export class PhoenixMetricsAdapter {
     } finally {
       span.end();
     }
+  }
+
+  private async exportImpactMetrics(metrics: CognitiveMetrics, parentSpan: Span): Promise<void> {
+    // Child span will be automatically linked since we're in parent context
+    const span = this.tracer.startSpan('metrics.llm_impact', {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'metrics.category': 'llm_impact',
+      },
+    });
+
+    try {
+      // Collect current operational data for impact metrics calculation
+      const impactInput = await this.collectImpactMetricsInput(metrics);
+
+      // Calculate LLM impact metrics
+      const impactMetrics = calculateLLMImpactMetrics(impactInput);
+
+      // Create Phoenix-compatible attributes
+      const impactAttributes = createImpactMetricAttributes(impactMetrics);
+
+      // Record individual impact metrics to Phoenix
+      this.phoenixService.recordMetric('cognitive_efficiency', impactMetrics.cognitiveEfficiency, {
+        type: 'gauge',
+        category: 'llm_impact',
+      });
+
+      this.phoenixService.recordMetric('thought_quality', impactMetrics.thoughtQuality, {
+        type: 'gauge',
+        category: 'llm_impact',
+      });
+
+      this.phoenixService.recordMetric('learning_velocity', impactMetrics.learningVelocity, {
+        type: 'gauge',
+        category: 'llm_impact',
+      });
+
+      this.phoenixService.recordMetric('conceptual_depth', impactMetrics.conceptualDepth, {
+        type: 'gauge',
+        category: 'llm_impact',
+      });
+
+      this.phoenixService.recordMetric(
+        'problem_solving_effectiveness',
+        impactMetrics.problemSolvingEffectiveness,
+        {
+          type: 'gauge',
+          category: 'llm_impact',
+        }
+      );
+
+      this.phoenixService.recordMetric('confidence_score', impactMetrics.confidenceScore, {
+        type: 'gauge',
+        category: 'llm_impact',
+      });
+
+      this.phoenixService.recordMetric(
+        'breakthrough_likelihood',
+        impactMetrics.breakthroughLikelihood,
+        {
+          type: 'gauge',
+          category: 'llm_impact',
+        }
+      );
+
+      // Add impact attributes to span
+      Object.entries(impactAttributes).forEach(([key, value]) => {
+        span.setAttribute(key, value);
+      });
+
+      // Create impact metrics event for Phoenix observability
+      const impactEvent = createImpactMetricsEvent(impactMetrics);
+      this.phoenixService.recordEvent(impactEvent.name, impactEvent.attributes);
+
+      console.error(
+        `📈 Exported LLM impact metrics: efficiency=${impactMetrics.cognitiveEfficiency.toFixed(3)}, quality=${impactMetrics.thoughtQuality.toFixed(3)}`
+      );
+    } catch (error) {
+      span.recordException(error as Error);
+      console.error('❌ Error exporting LLM impact metrics:', error);
+    } finally {
+      span.end();
+    }
+  }
+
+  private async collectImpactMetricsInput(metrics: CognitiveMetrics): Promise<MetricsInput> {
+    // Create a representative cognitive state from current metrics
+    const cognitiveState: CognitiveState = {
+      current_complexity: metrics.average_complexity,
+      confidence_trajectory: [metrics.average_confidence], // Single point for current state
+      metacognitive_awareness: Math.min(metrics.success_rate, 1.0), // Use success rate as proxy
+      creative_pressure: metrics.effectiveness_score, // Use effectiveness as creative pressure
+      analytical_depth: Math.min(metrics.pattern_effectiveness || 0, 1.0),
+      self_doubt_level: Math.max(0, 1 - metrics.success_rate), // Inverse of success rate
+      curiosity_level: metrics.effectiveness_score, // Use effectiveness as curiosity proxy
+      frustration_level: Math.max(0, (metrics.alert_count || 0) / 10), // Normalize alert count
+      engagement_level: metrics.success_rate,
+      cognitive_efficiency: metrics.effectiveness_score,
+      insight_potential: metrics.pattern_effectiveness || 0,
+      breakthrough_likelihood: metrics.effectiveness_score,
+      recent_success_rate: metrics.success_rate,
+      improvement_trajectory: 0, // Single point, no trajectory available
+    };
+
+    // Estimate operational metrics based on available data
+    const estimatedLatency = metrics.processing_latency_ms || 1500; // Default to 1.5 seconds
+    const estimatedTokenCount = Math.round(metrics.total_thoughts * 150); // ~150 tokens per thought
+    const estimatedCost = estimatedTokenCount * 0.000003; // ~$3 per 1M tokens
+    const estimatedInsights = Math.round(metrics.pattern_count || 0);
+    const estimatedInterventions = Math.round((metrics.alert_count || 0) / 2); // Half of alerts trigger interventions
+
+    return {
+      latencyMs: estimatedLatency,
+      tokenCount: estimatedTokenCount,
+      cost: estimatedCost,
+      insightCount: estimatedInsights,
+      interventionCount: estimatedInterventions,
+      cognitiveState,
+    };
   }
 
   public stopMetricsBridge(): void {
