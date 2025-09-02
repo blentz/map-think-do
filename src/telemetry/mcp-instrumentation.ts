@@ -77,6 +77,35 @@ export class MCPInstrumentation {
     return randomBytes(8).toString('hex');
   }
 
+  /**
+   * Estimate token count for text content
+   * Uses approximation of 4 characters per token for English text
+   */
+  private estimateTokenCount(text: string): number {
+    if (!text || typeof text !== 'string') {
+      return 0;
+    }
+    // Rough approximation: 4 characters per token for English text
+    // This is a conservative estimate for Claude/GPT models
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Estimate cost based on token counts
+   * Uses approximate pricing for MCP operations
+   */
+  private estimateCost(promptTokens: number, completionTokens: number): number {
+    // Approximate cost per 1M tokens in USD
+    // Using conservative estimates for cognitive operations
+    const promptCostPer1M = 3.0; // $3 per 1M prompt tokens
+    const completionCostPer1M = 15.0; // $15 per 1M completion tokens
+
+    const promptCost = (promptTokens / 1000000) * promptCostPer1M;
+    const completionCost = (completionTokens / 1000000) * completionCostPer1M;
+
+    return Number((promptCost + completionCost).toFixed(6));
+  }
+
   public instrumentMCPHandler<T extends (...args: any[]) => any>(handler: T, toolName: string): T {
     const instrumented = async (...args: any[]): Promise<any> => {
       const requestId = this.generateRequestId();
@@ -125,10 +154,13 @@ export class MCPInstrumentation {
         const startTime = performance.now();
 
         try {
+          // Declare inputValue at higher scope for cost tracking
+          let inputValue = '';
+
           if (args[0] && typeof args[0] === 'object') {
             const argKeys = Object.keys(args[0]);
             const requestSizeBytes = JSON.stringify(args[0]).length;
-            const inputValue = JSON.stringify(args[0]);
+            inputValue = JSON.stringify(args[0]);
 
             // OpenInference input conventions
             span.setAttribute('input.value', inputValue);
@@ -300,6 +332,27 @@ export class MCPInstrumentation {
 
             // MCP-specific attributes (keep for compatibility)
             span.setAttribute('mcp.response.size_bytes', responseSizeBytes);
+
+            // Phoenix cost tracking - Token count estimation
+            // Estimate token counts based on input/output text for MCP operations
+            const inputTokenCount = this.estimateTokenCount(inputValue);
+            const outputTokenCount = this.estimateTokenCount(outputValue);
+            const totalTokens = inputTokenCount + outputTokenCount;
+
+            // Required Phoenix cost tracking attributes
+            span.setAttribute('llm.token_count.prompt', inputTokenCount);
+            span.setAttribute('llm.token_count.completion', outputTokenCount);
+            span.setAttribute('llm.token_count.total', totalTokens);
+            span.setAttribute('llm.model_name', 'mcp-sentient-agi');
+            span.setAttribute('llm.provider', 'anthropic-mcp');
+
+            // Add cost tracking event
+            span.addEvent('cost.token_usage', {
+              prompt_tokens: inputTokenCount,
+              completion_tokens: outputTokenCount,
+              total_tokens: totalTokens,
+              estimated_cost_usd: this.estimateCost(inputTokenCount, outputTokenCount),
+            });
 
             // Enhanced cognitive metrics
             if (result.metacognitive_awareness !== undefined) {
