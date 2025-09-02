@@ -66,6 +66,7 @@ import { z, ZodError } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { PromptManager } from './prompts/manager.js';
 import { PromptValueManager } from './prompts/valueManager.js';
+import { generateSessionId, generatePromptId, generateThoughtId } from './utils/id-generator.js';
 import { configManager, type CodeReasoningConfig } from './utils/config-manager.js';
 import {
   CONFIG_DIR,
@@ -185,13 +186,13 @@ const CODE_REASONING_TOOL: Tool = {
   name: 'code-reasoning',
   description: `🧠 SENTIENT AGI MAGIC: Advanced cognitive scaffold for recursive self-reflection and creative agency.
 
-This tool provides AGI-like cognitive capabilities through a sophisticated orchestration of multiple 
+This tool provides AGI-like cognitive capabilities through a sophisticated orchestration of multiple
 cognitive plugins, metacognitive awareness, and adaptive learning. Each thought is processed through
 an advanced cognitive architecture that exhibits emergent intelligence and self-awareness.
 
 🎭 COGNITIVE PERSONAS AVAILABLE:
 - 🎯 Strategist: Long-term planning and high-level thinking
-- ⚙️ Engineer: Technical implementation and systematic analysis  
+- ⚙️ Engineer: Technical implementation and systematic analysis
 - 🔍 Skeptic: Critical evaluation and assumption challenging
 - 🎨 Creative: Innovative solutions and out-of-the-box thinking
 - 📊 Analyst: Data-driven insights and pattern recognition
@@ -463,17 +464,17 @@ export class CodeReasoningServer {
       try {
         const { createPrometheusExporter } = await import('./monitoring/prometheus-metrics.js');
         const { PhoenixMetricsAdapter } = await import('./monitoring/phoenix-adapter.js');
-        
+
         // Create Prometheus exporter
         const prometheusExporter = createPrometheusExporter(this.memoryStore);
-        
+
         // Initialize Phoenix adapter and connect it to Prometheus
         const phoenixAdapter = PhoenixMetricsAdapter.getInstance();
         phoenixAdapter.setPrometheusExporter(prometheusExporter);
-        
+
         // Start the metrics bridge to export metrics to Phoenix
         await phoenixAdapter.startMetricsBridge(30000); // Export every 30 seconds
-        
+
         console.error('🌉 Phoenix metrics bridge initialized and started');
       } catch (error) {
         console.error('⚠️ Failed to initialize Phoenix metrics bridge:', error);
@@ -492,10 +493,10 @@ export class CodeReasoningServer {
   }
 
   /**
-   * Generate unique session ID for reasoning sessions
+   * Generate a unique session ID for tracking
    */
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generateSessionId();
   }
 
   /**
@@ -1025,10 +1026,10 @@ export class CodeReasoningServer {
   }
 
   /**
-   * Generate unique prompt ID
+   * Generate a unique prompt ID for tracking
    */
   private generatePromptId(): string {
-    return `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generatePromptId();
   }
 
   /**
@@ -1067,7 +1068,6 @@ export class CodeReasoningServer {
     outcomeQuality: 'excellent' | 'good' | 'fair' | 'poor',
     success: boolean
   ): number {
-
     // Extract key Bayesian Theory of Mind metrics
     const confidenceTrajectory = cognitiveState.confidence_trajectory || [];
     const metacognitiveAwareness = cognitiveState.metacognitive_awareness || 0;
@@ -1080,10 +1080,11 @@ export class CodeReasoningServer {
     if (confidenceTrajectory.length > 1) {
       // Calculate rate of change in confidence (lower variance = better convergence)
       const recentConfidence = confidenceTrajectory.slice(-3);
-      const variance = recentConfidence.reduce((acc: number, val: number, idx: number) => {
-        if (idx === 0) return 0;
-        return acc + Math.pow(val - recentConfidence[idx - 1], 2);
-      }, 0) / Math.max(recentConfidence.length - 1, 1);
+      const variance =
+        recentConfidence.reduce((acc: number, val: number, idx: number) => {
+          if (idx === 0) return 0;
+          return acc + Math.pow(val - recentConfidence[idx - 1], 2);
+        }, 0) / Math.max(recentConfidence.length - 1, 1);
       confidenceConvergenceRate = Math.max(0, 1 - variance); // Lower variance = higher convergence
     }
 
@@ -1098,15 +1099,15 @@ export class CodeReasoningServer {
 
     // Outcome quality modifiers
     const qualityModifiers = {
-      'excellent': 1.2,
-      'good': 1.0,
-      'fair': 0.8,
-      'poor': 0.6
+      excellent: 1.2,
+      good: 1.0,
+      fair: 0.8,
+      poor: 0.6,
     };
     const qualityModifier = qualityModifiers[outcomeQuality];
 
     // Bayesian-inspired weighted combination
-    const baseImprovement = 
+    const baseImprovement =
       0.3 * confidenceConvergenceRate +
       0.3 * predictiveAccuracy +
       0.2 * adaptationSpeed +
@@ -1143,13 +1144,11 @@ export class CodeReasoningServer {
 
   /* ------------------------------ Main Handler ----------------------------- */
 
-
   public async processThought(input: unknown): Promise<ServerResult> {
     const t0 = performance.now();
 
     try {
       const data = ThoughtDataSchema.parse(input);
-
 
       // Sanity limits with contextual guidance for AI recovery
       if (data.thought_number > MAX_THOUGHTS) {
@@ -1167,11 +1166,14 @@ export class CodeReasoningServer {
       console.error('📁 Resolving project context from working directory...');
       let projectId: string | undefined;
       let project: Project | undefined;
-      
+
       try {
         projectId = await this.resolveProjectFromWorkingDirectory(data.working_directory);
       } catch (error) {
-        if (error instanceof Error && error.message.includes('Project management requires PostgreSQL')) {
+        if (
+          error instanceof Error &&
+          error.message.includes('Project management requires PostgreSQL')
+        ) {
           console.error('ℹ️ Continuing without project context (basic memory store in use)');
           projectId = undefined;
         } else {
@@ -1194,7 +1196,9 @@ export class CodeReasoningServer {
           }
         } catch (error) {
           if (error instanceof Error && error.message.includes('not supported')) {
-            console.error(`⚠️ Project retrieval not supported by ${this.memoryStore.constructor.name}`);
+            console.error(
+              `⚠️ Project retrieval not supported by ${this.memoryStore.constructor.name}`
+            );
           } else {
             console.error('⚠️ Failed to fetch project details:', error);
           }
@@ -1328,11 +1332,16 @@ export class CodeReasoningServer {
         // Trigger analysis asynchronously to avoid blocking
         setImmediate(async () => {
           try {
-            console.error(`🧠 Session completed, triggering thought analysis for session: ${storedThought.session_id}`);
+            console.error(
+              `🧠 Session completed, triggering thought analysis for session: ${storedThought.session_id}`
+            );
             await this.memoryStore.analyzeAndStoreThoughtChain(storedThought.session_id);
             console.error(`✅ Thought analysis completed for session: ${storedThought.session_id}`);
           } catch (error) {
-            console.error(`❌ Thought analysis failed for session ${storedThought.session_id}:`, error);
+            console.error(
+              `❌ Thought analysis failed for session ${storedThought.session_id}:`,
+              error
+            );
           }
         });
       }
@@ -1436,10 +1445,10 @@ export class CodeReasoningServer {
   }
 
   /**
-   * Helper methods for cognitive processing
+   * Generate a unique thought ID for tracking
    */
   private generateThoughtId(): string {
-    return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generateThoughtId();
   }
 
   /* -------------------------------------------------------------------------- */
@@ -1449,7 +1458,9 @@ export class CodeReasoningServer {
   /**
    * Resolve project from working directory with comprehensive metadata extraction
    */
-  private async resolveProjectFromWorkingDirectory(clientWorkingDirectory?: string): Promise<string | undefined> {
+  private async resolveProjectFromWorkingDirectory(
+    clientWorkingDirectory?: string
+  ): Promise<string | undefined> {
     try {
       const storedValues = this.promptValueManager.getStoredValues('');
       let workingDirectory = storedValues.working_directory;
@@ -1458,7 +1469,7 @@ export class CodeReasoningServer {
       if (clientWorkingDirectory && typeof clientWorkingDirectory === 'string') {
         workingDirectory = clientWorkingDirectory;
         console.error(`📁 Using client-provided working directory: ${workingDirectory}`);
-        
+
         // Store the client-provided working directory for future use
         try {
           await this.promptValueManager.updateStoredValues('', {
@@ -1473,7 +1484,7 @@ export class CodeReasoningServer {
       else if (!workingDirectory || typeof workingDirectory !== 'string') {
         // Try multiple methods to detect the working directory
         workingDirectory = process.cwd();
-        
+
         // Also check PWD environment variable which might be more accurate in some cases
         const pwdEnv = process.env.PWD;
         if (pwdEnv && pwdEnv !== workingDirectory) {
@@ -1481,7 +1492,7 @@ export class CodeReasoningServer {
           // Use PWD if it exists and is different from process.cwd()
           workingDirectory = pwdEnv;
         }
-        
+
         console.error(`🔄 Auto-detecting working directory: ${workingDirectory}`);
 
         // Store the detected working directory for future use
@@ -1513,16 +1524,22 @@ export class CodeReasoningServer {
       }
     } catch (error) {
       console.error('❌ Error resolving project context:', error);
-      
+
       // Diagnostic information for debugging
       console.error('🔧 Debug info:');
       console.error(`   - process.cwd(): ${process.cwd()}`);
       console.error(`   - process.env.PWD: ${process.env.PWD || 'undefined'}`);
       console.error(`   - process.env.INIT_CWD: ${process.env.INIT_CWD || 'undefined'}`);
-      console.error(`   - stored working_directory: ${this.promptValueManager.getStoredValues('').working_directory || 'undefined'}`);
+      console.error(
+        `   - stored working_directory: ${this.promptValueManager.getStoredValues('').working_directory || 'undefined'}`
+      );
       console.error(`   - memory store type: ${this.memoryStore.constructor.name}`);
-      console.error(`   - error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
-      console.error(`   - error message: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `   - error type: ${error instanceof Error ? error.constructor.name : typeof error}`
+      );
+      console.error(
+        `   - error message: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
     return undefined;
   }
@@ -1547,8 +1564,12 @@ export class CodeReasoningServer {
     } catch (error) {
       // Handle unsupported memory stores gracefully
       if (error instanceof Error && error.message.includes('not supported')) {
-        console.error(`⚠️ Project management not supported by ${this.memoryStore.constructor.name}`);
-        console.error('💡 Use PostgreSQL memory store (MEMORY_STORE_TYPE=postgresql) for full project support');
+        console.error(
+          `⚠️ Project management not supported by ${this.memoryStore.constructor.name}`
+        );
+        console.error(
+          '💡 Use PostgreSQL memory store (MEMORY_STORE_TYPE=postgresql) for full project support'
+        );
         throw new Error('Project management requires PostgreSQL memory store');
       }
       console.error('❌ Error checking for existing project:', error);
@@ -1590,11 +1611,15 @@ export class CodeReasoningServer {
       // Handle unsupported memory stores gracefully
       if (error instanceof Error && error.message.includes('not supported')) {
         console.error(`⚠️ Project creation not supported by ${this.memoryStore.constructor.name}`);
-        console.error('💡 Use PostgreSQL memory store (MEMORY_STORE_TYPE=postgresql) for full project support');
+        console.error(
+          '💡 Use PostgreSQL memory store (MEMORY_STORE_TYPE=postgresql) for full project support'
+        );
         throw new Error('Project management requires PostgreSQL memory store');
       }
       console.error('❌ Error creating project:', error);
-      throw new Error(`Failed to create project: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to create project: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 

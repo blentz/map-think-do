@@ -6,6 +6,8 @@
  * for building cognitive experience and pattern recognition over time.
  */
 
+import { generateThoughtId, generateSessionId, generateProjectId } from '../utils/id-generator.js';
+
 /**
  * Project interface with comprehensive metadata for normalized project management
  */
@@ -683,14 +685,14 @@ export class MemoryUtils {
    * Generate a unique thought ID
    */
   static generateThoughtId(): string {
-    return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generateThoughtId();
   }
 
   /**
    * Generate a unique session ID
    */
   static generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generateSessionId();
   }
 
   /**
@@ -855,7 +857,7 @@ export class MemoryUtils {
    * Generate a unique project ID
    */
   static generateProjectId(): string {
-    return `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generateProjectId();
   }
 
   /**

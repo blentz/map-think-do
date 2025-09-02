@@ -18,6 +18,7 @@ import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex, MutexRegistry } from '../utils/mutex.js';
 import { SecureLogger } from '../utils/secure-logger.js';
 import { trace, SpanKind } from '@opentelemetry/api';
+import { generateThoughtId } from '../utils/id-generator.js';
 import {
   CircularBuffer,
   CognitiveCircularBuffer,
@@ -307,7 +308,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     recommendations: string[];
   }> {
     const startTime = Date.now();
-    
+
     // Create a span for cognitive orchestrator processing
     const tracer = trace.getTracer('cognitive-orchestrator');
     const span = tracer.startSpan('cognitive.orchestrator.process', {
@@ -318,7 +319,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         'cognitive.session_id': sessionContext?.id,
         'cognitive.project_id': project?.id,
         'cognitive.project_name': project?.project_name,
-      }
+      },
     });
 
     try {
@@ -443,9 +444,15 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       span.setAttribute('cognitive.interventions_count', interventions.length);
       span.setAttribute('cognitive.insights_count', insights.length);
       span.setAttribute('cognitive.processing_time_ms', processingTime);
-      span.setAttribute('cognitive.metacognitive_awareness', this.cognitiveState.metacognitive_awareness);
-      span.setAttribute('cognitive.breakthrough_likelihood', this.cognitiveState.breakthrough_likelihood);
-      
+      span.setAttribute(
+        'cognitive.metacognitive_awareness',
+        this.cognitiveState.metacognitive_awareness
+      );
+      span.setAttribute(
+        'cognitive.breakthrough_likelihood',
+        this.cognitiveState.breakthrough_likelihood
+      );
+
       // Add events for key cognitive activities
       if (interventions.length > 0) {
         span.addEvent('cognitive.interventions_generated', {
@@ -453,7 +460,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           types: interventions.map(i => i.type).join(','),
         });
       }
-      
+
       if (insights.length > 0) {
         span.addEvent('cognitive.insights_detected', {
           count: insights.length,
@@ -473,7 +480,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       span.recordException(error as Error);
       span.setStatus({ code: 2, message: (error as Error).message }); // 2 = ERROR
       span.end();
-      
+
       handleError('CognitiveOrchestrator', 'processThought', error, ErrorSeverity.ERROR, {
         thoughtNumber: thoughtData.thought_number,
         sessionId: this.cognitiveState.session_id,
@@ -797,8 +804,10 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     context: CognitiveContext,
     interventions: PluginIntervention[]
   ): Promise<CognitiveInsight[]> {
-    console.error(`🔧 DEBUG: emergence_detection_enabled = ${this.config.emergence_detection_enabled}`);
-    
+    console.error(
+      `🔧 DEBUG: emergence_detection_enabled = ${this.config.emergence_detection_enabled}`
+    );
+
     if (!this.config.emergence_detection_enabled) {
       console.error('🚫 Insight detection disabled by config, returning empty array');
       return [];
@@ -807,7 +816,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     console.error('🔍 Calling insightDetector.detectInsights...');
     const insights = await this.insightDetector.detectInsights(context, interventions);
     console.error(`🔍 Received ${insights.length} insights from detector`);
-    
+
     for (const insight of insights) {
       this.insightHistory.push(insight);
     }
@@ -843,9 +852,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
     // Insight-based recommendations
     if (insights.length > 0) {
-      recommendations.push(
-        `${insights.length} cognitive insight(s) detected:`
-      );
+      recommendations.push(`${insights.length} cognitive insight(s) detected:`);
       // Add the actual insight descriptions to recommendations
       insights.forEach((insight, index) => {
         recommendations.push(`${index + 1}. ${insight.type}: ${insight.description}`);
@@ -940,13 +947,23 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         // Trigger analysis asynchronously to avoid blocking
         setImmediate(async () => {
           try {
-            console.error(`🧠 Cognitive session completed, triggering thought analysis for session: ${this.cognitiveState.session_id}`);
+            console.error(
+              `🧠 Cognitive session completed, triggering thought analysis for session: ${this.cognitiveState.session_id}`
+            );
             await this.memoryStore!.analyzeAndStoreThoughtChain(this.cognitiveState.session_id);
-            console.error(`✅ Cognitive thought analysis completed for session: ${this.cognitiveState.session_id}`);
+            console.error(
+              `✅ Cognitive thought analysis completed for session: ${this.cognitiveState.session_id}`
+            );
           } catch (error) {
-            handleError('CognitiveOrchestrator', 'analyzeAndStoreThoughtChain', error, ErrorSeverity.WARNING, {
-              sessionId: this.cognitiveState.session_id,
-            });
+            handleError(
+              'CognitiveOrchestrator',
+              'analyzeAndStoreThoughtChain',
+              error,
+              ErrorSeverity.WARNING,
+              {
+                sessionId: this.cognitiveState.session_id,
+              }
+            );
           }
         });
       }
@@ -1350,7 +1367,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   // Utility methods
   private generateThoughtId(): string {
-    return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return generateThoughtId();
   }
 
   private calculateCognitiveLoad(interventions: PluginIntervention[]): number {

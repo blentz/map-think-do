@@ -8,6 +8,7 @@ import { runCircularBufferTests } from './circular-buffer.test.js';
 import { runErrorBoundaryTests } from './error-boundary.test.js';
 import { runSecureLoggerTests } from './secure-logger.test.js';
 import { runStateManagerTests } from './state-manager.test.js';
+import { runContextAttributesTests } from './telemetry/context-attributes-simple.test.js';
 
 interface TestSuite {
   name: string;
@@ -19,6 +20,7 @@ const testSuites: TestSuite[] = [
   // { name: 'ErrorBoundary', runner: runErrorBoundaryTests }, // Temporarily disabled
   { name: 'SecureLogger', runner: runSecureLoggerTests },
   { name: 'StateManager', runner: runStateManagerTests },
+  { name: 'ContextAttributes', runner: runContextAttributesTests },
 ];
 
 async function runAllUnitTests() {

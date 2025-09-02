@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { generateResourceId } from './id-generator.js';
 
 /**
  * Interface for native resources that need lifecycle management
@@ -257,7 +258,7 @@ export abstract class ManagedNativeResource implements NativeResource {
 
   constructor(type: string, id?: string) {
     this.type = type;
-    this.id = id || `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.id = id || generateResourceId(type);
   }
 
   /**
