@@ -1,6 +1,19 @@
-import { trace, context, SpanStatusCode, Span, SpanKind, Histogram, metrics } from '@opentelemetry/api';
-import { CognitiveSpanAttributes } from './types.js';
+import {
+  trace,
+  context,
+  SpanStatusCode,
+  Span,
+  SpanKind,
+  Histogram,
+  metrics,
+} from '@opentelemetry/api';
 import { TelemetryConfig } from './telemetry-config.js';
+import {
+  getPromptTemplate,
+  getPromptVariables,
+  PromptTemplate,
+  PromptVariables,
+} from './prompt-tracking.js';
 import { randomBytes } from 'crypto';
 import { performance } from 'perf_hooks';
 
@@ -11,13 +24,13 @@ export class MCPInstrumentation {
   private config = TelemetryConfig.getInstance();
   private activeSpans = new Map<string, Span>();
   private sessionMetrics = new Map<string, any>();
-  
+
   // Histogram metrics for latency distributions
   private thoughtLatencyHistogram: Histogram;
   private pluginLatencyHistogram: Histogram;
   private memoryOperationHistogram: Histogram;
   private toolExecutionHistogram: Histogram;
-  
+
   // Counters for operational insights
   private thoughtCounter = this.meter.createCounter('mcp.thoughts.total');
   private branchCounter = this.meter.createCounter('mcp.branches.total');
@@ -31,17 +44,17 @@ export class MCPInstrumentation {
       description: 'Latency of thought generation in milliseconds',
       unit: 'ms',
     });
-    
+
     this.pluginLatencyHistogram = this.meter.createHistogram('mcp.plugin.latency', {
       description: 'Latency of cognitive plugin execution',
       unit: 'ms',
     });
-    
+
     this.memoryOperationHistogram = this.meter.createHistogram('mcp.memory.operation.latency', {
       description: 'Latency of memory operations',
       unit: 'ms',
     });
-    
+
     this.toolExecutionHistogram = this.meter.createHistogram('mcp.tool.execution.latency', {
       description: 'Latency of tool execution',
       unit: 'ms',
@@ -59,10 +72,7 @@ export class MCPInstrumentation {
     return randomBytes(8).toString('hex');
   }
 
-  public instrumentMCPHandler<T extends (...args: any[]) => any>(
-    handler: T,
-    toolName: string
-  ): T {
+  public instrumentMCPHandler<T extends (...args: any[]) => any>(handler: T, toolName: string): T {
     const instrumented = async (...args: any[]): Promise<any> => {
       if (!this.config.isEnabled() || !this.config.shouldSample()) {
         return handler.apply(this, args);
@@ -70,11 +80,11 @@ export class MCPInstrumentation {
 
       const requestId = this.generateRequestId();
       const spanName = `mcp.tool.${toolName}`;
-      
+
       // Capture initial resource state
       const memoryBefore = process.memoryUsage();
       const cpuBefore = process.cpuUsage();
-      
+
       const span = this.tracer.startSpan(spanName, {
         kind: SpanKind.SERVER,
         attributes: {
@@ -94,15 +104,15 @@ export class MCPInstrumentation {
 
       return context.with(trace.setSpan(context.active(), span), async () => {
         const startTime = performance.now();
-        
+
         try {
           if (args[0] && typeof args[0] === 'object') {
             const argKeys = Object.keys(args[0]);
             const requestSizeBytes = JSON.stringify(args[0]).length;
-            
+
             span.setAttribute('mcp.args.count', argKeys.length);
             span.setAttribute('mcp.request.size_bytes', requestSizeBytes);
-            
+
             // Enhanced thought tracking
             if (args[0].thought_number !== undefined) {
               span.setAttribute('cognitive.thought_number', args[0].thought_number);
@@ -117,7 +127,7 @@ export class MCPInstrumentation {
               span.setAttribute('cognitive.next_thought_needed', args[0].next_thought_needed);
               span.setAttribute('cognitive.chain_complete', !args[0].next_thought_needed);
             }
-            
+
             // Track branching and revisions
             if (args[0].branch_from_thought !== undefined) {
               span.setAttribute('cognitive.is_branch', true);
@@ -130,33 +140,63 @@ export class MCPInstrumentation {
               span.setAttribute('cognitive.revises_thought', args[0].revises_thought);
               this.revisionCounter.add(1, { tool: toolName });
             }
-            
+
             // Track session context
             if (args[0].session_id) {
               span.setAttribute('mcp.session_id', args[0].session_id);
               this.updateSessionMetrics(args[0].session_id, args[0]);
             }
-            
+
             // Track thought complexity
             if (args[0].thought) {
               const thoughtLength = args[0].thought.length;
               span.setAttribute('cognitive.thought_length', thoughtLength);
-              span.setAttribute('cognitive.thought_complexity', this.calculateComplexity(args[0].thought));
+              span.setAttribute(
+                'cognitive.thought_complexity',
+                this.calculateComplexity(args[0].thought)
+              );
+            }
+
+            // Track prompt template and variables from context
+            const currentContext = context.active();
+            const promptTemplate = getPromptTemplate(currentContext);
+            const promptVariables = getPromptVariables(currentContext);
+
+            if (promptTemplate) {
+              span.setAttribute('llm.prompt_template.template', promptTemplate.template);
+              span.setAttribute('llm.prompt_template.version', promptTemplate.version);
+              span.setAttribute(
+                'llm.prompt_template.variables',
+                JSON.stringify(promptTemplate.variables)
+              );
+              span.addEvent('prompt.template.applied', {
+                template_version: promptTemplate.version,
+                variable_count: Object.keys(promptTemplate.variables).length,
+              });
+            }
+
+            if (promptVariables) {
+              span.setAttribute('llm.prompt_variables', JSON.stringify(promptVariables));
+              span.setAttribute('llm.prompt_variables.count', Object.keys(promptVariables).length);
+              span.addEvent('prompt.variables.applied', {
+                variable_names: Object.keys(promptVariables).join(', '),
+                variable_count: Object.keys(promptVariables).length,
+              });
             }
           }
 
           const result = await handler.apply(this, args);
-          
+
           const duration = performance.now() - startTime;
           const memoryAfter = process.memoryUsage();
           const cpuAfter = process.cpuUsage(cpuBefore);
-          
+
           // Core performance metrics
           span.setAttribute('mcp.duration_ms', duration);
           span.setAttribute('performance.latency_ms', duration);
           span.setAttribute('performance.cpu_user_ms', cpuAfter.user / 1000);
           span.setAttribute('performance.cpu_system_ms', cpuAfter.system / 1000);
-          
+
           // Memory delta tracking
           const memoryDelta = {
             heap: (memoryAfter.heapUsed - memoryBefore.heapUsed) / 1048576,
@@ -167,34 +207,43 @@ export class MCPInstrumentation {
           span.setAttribute('resource.memory.delta_external_mb', memoryDelta.external);
           span.setAttribute('resource.memory.delta_rss_mb', memoryDelta.rss);
           span.setAttribute('resource.memory.after_heap_mb', memoryAfter.heapUsed / 1048576);
-          
+
           // Record histogram metrics
           this.toolExecutionHistogram.record(duration, { tool: toolName });
           if (toolName === 'code-reasoning') {
-            this.thoughtLatencyHistogram.record(duration, { 
+            this.thoughtLatencyHistogram.record(duration, {
               session_id: args[0]?.session_id || 'unknown',
               thought_number: args[0]?.thought_number || 0,
             });
           }
-          
+
           if (result && typeof result === 'object') {
             const responseSizeBytes = JSON.stringify(result).length;
             span.setAttribute('mcp.response.size_bytes', responseSizeBytes);
-            
+
             // Enhanced cognitive metrics
             if (result.metacognitive_awareness !== undefined) {
-              span.setAttribute('cognitive.metacognitive_awareness', result.metacognitive_awareness);
+              span.setAttribute(
+                'cognitive.metacognitive_awareness',
+                result.metacognitive_awareness
+              );
               span.addEvent('cognitive.metric', {
                 metric: 'metacognitive_awareness',
                 value: result.metacognitive_awareness,
-                interpretation: this.interpretMetric('metacognitive_awareness', result.metacognitive_awareness),
+                interpretation: this.interpretMetric(
+                  'metacognitive_awareness',
+                  result.metacognitive_awareness
+                ),
               });
             }
             if (result.creative_pressure !== undefined) {
               span.setAttribute('cognitive.creative_pressure', result.creative_pressure);
             }
             if (result.breakthrough_likelihood !== undefined) {
-              span.setAttribute('cognitive.breakthrough_likelihood', result.breakthrough_likelihood);
+              span.setAttribute(
+                'cognitive.breakthrough_likelihood',
+                result.breakthrough_likelihood
+              );
               if (result.breakthrough_likelihood > 0.8) {
                 span.addEvent('cognitive.breakthrough_imminent', {
                   likelihood: result.breakthrough_likelihood,
@@ -209,7 +258,7 @@ export class MCPInstrumentation {
             if (result.cognitive_flexibility !== undefined) {
               span.setAttribute('cognitive.cognitive_flexibility', result.cognitive_flexibility);
             }
-            
+
             // Track cognitive state
             if (result.cognitive_state) {
               const state = result.cognitive_state;
@@ -218,20 +267,24 @@ export class MCPInstrumentation {
               span.setAttribute('cognitive.frustration_level', state.frustration_level || 0);
               span.setAttribute('cognitive.engagement_level', state.engagement_level || 0);
               span.setAttribute('cognitive.recent_success_rate', state.recent_success_rate || 0);
-              
+
               // Track confidence trajectory
               if (state.confidence_trajectory && Array.isArray(state.confidence_trajectory)) {
-                span.setAttribute('cognitive.confidence_current', 
-                  state.confidence_trajectory[state.confidence_trajectory.length - 1] || 0);
-                span.setAttribute('cognitive.confidence_trend', 
-                  this.calculateTrend(state.confidence_trajectory));
+                span.setAttribute(
+                  'cognitive.confidence_current',
+                  state.confidence_trajectory[state.confidence_trajectory.length - 1] || 0
+                );
+                span.setAttribute(
+                  'cognitive.confidence_trend',
+                  this.calculateTrend(state.confidence_trajectory)
+                );
                 span.addEvent('cognitive.confidence_trajectory', {
                   values: JSON.stringify(state.confidence_trajectory),
                   trend: this.calculateTrend(state.confidence_trajectory),
                 });
               }
             }
-            
+
             // Track cognitive insights
             if (result.cognitive_insights && Array.isArray(result.cognitive_insights)) {
               span.setAttribute('cognitive.insights_count', result.cognitive_insights.length);
@@ -240,10 +293,13 @@ export class MCPInstrumentation {
                 types: JSON.stringify(this.categorizeInsights(result.cognitive_insights)),
               });
             }
-            
+
             // Track AI recommendations
             if (result.ai_recommendations && Array.isArray(result.ai_recommendations)) {
-              span.setAttribute('cognitive.recommendations_count', result.ai_recommendations.length);
+              span.setAttribute(
+                'cognitive.recommendations_count',
+                result.ai_recommendations.length
+              );
               span.addEvent('cognitive.recommendations', {
                 count: result.ai_recommendations.length,
                 summary: result.ai_recommendations[0] || 'No recommendations',
@@ -256,14 +312,14 @@ export class MCPInstrumentation {
             duration_ms: duration,
             success: true,
           });
-          
+
           return result;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           const errorName = error instanceof Error ? error.name : 'UnknownError';
-          
+
           span.recordException(error as Error);
-          span.setStatus({ 
+          span.setStatus({
             code: SpanStatusCode.ERROR,
             message: errorMessage,
           });
@@ -271,7 +327,7 @@ export class MCPInstrumentation {
             error: errorMessage,
             error_type: errorName,
           });
-          
+
           throw error;
         } finally {
           span.end();
@@ -320,29 +376,31 @@ export class MCPInstrumentation {
   public getActiveSpanCount(): number {
     return this.activeSpans.size;
   }
-  
+
   private calculateComplexity(thought: string): number {
     // Simple complexity heuristic based on length and structure
     const length = thought.length;
     const sentences = thought.split(/[.!?]+/).length;
     const words = thought.split(/\s+/).length;
     const avgWordsPerSentence = words / sentences;
-    
+
     let complexity = 0;
     if (length > 1000) complexity += 3;
     else if (length > 500) complexity += 2;
     else complexity += 1;
-    
+
     if (avgWordsPerSentence > 20) complexity += 2;
     else if (avgWordsPerSentence > 15) complexity += 1;
-    
+
     // Check for technical terms or concepts
-    const technicalTerms = thought.match(/\b(algorithm|recursive|metacognitive|quantum|emergence|complexity|paradox|consciousness)\b/gi);
+    const technicalTerms = thought.match(
+      /\b(algorithm|recursive|metacognitive|quantum|emergence|complexity|paradox|consciousness)\b/gi
+    );
     if (technicalTerms) complexity += Math.min(technicalTerms.length, 3);
-    
+
     return Math.min(complexity, 10); // Cap at 10
   }
-  
+
   private interpretMetric(metric: string, value: number): string {
     switch (metric) {
       case 'metacognitive_awareness':
@@ -357,18 +415,18 @@ export class MCPInstrumentation {
         return 'Unknown metric';
     }
   }
-  
+
   private calculateTrend(values: number[]): string {
     if (values.length < 2) return 'stable';
     const recent = values.slice(-3);
     const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
     const first = values[0];
-    
+
     if (avg > first * 1.2) return 'increasing';
     if (avg < first * 0.8) return 'decreasing';
     return 'stable';
   }
-  
+
   private categorizeInsights(insights: any[]): Record<string, number> {
     const categories: Record<string, number> = {};
     insights.forEach(insight => {
@@ -377,7 +435,7 @@ export class MCPInstrumentation {
     });
     return categories;
   }
-  
+
   private updateSessionMetrics(sessionId: string, args: any): void {
     if (!this.sessionMetrics.has(sessionId)) {
       this.sessionMetrics.set(sessionId, {
@@ -388,17 +446,17 @@ export class MCPInstrumentation {
         totalLatency: 0,
       });
     }
-    
+
     const metrics = this.sessionMetrics.get(sessionId);
     metrics.thoughtCount++;
     if (args.branch_from_thought) metrics.branchCount++;
     if (args.is_revision) metrics.revisionCount++;
   }
-  
+
   public createSessionSummarySpan(sessionId: string): void {
     const metrics = this.sessionMetrics.get(sessionId);
     if (!metrics) return;
-    
+
     const duration = Date.now() - metrics.startTime;
     const span = this.tracer.startSpan('mcp.session.summary', {
       kind: SpanKind.INTERNAL,
@@ -411,11 +469,11 @@ export class MCPInstrumentation {
         'session.avg_latency_ms': metrics.totalLatency / metrics.thoughtCount,
       },
     });
-    
+
     span.addEvent('session.completed', {
       summary: `Session ${sessionId} completed with ${metrics.thoughtCount} thoughts`,
     });
-    
+
     span.end();
     this.sessionMetrics.delete(sessionId);
   }
