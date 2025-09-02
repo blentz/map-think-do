@@ -101,7 +101,11 @@ export class TestPromptGenerator {
         const template = templates[index % templates.length];
         const complexityRange = complexityMap[type as keyof typeof complexityMap];
         const [minComplexity, maxComplexity] = complexityRange;
-        const expectedComplexity = minComplexity + Math.random() * (maxComplexity - minComplexity);
+
+        // Deterministic complexity calculation based on template characteristics
+        const templateHash = this.hashString(template + type);
+        const normalizedHash = (templateHash % 1000) / 1000; // 0-1 range
+        const expectedComplexity = minComplexity + normalizedHash * (maxComplexity - minComplexity);
 
         prompts.push({
           type,
@@ -145,6 +149,19 @@ export class TestPromptGenerator {
         ],
       },
     ];
+  }
+
+  /**
+   * Simple hash function for deterministic string-to-number conversion
+   */
+  private static hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
   }
 }
 

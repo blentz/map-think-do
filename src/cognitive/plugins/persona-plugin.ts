@@ -19,11 +19,7 @@ import {
   ProjectCognitiveContext,
   TechnologyCognitiveStrategy,
 } from '../project-cognitive-context.js';
-import { 
-  PersonaMetrics, 
-  PersonaPreferences, 
-  personaMetrics 
-} from '../persona-metrics.js';
+import { PersonaMetrics, PersonaPreferences, personaMetrics } from '../persona-metrics.js';
 
 /**
  * Cognitive persona definition
@@ -53,7 +49,7 @@ export class PersonaPlugin extends CognitivePlugin {
   private metricsStartTime: number = 0; // Track timing for metrics
   private currentComplexity: number = 5; // Current context complexity
   private currentDomain: string = 'general'; // Current problem domain
-  
+
   private readonly personas: CognitivePersona[] = [
     {
       id: 'strategist',
@@ -425,59 +421,68 @@ export class PersonaPlugin extends CognitivePlugin {
     // Store context for metrics
     this.currentComplexity = context.complexity;
     this.currentDomain = context.domain || 'general';
-    
+
     // Get adjusted thresholds based on user preferences
     const thresholds = personaMetrics.getAdjustedThresholds();
     const preferences = personaMetrics.getPreferences();
-    
+
     // Check for user's complexity override
     if (preferences.complexity_override) {
       // console.error('🎭 Complexity override active, using max personas');
       return preferences.max_personas || 3;
     }
-    
+
     // Apply preference-adjusted thresholds
     let recommendedCount = 2; // Default
-    
+
     // High complexity problems benefit from 3 perspectives
     if (context.complexity > thresholds.complexityThreshold) {
       // console.error(`🎭 High complexity detected (>${thresholds.complexityThreshold.toFixed(1)}), activating 3-persona mode`);
       recommendedCount = 3;
     }
-    
+
     // Critical decisions with ethical implications need multiple viewpoints
-    if (context.domain?.toLowerCase().includes('ethics') || 
-        context.domain?.toLowerCase().includes('security') ||
-        context.domain?.toLowerCase().includes('privacy')) {
+    if (
+      context.domain?.toLowerCase().includes('ethics') ||
+      context.domain?.toLowerCase().includes('security') ||
+      context.domain?.toLowerCase().includes('privacy')
+    ) {
       // console.error('🎭 Ethical/Security domain detected, activating 3-persona mode');
       recommendedCount = 3;
     }
-    
+
     // When creative pressure is high (indicating potential breakthrough), add creative third voice
     if (context.creative_pressure > thresholds.breakthroughThreshold) {
       // console.error(`🎭 High creative pressure (>${thresholds.breakthroughThreshold.toFixed(2)}), activating 3-persona mode for innovation`);
       recommendedCount = 3;
     }
-    
+
     // Architecture and system design benefits from triadic reasoning
-    if (context.domain?.toLowerCase().includes('architecture') ||
-        context.domain?.toLowerCase().includes('design') ||
-        context.current_thought?.toLowerCase().includes('system design')) {
+    if (
+      context.domain?.toLowerCase().includes('architecture') ||
+      context.domain?.toLowerCase().includes('design') ||
+      context.current_thought?.toLowerCase().includes('system design')
+    ) {
       // console.error('🎭 Architecture/Design context detected, activating 3-persona mode');
       recommendedCount = 3;
     }
-    
+
     // When metacognitive awareness is high and problem is non-trivial
-    if (context.metacognitive_awareness > thresholds.metacognitiveThreshold && context.complexity > 5) {
+    if (
+      context.metacognitive_awareness > thresholds.metacognitiveThreshold &&
+      context.complexity > 5
+    ) {
       // console.error(`🎭 High metacognitive awareness (>${thresholds.metacognitiveThreshold.toFixed(2)}) with moderate complexity, activating 3-persona mode`);
       recommendedCount = 3;
     }
-    
+
     // Apply user preference bias
     if (preferences.persona_bias === 'efficiency' && recommendedCount === 3) {
       // In efficiency mode, only use 3 personas for very strong signals
-      if (context.complexity <= thresholds.complexityThreshold * 1.2 && 
-          context.creative_pressure <= thresholds.breakthroughThreshold * 1.1) {
+      if (
+        context.complexity <= thresholds.complexityThreshold * 1.2 &&
+        context.creative_pressure <= thresholds.breakthroughThreshold * 1.1
+      ) {
         // console.error('🎭 Efficiency bias: reducing to 2 personas');
         recommendedCount = 2;
       }
@@ -488,7 +493,7 @@ export class PersonaPlugin extends CognitivePlugin {
         recommendedCount = 3;
       }
     }
-    
+
     // Respect min/max preferences
     if (preferences.min_personas) {
       recommendedCount = Math.max(recommendedCount, preferences.min_personas);
@@ -496,7 +501,7 @@ export class PersonaPlugin extends CognitivePlugin {
     if (preferences.max_personas) {
       recommendedCount = Math.min(recommendedCount, preferences.max_personas);
     }
-    
+
     return recommendedCount;
   }
 
@@ -504,7 +509,7 @@ export class PersonaPlugin extends CognitivePlugin {
     try {
       // Update adaptive max personas based on context
       this.adaptiveMaxPersonas = this.calculateOptimalPersonaCount(context);
-      
+
       // Calculate persona relevance scores
       const personaScores = this.calculatePersonaRelevance(context);
       const topPersonas = this.selectTopPersonas(personaScores);
@@ -568,7 +573,7 @@ export class PersonaPlugin extends CognitivePlugin {
     try {
       // Start timing for metrics
       this.metricsStartTime = Date.now();
-      
+
       // Select the most relevant personas
       const personaScores = this.calculatePersonaRelevance(context);
       const selectedPersonas = this.selectTopPersonas(personaScores).slice(
@@ -582,13 +587,13 @@ export class PersonaPlugin extends CognitivePlugin {
       // Update active personas
       this.activePersonas.clear();
       selectedPersonas.forEach(p => this.activePersonas.add(p.persona.id));
-      
+
       // Calculate metrics
       const responseTime = Date.now() - this.metricsStartTime;
       const diversityScore = this.calculateDiversityScore(selectedPersonas);
       const coherenceScore = this.estimateCoherence(selectedPersonas, context);
       const confidence = this.calculateInterventionConfidence(selectedPersonas);
-      
+
       // Record metrics (with error handling for database issues)
       try {
         personaMetrics.recordMetric({
@@ -602,7 +607,8 @@ export class PersonaPlugin extends CognitivePlugin {
           domain: this.currentDomain,
           breakthrough_achievement: context.creative_pressure > 0.7,
           error_prevention: selectedPersonas.some(p => p.persona.id === 'skeptic'),
-          adaptive_accuracy: Math.abs(selectedPersonas.length - this.adaptiveMaxPersonas) <= 1 ? 0.9 : 0.5
+          adaptive_accuracy:
+            Math.abs(selectedPersonas.length - this.adaptiveMaxPersonas) <= 1 ? 0.9 : 0.5,
         });
       } catch (metricsError) {
         console.error('Failed to record persona metrics (non-fatal):', metricsError);
@@ -627,7 +633,7 @@ export class PersonaPlugin extends CognitivePlugin {
       return intervention;
     } catch (error) {
       console.error('Error in PersonaPlugin intervene:', error);
-      
+
       // Return a safe fallback intervention instead of crashing the server
       return {
         type: 'context_enhancement',
@@ -1018,7 +1024,16 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
    */
   private generatePersonaPerspective(persona: CognitivePersona, context: CognitiveContext): string {
     const templates = this.getPersonaTemplates(persona.id);
-    const template = templates[Math.floor(Math.random() * templates.length)];
+
+    // Deterministic template selection based on context characteristics
+    const contextComplexity = context.current_thought?.length || 100;
+    const thoughtHistoryLength = context.thought_history?.length || 1;
+    const personaIdHash = this.hashString(persona.id);
+
+    // Use context characteristics for deterministic selection
+    const selectionIndex =
+      (contextComplexity + thoughtHistoryLength + personaIdHash) % templates.length;
+    const template = templates[selectionIndex];
 
     return this.customizeTemplate(template, persona, context);
   }
@@ -1239,7 +1254,7 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
   private updatePersonaThresholds(performanceData: any): void {
     // Update activation thresholds based on performance data
   }
-  
+
   /**
    * Calculate diversity score for selected personas
    */
@@ -1247,23 +1262,36 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     selectedPersonas: Array<{ persona: CognitivePersona; score: number }>
   ): number {
     if (selectedPersonas.length <= 1) return 0;
-    
+
     // Diversity based on thinking styles
     const thinkingStyles = new Set(selectedPersonas.map(p => p.persona.thinking_style));
     const styleDiv = thinkingStyles.size / selectedPersonas.length;
-    
+
     // Diversity based on risk tolerance
     const riskLevels = new Set(selectedPersonas.map(p => p.persona.risk_tolerance));
     const riskDiv = riskLevels.size / selectedPersonas.length;
-    
+
     // Diversity based on time horizons
     const timeHorizons = new Set(selectedPersonas.map(p => p.persona.time_horizon));
     const timeDiv = timeHorizons.size / selectedPersonas.length;
-    
+
     // Weighted average of diversity dimensions
-    return (styleDiv * 0.5 + riskDiv * 0.25 + timeDiv * 0.25);
+    return styleDiv * 0.5 + riskDiv * 0.25 + timeDiv * 0.25;
   }
-  
+
+  /**
+   * Simple hash function for deterministic string-to-number conversion
+   */
+  private hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  }
+
   /**
    * Estimate coherence score for persona synthesis
    */
@@ -1272,31 +1300,32 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     context: CognitiveContext
   ): number {
     if (selectedPersonas.length === 1) return 1.0; // Single persona is always coherent
-    
+
     // Check for complementary pairs
     const ids = selectedPersonas.map(p => p.persona.id);
     const hasComplementaryPair = this.hasComplementaryPair(ids);
-    
+
     // Check for conflicting personas
     const hasConflict = this.hasConflictingPersonas(ids);
-    
+
     // Base coherence on relevance scores
-    const avgRelevance = selectedPersonas.reduce((sum, p) => sum + p.score, 0) / selectedPersonas.length;
-    
+    const avgRelevance =
+      selectedPersonas.reduce((sum, p) => sum + p.score, 0) / selectedPersonas.length;
+
     let coherence = avgRelevance;
-    
+
     // Adjust for complementary/conflicting patterns
     if (hasComplementaryPair) coherence += 0.15;
     if (hasConflict) coherence -= 0.2;
-    
+
     // Adjust based on context complexity
     if (context.complexity > 7 && selectedPersonas.length === 3) {
       coherence += 0.1; // Complex problems benefit from multiple perspectives
     }
-    
+
     return Math.max(0, Math.min(1, coherence));
   }
-  
+
   /**
    * Check if personas have complementary relationships
    */
@@ -1307,12 +1336,10 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
       ['analyst', 'philosopher'],
       ['skeptic', 'creative'],
     ];
-    
-    return complementaryPairs.some(pair => 
-      pair.every(id => personaIds.includes(id))
-    );
+
+    return complementaryPairs.some(pair => pair.every(id => personaIds.includes(id)));
   }
-  
+
   /**
    * Check if personas have conflicting approaches
    */
@@ -1321,12 +1348,12 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
       ['skeptic', 'empathetic'], // Critical vs supportive
       ['creative', 'pragmatist'], // Innovation vs practicality (can conflict without balance)
     ];
-    
+
     // Only flag as conflict if no mediating persona present
     const hasMediators = personaIds.includes('strategist') || personaIds.includes('synthesizer');
-    
-    return !hasMediators && conflictingPairs.some(pair => 
-      pair.every(id => personaIds.includes(id))
+
+    return (
+      !hasMediators && conflictingPairs.some(pair => pair.every(id => personaIds.includes(id)))
     );
   }
 }

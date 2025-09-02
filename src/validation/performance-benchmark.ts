@@ -402,7 +402,7 @@ export class PerformanceBenchmark {
           original_prompt: realPrompt,
           prompt_type: classification.type,
           classification_confidence: classification.confidence,
-          received_at: new Date(Date.now() - Math.random() * 86400000), // Recent timestamps
+          received_at: new Date(Date.now() - (i % 100) * 864000), // Deterministic recent timestamps based on index
           created_at: new Date(),
           updated_at: new Date(),
         };
