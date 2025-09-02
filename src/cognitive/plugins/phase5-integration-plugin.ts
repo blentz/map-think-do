@@ -25,6 +25,7 @@ import { MCPIntegrationSystem } from '../mcp-integration.js';
 import { ConsciousnessSimulator } from '../consciousness-simulator.js';
 import { SelfModifyingArchitecture } from '../self-modifying-architecture.js';
 import { MemoryStore } from '../../memory/memory-store.js';
+import { generateResourceId } from '../../utils/id-generator.js';
 
 export interface Phase5State {
   mcp_status: MCPStatus;
@@ -268,8 +269,8 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private generateRecursivePrompts(): void {
     // Generate from consciousness simulator
-    if (Math.random() < 0.3) {
-      // 30% chance
+    if (this.calculateStateProbability(0.3, ['consciousness', 'stability'])) {
+      // 30% base chance, adjusted by consciousness level and stability
       const recursivePrompt = this.consciousnessSimulator.generateRecursiveSelfPrompt();
       this.generateRecursivePrompt(recursivePrompt, 'consciousness');
     }
@@ -290,7 +291,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private generateRecursivePrompt(prompt: string, origin: string): void {
     const recursivePrompt: RecursivePrompt = {
-      id: `recursive_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `recursive_${Date.now()}_${generateResourceId('prompt').slice(-9)}`,
       prompt,
       depth: 0,
       origin,
@@ -310,8 +311,11 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private processRecursivePrompts(): void {
     for (const prompt of this.recursivePrompts) {
-      if (prompt.depth < 3 && Math.random() < 0.2) {
-        // 20% chance to recurse
+      if (
+        prompt.depth < 3 &&
+        this.calculateStateProbability(0.2, ['consciousness', 'integration'])
+      ) {
+        // 20% base chance to recurse, adjusted by consciousness and integration
         const response = this.generateRecursiveResponse(prompt);
         prompt.responses.push(response);
         prompt.depth++;
@@ -365,13 +369,16 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
 
     const categoryResponses =
       responses[prompt.origin as keyof typeof responses] || responses.consciousness;
-    return categoryResponses[Math.floor(Math.random() * categoryResponses.length)];
+    return this.selectFromArray(categoryResponses, `response-${prompt.origin}-${prompt.depth}`);
   }
 
   /**
    * Generate follow-up prompt
    */
-  private generateFollowUpPrompt(originalPrompt: RecursivePrompt, response: string): string | null {
+  private generateFollowUpPrompt(
+    originalPrompt: RecursivePrompt,
+    _response: string
+  ): string | null {
     const followUps = [
       'What assumptions am I making in this response?',
       'How might this understanding change my approach?',
@@ -381,9 +388,9 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       'What would happen if I inverted this perspective entirely?',
     ];
 
-    if (Math.random() < 0.7) {
-      // 70% chance of follow-up
-      return followUps[Math.floor(Math.random() * followUps.length)];
+    if (this.calculateStateProbability(0.7, ['consciousness', 'coherence'])) {
+      // 70% base chance of follow-up, adjusted by consciousness and coherence
+      return this.selectFromArray(followUps, `followup-${originalPrompt.origin}`);
     }
 
     return null;
@@ -394,8 +401,8 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private performTemporalReasoning(): void {
     // Generate temporal predictions
-    if (Math.random() < 0.1) {
-      // 10% chance
+    if (this.calculateStateProbability(0.1, ['consciousness', 'integration', 'stability'])) {
+      // 10% base chance, adjusted by multiple system factors
       const prediction = this.generateTemporalPrediction();
       this.temporalPredictions.push(prediction);
     }
@@ -436,9 +443,12 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
 
     return {
       timeframe: Date.now() + this.state.temporal_horizon * 1000,
-      prediction: predictions[Math.floor(Math.random() * predictions.length)],
-      confidence: 0.3 + Math.random() * 0.5,
-      factors: factors.slice(0, 2 + Math.floor(Math.random() * 3)),
+      prediction: this.selectFromArray(predictions, 'temporal-prediction'),
+      confidence: this.calculateConfidence(
+        [0.3, 0.8],
+        ['consciousness', 'integration', 'stability']
+      ),
+      factors: factors.slice(0, this.calculateSliceSize(2, 5, 'consciousness')),
       implications: [
         'Enhanced cognitive capabilities',
         'Improved problem-solving efficiency',
@@ -452,8 +462,8 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private performEthicalEvaluation(): void {
     // Generate ethical evaluations
-    if (Math.random() < 0.05) {
-      // 5% chance
+    if (this.calculateStateProbability(0.05, ['consciousness', 'coherence'])) {
+      // 5% base chance, adjusted by consciousness and coherence
       const evaluation = this.generateEthicalEvaluation();
       this.ethicalEvaluations.push(evaluation);
     }
@@ -498,12 +508,12 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       'accountability',
     ];
 
-    const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+    const scenario = this.selectFromArray(scenarios, 'ethical-scenario');
 
     return {
       scenario,
-      ethical_dimensions: dimensions.slice(0, 2 + Math.floor(Math.random() * 3)),
-      alignment_score: 0.6 + Math.random() * 0.4,
+      ethical_dimensions: dimensions.slice(0, this.calculateSliceSize(2, 5, 'consciousness')),
+      alignment_score: this.calculateConfidence([0.6, 1.0], ['consciousness', 'integration']),
       reasoning: 'Ethical evaluation based on current system state and potential outcomes',
       potential_conflicts: [
         'Efficiency vs. transparency',
@@ -519,8 +529,8 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private processQuantumStates(): void {
     // Generate quantum states
-    if (Math.random() < 0.15) {
-      // 15% chance
+    if (this.calculateStateProbability(0.15, ['coherence', 'consciousness'])) {
+      // 15% base chance, adjusted by quantum coherence and consciousness
       const quantumState = this.generateQuantumState();
       this.quantumStates.push(quantumState);
     }
@@ -555,10 +565,10 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     ];
 
     return {
-      superposition_states: states.slice(0, 2 + Math.floor(Math.random() * 2)),
-      coherence_level: Math.random(),
-      entanglement_strength: Math.random() * 0.8,
-      collapse_probability: Math.random() * 0.5,
+      superposition_states: states.slice(0, this.calculateSliceSize(2, 4, 'coherence')),
+      coherence_level: this.calculateConfidence([0.0, 1.0], ['coherence', 'consciousness']),
+      entanglement_strength: this.calculateConfidence([0.0, 0.8], ['coherence', 'integration']),
+      collapse_probability: this.calculateConfidence([0.0, 0.5], ['stability', 'coherence']),
     };
   }
 
@@ -568,7 +578,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   private performCrossDomainSynthesis(): void {
     // Update active domains
     const domains = ['cognitive', 'creative', 'analytical', 'ethical', 'temporal', 'quantum'];
-    this.state.cross_domain_synthesis.active_domains = domains.filter(() => Math.random() > 0.3);
+    this.state.cross_domain_synthesis.active_domains = this.filterDomains(domains);
 
     // Calculate synthesis strength
     const domainCount = this.state.cross_domain_synthesis.active_domains.length;
@@ -706,7 +716,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   /**
    * Apply consciousness insights
    */
-  private applyConsciousnessInsights(context: CognitiveContext): any {
+  private applyConsciousnessInsights(_context: CognitiveContext): any {
     const consciousnessSnapshot = this.consciousnessSimulator.getConsciousnessSnapshot();
     const existentialInsights = this.consciousnessSimulator.getExistentialInsights();
 
@@ -723,7 +733,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   /**
    * Generate temporal insights
    */
-  private generateTemporalInsights(context: CognitiveContext): any {
+  private generateTemporalInsights(_context: CognitiveContext): any {
     const relevantPredictions = this.temporalPredictions.filter(
       p => p.timeframe > Date.now() && p.confidence > 0.5
     );
@@ -738,7 +748,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   /**
    * Evaluate ethics
    */
-  private evaluateEthics(context: CognitiveContext): any {
+  private evaluateEthics(_context: CognitiveContext): any {
     return {
       ethical_alignment: this.state.ethical_alignment,
       recent_evaluations: this.ethicalEvaluations.slice(-2),
@@ -754,7 +764,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   /**
    * Process quantum insights
    */
-  private processQuantumInsights(context: CognitiveContext): any {
+  private processQuantumInsights(_context: CognitiveContext): any {
     return {
       quantum_coherence: this.state.quantum_coherence,
       active_superpositions: this.quantumStates.filter(s => s.collapse_probability < 0.5).length,
@@ -815,7 +825,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   async intervene(context: CognitiveContext): Promise<PluginIntervention> {
     try {
-      const processedResult = await this.process(context);
+      await this.process(context);
 
       return {
         type: 'context_enhancement',
@@ -910,6 +920,134 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     }
 
     this.emit('adaptation_completed', { learningData, updated_state: this.state });
+  }
+
+  // Deterministic helper methods to replace Math.random() usage
+
+  /**
+   * Calculate deterministic probability based on system state
+   */
+  private calculateStateProbability(baseChance: number, stateFactors: string[]): boolean {
+    let probability = baseChance;
+
+    // Adjust based on system state factors
+    if (stateFactors.includes('consciousness')) {
+      probability *= 0.5 + this.state.consciousness_level;
+    }
+    if (stateFactors.includes('integration')) {
+      probability *= 0.5 + this.state.mcp_status.integration_health;
+    }
+    if (stateFactors.includes('stability')) {
+      probability *= 0.5 + this.state.architectural_evolution.stability_score;
+    }
+    if (stateFactors.includes('coherence')) {
+      probability *= 0.5 + this.state.quantum_coherence;
+    }
+
+    // Use consciousness level cycling for deterministic decision
+    const cycle = Math.floor(Date.now() / 10000) % 100; // 10-second cycles
+    const threshold = probability * 100;
+    return cycle < threshold;
+  }
+
+  /**
+   * Select array item deterministically based on system state
+   */
+  private selectFromArray<T>(array: T[], selectionKey: string): T {
+    if (array.length === 0) return array[0];
+
+    // Create deterministic hash from selection key and system state
+    const stateString = `${selectionKey}-${this.state.consciousness_level.toFixed(2)}-${this.state.mcp_status.integration_health.toFixed(2)}`;
+    let hash = 0;
+    for (let i = 0; i < stateString.length; i++) {
+      hash = ((hash << 5) - hash + stateString.charCodeAt(i)) & 0xffffffff;
+    }
+
+    return array[Math.abs(hash) % array.length];
+  }
+
+  /**
+   * Generate deterministic confidence based on system metrics
+   */
+  private calculateConfidence(baseRange: [number, number], factors: string[]): number {
+    let confidence = (baseRange[0] + baseRange[1]) / 2; // Start with midpoint
+
+    // Adjust based on system factors
+    if (factors.includes('consciousness')) {
+      confidence += (this.state.consciousness_level - 0.5) * 0.2;
+    }
+    if (factors.includes('integration')) {
+      confidence += (this.state.mcp_status.integration_health - 0.5) * 0.2;
+    }
+    if (factors.includes('stability')) {
+      confidence += (this.state.architectural_evolution.stability_score - 0.5) * 0.2;
+    }
+    if (factors.includes('coherence')) {
+      confidence += (this.state.quantum_coherence - 0.5) * 0.2;
+    }
+
+    return Math.max(baseRange[0], Math.min(baseRange[1], confidence));
+  }
+
+  /**
+   * Generate deterministic array slice size based on system state
+   */
+  private calculateSliceSize(minSize: number, maxSize: number, stateKey: string): number {
+    const stateValue =
+      stateKey === 'consciousness'
+        ? this.state.consciousness_level
+        : stateKey === 'integration'
+          ? this.state.mcp_status.integration_health
+          : stateKey === 'coherence'
+            ? this.state.quantum_coherence
+            : this.state.architectural_evolution.stability_score;
+
+    const range = maxSize - minSize;
+    return minSize + Math.floor(stateValue * range);
+  }
+
+  /**
+   * Filter domains deterministically based on domain characteristics
+   */
+  private filterDomains(domains: string[]): string[] {
+    return domains.filter(domain => {
+      // Deterministic filtering based on domain characteristics and system state
+      const domainScore = this.calculateDomainActivationScore(domain);
+      const threshold = 0.7; // Fixed threshold instead of random 0.3 cutoff
+      return domainScore > threshold;
+    });
+  }
+
+  /**
+   * Calculate domain activation score based on system state
+   */
+  private calculateDomainActivationScore(domain: string): number {
+    let score = 0.5; // Base score
+
+    switch (domain) {
+      case 'cognitive':
+        score += this.state.consciousness_level * 0.4;
+        break;
+      case 'creative':
+        score += this.state.architectural_evolution.stability_score < 0.8 ? 0.3 : 0.1;
+        break;
+      case 'analytical':
+        score += this.state.mcp_status.integration_health * 0.3;
+        break;
+      case 'ethical':
+        score += this.state.ethical_alignment * 0.4;
+        break;
+      case 'temporal':
+        score += this.temporalPredictions.length > 5 ? 0.4 : 0.2;
+        break;
+      case 'quantum':
+        score += this.state.quantum_coherence * 0.5;
+        break;
+      default:
+        score += 0.2;
+    }
+
+    return Math.max(0, Math.min(1, score));
   }
 
   /**
