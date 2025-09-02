@@ -22,39 +22,33 @@ export class PhoenixTelemetryService {
     if (this.initialized) return;
 
     if (!this.config.isEnabled()) {
-      console.error('📊 Telemetry disabled by configuration');
+      // Use proper logging instead of console.error for info messages
       return;
     }
 
     try {
-      const endpoint = this.config.getEndpoint();
       const serviceName = this.config.getServiceName();
-      
-      console.error(`🚀 Initializing Phoenix telemetry...`);
-      console.error(`📍 Endpoint: ${endpoint}`);
-      console.error(`🏷️  Service: ${serviceName}`);
-      
+
       this.tracer = trace.getTracer(serviceName, '1.0.0');
-      
       this.initialized = true;
-      console.error('✅ Phoenix telemetry initialized successfully');
-      
+
       await this.testConnection();
     } catch (error) {
-      console.error('❌ Failed to initialize Phoenix telemetry:', error);
+      // Only use console.error for actual errors, not info messages
+      console.error('Failed to initialize Phoenix telemetry:', error);
       this.initialized = false;
     }
   }
 
   private async testConnection(): Promise<void> {
     if (!this.tracer) return;
-    
+
     const span = this.tracer.startSpan('phoenix.test.connection');
     span.setAttribute('test', true);
     span.setAttribute('service.name', this.config.getServiceName());
     span.end();
-    
-    console.error('🔍 Test span sent to Phoenix');
+
+    // Test connection completed - span sent to Phoenix
   }
 
   public isInitialized(): boolean {
@@ -67,78 +61,75 @@ export class PhoenixTelemetryService {
 
   public async shutdown(): Promise<void> {
     if (!this.initialized) return;
-    
-    console.error('🛑 Shutting down Phoenix telemetry...');
-    
+
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       this.initialized = false;
       this.tracer = null;
-      console.error('✅ Phoenix telemetry shutdown complete');
     } catch (error) {
-      console.error('❌ Error during Phoenix telemetry shutdown:', error);
+      console.error('Error during Phoenix telemetry shutdown:', error);
     }
   }
 
   public recordMetric(name: string, value: number, attributes?: Record<string, any>): void {
     if (!this.initialized || !this.tracer) return;
-    
+
     // Get the active span to create a child span
     const activeSpan = trace.getActiveSpan();
-    
+
     // Create span options with parent if available
     const spanOptions: any = {
       kind: SpanKind.INTERNAL,
       attributes: {
         'metric.name': name,
         'metric.value': value,
-      }
+      },
     };
-    
+
     // If there's an active span, make this a child span
     if (activeSpan) {
       spanOptions.parent = activeSpan.spanContext();
     }
-    
+
     const span = this.tracer.startSpan(`metric.${name}`, spanOptions);
-    
+
     if (attributes) {
       Object.entries(attributes).forEach(([key, val]) => {
         span.setAttribute(key, val);
       });
     }
-    
+
     span.end();
   }
 
   public recordEvent(eventName: string, attributes?: Record<string, any>): void {
     if (!this.initialized || !this.tracer) return;
-    
+
     // Get the active span to create a child span
     const activeSpan = trace.getActiveSpan();
-    
+
     // Create span options with parent if available
     const spanOptions: any = {
       kind: SpanKind.INTERNAL,
       attributes: {
         'event.name': eventName,
-      }
+      },
     };
-    
+
     // If there's an active span, make this a child span
     if (activeSpan) {
       spanOptions.parent = activeSpan.spanContext();
     }
-    
+
     const span = this.tracer.startSpan(`event.${eventName}`, spanOptions);
-    
+
     if (attributes) {
       Object.entries(attributes).forEach(([key, val]) => {
         span.setAttribute(key, val);
       });
     }
-    
+
     span.end();
   }
 }

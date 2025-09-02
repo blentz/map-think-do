@@ -1,6 +1,5 @@
 import { trace, Span, SpanKind, metrics, Histogram, Counter } from '@opentelemetry/api';
 import { EventEmitter } from 'events';
-import { CognitiveSpanAttributes } from './types.js';
 import { TelemetryConfig } from './telemetry-config.js';
 
 export class CognitiveInstrumentation {
@@ -11,14 +10,14 @@ export class CognitiveInstrumentation {
   private orchestrator: EventEmitter | null = null;
   private activePluginSpans = new Map<string, { span: Span; startTime: number }>();
   private sessionStats = new Map<string, any>();
-  
+
   // Semantic event counters
   private personaSwitchCounter: Counter;
   private breakthroughCounter: Counter;
   private insightCounter: Counter;
   private patternCounter: Counter;
   private deadlockCounter: Counter;
-  
+
   // Plugin performance histograms
   private pluginLatencyHistogram: Histogram;
   private personaContributionHistogram: Histogram;
@@ -28,33 +27,36 @@ export class CognitiveInstrumentation {
     this.personaSwitchCounter = this.meter.createCounter('cognitive.persona.switches', {
       description: 'Number of persona switches during reasoning',
     });
-    
+
     this.breakthroughCounter = this.meter.createCounter('cognitive.breakthroughs', {
       description: 'Number of cognitive breakthroughs detected',
     });
-    
+
     this.insightCounter = this.meter.createCounter('cognitive.insights', {
       description: 'Number of insights discovered',
     });
-    
+
     this.patternCounter = this.meter.createCounter('cognitive.patterns', {
       description: 'Number of patterns recognized',
     });
-    
+
     this.deadlockCounter = this.meter.createCounter('cognitive.deadlocks', {
       description: 'Number of cognitive deadlocks encountered',
     });
-    
+
     // Initialize performance histograms
     this.pluginLatencyHistogram = this.meter.createHistogram('cognitive.plugin.latency', {
       description: 'Latency of cognitive plugin execution',
       unit: 'ms',
     });
-    
-    this.personaContributionHistogram = this.meter.createHistogram('cognitive.persona.contribution', {
-      description: 'Contribution score of each persona',
-      unit: 'score',
-    });
+
+    this.personaContributionHistogram = this.meter.createHistogram(
+      'cognitive.persona.contribution',
+      {
+        description: 'Contribution score of each persona',
+        unit: 'score',
+      }
+    );
   }
 
   public static getInstance(): CognitiveInstrumentation {
@@ -66,13 +68,13 @@ export class CognitiveInstrumentation {
 
   public attachToOrchestrator(orchestrator: EventEmitter): void {
     if (this.orchestrator) {
-      console.error('⚠️ Cognitive instrumentation already attached to an orchestrator');
+      // Already attached - skip duplicate attachment
       return;
     }
 
     this.orchestrator = orchestrator;
     this.attachListeners();
-    console.error('🧠 Cognitive instrumentation attached to orchestrator');
+    // Cognitive instrumentation attached to orchestrator
   }
 
   private attachListeners(): void {
@@ -109,16 +111,16 @@ export class CognitiveInstrumentation {
     this.orchestrator.on('pattern:recognized', (data: any) => {
       this.onPatternRecognized(data);
     });
-    
+
     // New semantic events
     this.orchestrator.on('cognitive:deadlock', (data: any) => {
       this.onCognitiveDeadlock(data);
     });
-    
+
     this.orchestrator.on('decision:made', (data: any) => {
       this.onDecisionMade(data);
     });
-    
+
     this.orchestrator.on('memory:accessed', (data: any) => {
       this.onMemoryAccessed(data);
     });
@@ -130,7 +132,7 @@ export class CognitiveInstrumentation {
     const { pluginName, persona, confidence, sessionId, context } = data;
     const spanName = `cognitive.plugin.${pluginName}`;
     const startTime = performance.now();
-    
+
     const span = this.tracer.startSpan(spanName, {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -161,44 +163,56 @@ export class CognitiveInstrumentation {
   private onPluginCompleted(data: any): void {
     if (!this.config.isEnabled()) return;
 
-    const { pluginName, duration, success, result, sessionId, metrics } = data;
+    const { pluginName, duration, success, result, metrics } = data;
     const spanData = this.activePluginSpans.get(pluginName);
-    
+
     if (spanData) {
       const actualDuration = performance.now() - spanData.startTime;
       const memoryUsage = process.memoryUsage();
-      
+
       spanData.span.setAttribute('cognitive.plugin.duration_ms', actualDuration);
       spanData.span.setAttribute('cognitive.plugin.success', success);
       spanData.span.setAttribute('resource.memory.heap_after_mb', memoryUsage.heapUsed / 1048576);
-      
+
       if (result) {
         spanData.span.setAttribute('cognitive.plugin.result_size', JSON.stringify(result).length);
         spanData.span.setAttribute('cognitive.plugin.has_insights', !!result.insights);
         spanData.span.setAttribute('cognitive.plugin.insight_count', result.insights?.length || 0);
-        spanData.span.setAttribute('cognitive.plugin.intervention_count', result.interventions?.length || 0);
-        
+        spanData.span.setAttribute(
+          'cognitive.plugin.intervention_count',
+          result.interventions?.length || 0
+        );
+
         // Add cognitive metrics from result
         if (result.cognitiveMetrics) {
-          spanData.span.setAttribute('cognitive.plugin.metacognitive_awareness', result.cognitiveMetrics.metacognitive_awareness || 0);
-          spanData.span.setAttribute('cognitive.plugin.creative_pressure', result.cognitiveMetrics.creative_pressure || 0);
-          spanData.span.setAttribute('cognitive.plugin.breakthrough_likelihood', result.cognitiveMetrics.breakthrough_likelihood || 0);
+          spanData.span.setAttribute(
+            'cognitive.plugin.metacognitive_awareness',
+            result.cognitiveMetrics.metacognitive_awareness || 0
+          );
+          spanData.span.setAttribute(
+            'cognitive.plugin.creative_pressure',
+            result.cognitiveMetrics.creative_pressure || 0
+          );
+          spanData.span.setAttribute(
+            'cognitive.plugin.breakthrough_likelihood',
+            result.cognitiveMetrics.breakthrough_likelihood || 0
+          );
         }
       }
-      
+
       // Add any additional metrics passed from the plugin
       if (metrics) {
         Object.entries(metrics).forEach(([key, value]) => {
           spanData.span.setAttribute(`cognitive.plugin.metric.${key}`, value as any);
         });
       }
-      
+
       // Record histogram metric
       this.pluginLatencyHistogram.record(actualDuration, {
         plugin: pluginName,
         success: String(success),
       });
-      
+
       spanData.span.end();
       this.activePluginSpans.delete(pluginName);
     }
@@ -220,13 +234,13 @@ export class CognitiveInstrumentation {
     if (!this.config.isEnabled()) return;
 
     const { type, insightPotential, confidence, description, context, sessionId } = data;
-    
+
     // Increment counter
     this.breakthroughCounter.add(1, {
       type,
       confidence_level: confidence > 0.8 ? 'high' : confidence > 0.5 ? 'medium' : 'low',
     });
-    
+
     const span = this.tracer.startSpan('cognitive.breakthrough', {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -262,16 +276,16 @@ export class CognitiveInstrumentation {
   private onMetacognitiveReflection(data: any): void {
     if (!this.config.isEnabled()) return;
 
-    const { 
-      awareness, 
-      biasDetected, 
-      correctionApplied, 
-      reflectionDepth, 
+    const {
+      awareness,
+      biasDetected,
+      correctionApplied,
+      reflectionDepth,
       sessionId,
       cognitiveMetrics,
       biasTypes,
       interventions,
-      selfAssessment 
+      selfAssessment,
     } = data;
 
     const span = this.tracer.startSpan('cognitive.metacognitive.reflection', {
@@ -307,7 +321,7 @@ export class CognitiveInstrumentation {
       currentSpan.setAttribute('cognitive.metacognitive_awareness', awareness);
       currentSpan.setAttribute('cognitive.reflection_depth', reflectionDepth);
       currentSpan.setAttribute('cognitive.bias_correction_active', correctionApplied);
-      
+
       currentSpan.addEvent('cognitive.metacognitive.reflection', {
         biasDetected,
         correctionApplied,
@@ -322,14 +336,24 @@ export class CognitiveInstrumentation {
   private onPersonaSwitched(data: any): void {
     if (!this.config.isEnabled()) return;
 
-    const { fromPersona, toPersona, reason, confidence, sessionId, complexity, domain, activePersonaCount, personaMetrics } = data;
-    
+    const {
+      fromPersona,
+      toPersona,
+      reason,
+      confidence,
+      sessionId,
+      complexity,
+      domain,
+      activePersonaCount,
+      personaMetrics,
+    } = data;
+
     // Increment counter
     this.personaSwitchCounter.add(1, {
       from: fromPersona,
       to: toPersona,
     });
-    
+
     // Record persona contribution
     if (confidence !== undefined) {
       this.personaContributionHistogram.record(confidence * 100, {
@@ -344,7 +368,7 @@ export class CognitiveInstrumentation {
       currentSpan.setAttribute('cognitive.persona_count', activePersonaCount || 1);
       currentSpan.setAttribute('cognitive.context_complexity', complexity || 0);
       currentSpan.setAttribute('cognitive.context_domain', domain || 'general');
-      
+
       currentSpan.addEvent('cognitive.persona.switched', {
         from: fromPersona,
         to: toPersona,
@@ -358,23 +382,23 @@ export class CognitiveInstrumentation {
         persona_contribution_score: personaMetrics?.contribution || 0,
       });
     }
-    
+
     this.updateSessionStats(sessionId, 'persona_switch', toPersona);
   }
 
   private onThoughtProcessed(data: any): void {
     if (!this.config.isEnabled()) return;
 
-    const { 
-      thoughtNumber, 
-      totalThoughts, 
-      complexity, 
+    const {
+      thoughtNumber,
+      totalThoughts,
+      complexity,
       processingTime,
       sessionId,
       cognitiveState,
       memoryStats,
       activePlugins,
-      insightCount 
+      insightCount,
     } = data;
 
     const currentSpan = trace.getActiveSpan();
@@ -383,26 +407,53 @@ export class CognitiveInstrumentation {
       currentSpan.setAttribute('cognitive.total_thoughts', totalThoughts);
       currentSpan.setAttribute('cognitive.thought_complexity', complexity || 0);
       currentSpan.setAttribute('cognitive.processing_time_ms', processingTime || 0);
-      
+
       // Include cognitive state metrics if available
       if (cognitiveState) {
-        currentSpan.setAttribute('cognitive.metacognitive_awareness', cognitiveState.metacognitive_awareness || 0);
-        currentSpan.setAttribute('cognitive.creative_pressure', cognitiveState.creative_pressure || 0);
-        currentSpan.setAttribute('cognitive.breakthrough_likelihood', cognitiveState.breakthrough_likelihood || 0);
-        currentSpan.setAttribute('cognitive.insight_potential', cognitiveState.insight_potential || 0);
-        currentSpan.setAttribute('cognitive.cognitive_flexibility', cognitiveState.cognitive_flexibility || 0);
-        currentSpan.setAttribute('cognitive.frustration_level', cognitiveState.frustration_level || 0);
-        currentSpan.setAttribute('cognitive.engagement_level', cognitiveState.engagement_level || 0);
-        currentSpan.setAttribute('cognitive.cognitive_efficiency', cognitiveState.cognitive_efficiency || 0);
+        currentSpan.setAttribute(
+          'cognitive.metacognitive_awareness',
+          cognitiveState.metacognitive_awareness || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.creative_pressure',
+          cognitiveState.creative_pressure || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.breakthrough_likelihood',
+          cognitiveState.breakthrough_likelihood || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.insight_potential',
+          cognitiveState.insight_potential || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.cognitive_flexibility',
+          cognitiveState.cognitive_flexibility || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.frustration_level',
+          cognitiveState.frustration_level || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.engagement_level',
+          cognitiveState.engagement_level || 0
+        );
+        currentSpan.setAttribute(
+          'cognitive.cognitive_efficiency',
+          cognitiveState.cognitive_efficiency || 0
+        );
       }
-      
+
       // Include memory statistics if available
       if (memoryStats) {
         currentSpan.setAttribute('memory.total_thoughts_stored', memoryStats.totalThoughts || 0);
         currentSpan.setAttribute('memory.patterns_recognized', memoryStats.patternsRecognized || 0);
-        currentSpan.setAttribute('memory.insights_accumulated', memoryStats.insightsAccumulated || 0);
+        currentSpan.setAttribute(
+          'memory.insights_accumulated',
+          memoryStats.insightsAccumulated || 0
+        );
       }
-      
+
       currentSpan.addEvent('cognitive.thought.processed', {
         thoughtNumber,
         totalThoughts,
@@ -420,7 +471,7 @@ export class CognitiveInstrumentation {
     if (!this.config.isEnabled()) return;
 
     const { insightType, value, impact, context, sessionId } = data;
-    
+
     // Increment counter
     this.insightCounter.add(1, {
       type: insightType,
@@ -437,7 +488,7 @@ export class CognitiveInstrumentation {
         'cognitive.session_id': sessionId || 'unknown',
       },
     });
-    
+
     span.addEvent('insight.analysis', {
       derived_from: context?.source || 'unknown',
       pattern_count: context?.patterns?.length || 0,
@@ -462,7 +513,7 @@ export class CognitiveInstrumentation {
     if (!this.config.isEnabled()) return;
 
     const { patternType, confidence, occurrences, context, sessionId } = data;
-    
+
     // Increment counter
     this.patternCounter.add(1, {
       type: patternType,
@@ -479,7 +530,7 @@ export class CognitiveInstrumentation {
         context_provided: !!context,
       });
     }
-    
+
     this.updateSessionStats(sessionId, 'pattern', patternType);
   }
 
@@ -495,13 +546,19 @@ export class CognitiveInstrumentation {
     const currentSpan = trace.getActiveSpan();
     if (currentSpan) {
       if (metrics.metacognitiveAwareness !== undefined) {
-        currentSpan.setAttribute('cognitive.metacognitive_awareness', metrics.metacognitiveAwareness);
+        currentSpan.setAttribute(
+          'cognitive.metacognitive_awareness',
+          metrics.metacognitiveAwareness
+        );
       }
       if (metrics.creativePressure !== undefined) {
         currentSpan.setAttribute('cognitive.creative_pressure', metrics.creativePressure);
       }
       if (metrics.breakthroughLikelihood !== undefined) {
-        currentSpan.setAttribute('cognitive.breakthrough_likelihood', metrics.breakthroughLikelihood);
+        currentSpan.setAttribute(
+          'cognitive.breakthrough_likelihood',
+          metrics.breakthroughLikelihood
+        );
       }
       if (metrics.insightPotential !== undefined) {
         currentSpan.setAttribute('cognitive.insight_potential', metrics.insightPotential);
@@ -514,15 +571,15 @@ export class CognitiveInstrumentation {
 
   private onCognitiveDeadlock(data: any): void {
     if (!this.config.isEnabled()) return;
-    
+
     const { reason, attemptedRecovery, sessionId, context } = data;
-    
+
     // Increment counter
     this.deadlockCounter.add(1, {
       reason: reason || 'unknown',
       recovered: String(attemptedRecovery || false),
     });
-    
+
     const currentSpan = trace.getActiveSpan();
     if (currentSpan) {
       currentSpan.addEvent('cognitive.deadlock.detected', {
@@ -532,15 +589,15 @@ export class CognitiveInstrumentation {
         severity: 'high',
       });
     }
-    
+
     this.updateSessionStats(sessionId, 'deadlock', reason);
   }
-  
+
   private onDecisionMade(data: any): void {
     if (!this.config.isEnabled()) return;
-    
+
     const { decisionType, selected, alternatives, confidence, reasoning, sessionId } = data;
-    
+
     const currentSpan = trace.getActiveSpan();
     if (currentSpan) {
       currentSpan.addEvent('cognitive.decision.made', {
@@ -552,15 +609,15 @@ export class CognitiveInstrumentation {
         decision_complexity: this.calculateDecisionComplexity(alternatives, confidence),
       });
     }
-    
+
     this.updateSessionStats(sessionId, 'decision', decisionType);
   }
-  
+
   private onMemoryAccessed(data: any): void {
     if (!this.config.isEnabled()) return;
-    
-    const { operation, key, found, latency, sessionId, memoryStats, cacheStats, resultSize } = data;
-    
+
+    const { operation, key, found, latency, memoryStats, cacheStats, resultSize } = data;
+
     const currentSpan = trace.getActiveSpan();
     if (currentSpan) {
       // Add memory operation metrics
@@ -569,7 +626,7 @@ export class CognitiveInstrumentation {
         currentSpan.setAttribute('memory.cache_size', memoryStats.cacheSize || 0);
         currentSpan.setAttribute('memory.hit_rate', memoryStats.hitRate || 0);
       }
-      
+
       currentSpan.addEvent('cognitive.memory.accessed', {
         operation,
         key,
@@ -583,37 +640,47 @@ export class CognitiveInstrumentation {
       });
     }
   }
-  
+
   private calculateSignificance(potential: number, confidence: number): string {
     const score = potential * confidence;
     if (score > 0.7) return 'high';
     if (score > 0.4) return 'medium';
     return 'low';
   }
-  
+
   private calculatePatternSignificance(occurrences: number, confidence: number): string {
     if (occurrences > 10 && confidence > 0.8) return 'very_high';
     if (occurrences > 5 && confidence > 0.6) return 'high';
     if (occurrences > 2 && confidence > 0.4) return 'medium';
     return 'low';
   }
-  
+
   private classifyTransition(from: string, to: string): string {
     const analytical = ['Engineer', 'Analyst', 'Skeptic'];
     const creative = ['Creative', 'Philosopher', 'Synthesizer'];
     const practical = ['Pragmatist', 'Strategist'];
-    
-    const fromType = analytical.includes(from) ? 'analytical' : 
-                    creative.includes(from) ? 'creative' : 'practical';
-    const toType = analytical.includes(to) ? 'analytical' : 
-                  creative.includes(to) ? 'creative' : 'practical';
-    
+
+    const fromType = analytical.includes(from)
+      ? 'analytical'
+      : creative.includes(from)
+        ? 'creative'
+        : practical.includes(from)
+          ? 'practical'
+          : 'other';
+    const toType = analytical.includes(to)
+      ? 'analytical'
+      : creative.includes(to)
+        ? 'creative'
+        : practical.includes(to)
+          ? 'practical'
+          : 'other';
+
     if (fromType === toType) return 'within_category';
     if (fromType === 'analytical' && toType === 'creative') return 'analytical_to_creative';
     if (fromType === 'creative' && toType === 'analytical') return 'creative_to_analytical';
     return 'mode_shift';
   }
-  
+
   private calculateDecisionComplexity(alternatives: any[], confidence: number): string {
     if (!alternatives || alternatives.length === 0) return 'simple';
     if (alternatives.length > 5 && confidence < 0.5) return 'very_complex';
@@ -621,10 +688,14 @@ export class CognitiveInstrumentation {
     if (alternatives.length > 1) return 'moderate';
     return 'simple';
   }
-  
-  private updateSessionStats(sessionId: string | undefined, eventType: string, detail: string): void {
+
+  private updateSessionStats(
+    sessionId: string | undefined,
+    eventType: string,
+    detail: string
+  ): void {
     if (!sessionId) return;
-    
+
     if (!this.sessionStats.has(sessionId)) {
       this.sessionStats.set(sessionId, {
         startTime: Date.now(),
@@ -635,23 +706,23 @@ export class CognitiveInstrumentation {
         patterns: 0,
       });
     }
-    
+
     const stats = this.sessionStats.get(sessionId);
     stats.events[eventType] = (stats.events[eventType] || 0) + 1;
-    
+
     if (eventType === 'persona_switch') stats.personas.add(detail);
     if (eventType === 'insight') stats.insights++;
     if (eventType === 'breakthrough') stats.breakthroughs++;
     if (eventType === 'pattern') stats.patterns++;
   }
-  
+
   public createSessionSummary(sessionId: string): void {
     const stats = this.sessionStats.get(sessionId);
     if (!stats) return;
-    
+
     const duration = Date.now() - stats.startTime;
     const memoryUsage = process.memoryUsage();
-    
+
     const span = this.tracer.startSpan('cognitive.session.summary', {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -667,12 +738,17 @@ export class CognitiveInstrumentation {
         'cognitive.plugin_activations': stats.events.plugin_activation || 0,
         'cognitive.persona_switches': stats.events.persona_switch || 0,
         // Performance metrics
-        'performance.thoughts_per_second': stats.events.thought_processed ? 
-          (stats.events.thought_processed / (duration / 1000)) : 0,
-        'performance.insights_per_thought': stats.insights > 0 && stats.events.thought_processed > 0 ? 
-          (stats.insights / stats.events.thought_processed) : 0,
-        'performance.breakthrough_rate': stats.breakthroughs > 0 && stats.events.thought_processed > 0 ?
-          (stats.breakthroughs / stats.events.thought_processed) : 0,
+        'performance.thoughts_per_second': stats.events.thought_processed
+          ? stats.events.thought_processed / (duration / 1000)
+          : 0,
+        'performance.insights_per_thought':
+          stats.insights > 0 && stats.events.thought_processed > 0
+            ? stats.insights / stats.events.thought_processed
+            : 0,
+        'performance.breakthrough_rate':
+          stats.breakthroughs > 0 && stats.events.thought_processed > 0
+            ? stats.breakthroughs / stats.events.thought_processed
+            : 0,
         // Resource usage
         'resource.final_heap_mb': memoryUsage.heapUsed / 1048576,
         'resource.final_rss_mb': memoryUsage.rss / 1048576,
@@ -682,7 +758,7 @@ export class CognitiveInstrumentation {
         'cognitive.diversity_score': this.calculateDiversityScore(stats),
       },
     });
-    
+
     span.addEvent('session.cognitive_summary', {
       personas_used: Array.from(stats.personas).join(', '),
       dominant_events: JSON.stringify(stats.events),
@@ -690,28 +766,30 @@ export class CognitiveInstrumentation {
       session_effectiveness: this.calculateSessionEffectiveness(stats, duration),
       total_events: Object.values(stats.events).reduce((sum: number, count: any) => sum + count, 0),
     });
-    
+
     span.end();
     this.sessionStats.delete(sessionId);
   }
-  
+
   private calculateDiversityScore(stats: any): number {
     // Calculate diversity based on number of different event types and personas used
     const eventDiversity = Object.keys(stats.events).length / 10; // Normalize by expected max types
     const personaDiversity = stats.personas.size / 8; // Normalize by total personas
     return Math.min((eventDiversity + personaDiversity) / 2, 1);
   }
-  
+
   private calculateSessionEffectiveness(stats: any, duration: number): string {
-    const score = (stats.insights * 2 + stats.breakthroughs * 3 + stats.patterns) / (duration / 60000); // per minute
+    const score =
+      (stats.insights * 2 + stats.breakthroughs * 3 + stats.patterns) / (duration / 60000); // per minute
     if (score > 5) return 'highly_effective';
     if (score > 2) return 'effective';
     if (score > 0.5) return 'moderate';
     return 'low';
   }
-  
+
   private calculateCognitiveRichness(stats: any): string {
-    const score = (stats.insights * 2 + stats.breakthroughs * 3 + stats.patterns + stats.personas.size);
+    const score =
+      stats.insights * 2 + stats.breakthroughs * 3 + stats.patterns + stats.personas.size;
     if (score > 20) return 'very_rich';
     if (score > 10) return 'rich';
     if (score > 5) return 'moderate';
@@ -722,16 +800,16 @@ export class CognitiveInstrumentation {
     if (this.orchestrator) {
       this.orchestrator.removeAllListeners();
       this.orchestrator = null;
-      
+
       this.activePluginSpans.forEach(spanData => spanData.span.end());
       this.activePluginSpans.clear();
-      
+
       // Create final summaries for all active sessions
       this.sessionStats.forEach((_, sessionId) => {
         this.createSessionSummary(sessionId);
       });
-      
-      console.error('🧠 Cognitive instrumentation detached from orchestrator');
+
+      // Cognitive instrumentation detached from orchestrator
     }
   }
 }
